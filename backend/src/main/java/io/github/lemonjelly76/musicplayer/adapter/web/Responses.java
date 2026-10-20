@@ -96,6 +96,9 @@ final class Responses {
     record CategoryTracking(String categoryId, String name, boolean enabled, boolean overridden) {
     }
 
+    record ServiceResponse(String service, boolean configured) {
+    }
+
     record ConnectResponse(String service, String url) {
     }
 

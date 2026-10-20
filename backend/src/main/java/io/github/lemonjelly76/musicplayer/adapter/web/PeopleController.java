@@ -1,14 +1,17 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.adapter.web.Requests.ServiceRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.TrackingRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.CategoryResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.CategoryTracking;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.PersonResponse;
+import io.github.lemonjelly76.musicplayer.adapter.web.Responses.ServiceResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.TrackingResponse;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.PlayService;
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +49,26 @@ class PeopleController {
                 .map(person -> PersonResponse.from(person, providers.forPerson(person)
                         .map(provider -> provider.connected(person.id())).orElse(false)))
                 .toList();
+    }
+
+    /**
+     * The services the server is registered with; a person can only connect one of these.
+     */
+    @GetMapping("/services")
+    List<ServiceResponse> services() {
+        return Arrays.stream(Provider.values())
+                .map(service -> new ServiceResponse(service.prefix(), providers.find(service).isPresent()))
+                .toList();
+    }
+
+    @PutMapping("/people/{id}/service")
+    PersonResponse setService(@PathVariable String id, @RequestBody ServiceRequest request) {
+        Person person = people.get(PersonId.of(id));
+        Optional<Provider> service = Optional.ofNullable(request.service()).filter(text -> !text.isBlank())
+                .map(Provider::parse);
+        Person changed = people.update(person.withProvider(service));
+        return PersonResponse.from(changed, providers.forPerson(changed)
+                .map(provider -> provider.connected(changed.id())).orElse(false));
     }
 
     @GetMapping("/categories")

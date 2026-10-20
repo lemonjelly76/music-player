@@ -14,6 +14,12 @@ final class Requests {
     }
 
     /**
+     * A null or empty service leaves the person without one.
+     */
+    record ServiceRequest(String service) {
+    }
+
+    /**
      * A category with {@code enabled} null follows the person's own setting again.
      */
     record TrackingRequest(String categoryId, Boolean enabled) {
