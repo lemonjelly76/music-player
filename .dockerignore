@@ -1,0 +1,8 @@
+.env
+.env.*
+.git
+.idea
+backend/target
+android/.gradle
+android/build
+android/app/build
