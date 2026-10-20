@@ -11,13 +11,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,41 +23,37 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import io.github.lemonjelly76.musicplayer.data.Pick
 import io.github.lemonjelly76.musicplayer.data.Verdict
+import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 @Composable
 fun PicksScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
-    val tabs = listOf(GENERAL to "All") + ui.categories.map { it.id to it.name }
-    val selected = tabs.indexOfFirst { it.first == ui.tab }.coerceAtLeast(0)
-    Column {
-        PrimaryScrollableTabRow(selectedTabIndex = selected, edgePadding = 16.dp) {
-            tabs.forEach { (id, name) ->
-                Tab(selected = id == ui.tab, onClick = { viewModel.chooseTab(id) }, text = { Text(name) })
-            }
-        }
-        val list = ui.list
-        if (list == null) {
-            Empty(if (ui.person == null) "Add someone through Claude first, with add_person."
-            else "No picks here yet. Ask Claude for ${ui.person?.name}'s ${tabs[selected].second.lowercase()} picks.")
-            return
-        }
-        LazyColumn(Modifier.fillMaxWidth()) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(list.name, style = MaterialTheme.typography.titleLarge)
-                        Text(list.createdAt.take(10), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    list.playlistLink?.let { link ->
-                        FilledTonalButton(onClick = { open(link) }) {
-                            Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null)
-                            Text("Play in ${serviceName(link)}", Modifier.padding(start = 6.dp))
-                        }
+    val list = ui.list
+    if (list == null) {
+        val scope = ui.chosenCategory?.name?.lowercase() ?: "general"
+        Empty(when {
+            ui.loading -> "Loading…"
+            ui.person == null -> "Add someone through Claude first, e.g. \"Add me as Craig\"."
+            else -> "No $scope picks for ${ui.person?.name} yet. Ask Claude for some."
+        })
+        return
+    }
+    LazyColumn(Modifier.fillMaxWidth()) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(list.name, style = MaterialTheme.typography.titleLarge)
+                    Text(list.createdAt.take(10), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                list.playlistLink?.let { link ->
+                    FilledTonalButton(onClick = { open(link) }) {
+                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null)
+                        Text("Play in ${serviceOfLink(link)}", Modifier.padding(start = 6.dp))
                     }
                 }
             }
-            items(list.picks, key = { it.id }) { pick -> PickCard(pick, viewModel, open) }
         }
+        items(list.picks, key = { it.id }) { pick -> PickCard(pick, viewModel, open) }
     }
 }
 
@@ -68,7 +61,10 @@ fun PicksScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
 private fun PickCard(pick: Pick, viewModel: MainViewModel, open: (String) -> Unit) {
     AlbumCard(pick.album) {
         Text(pick.reason, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
-        if (pick.wildcard) AssistChip(onClick = {}, label = { Text("Wildcard") })
+        if (pick.wildcard) {
+            Text("Wildcard: Claude's own idea", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary)
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Verdict.entries.forEach { verdict ->
                 FilterChip(
@@ -82,7 +78,7 @@ private fun PickCard(pick: Pick, viewModel: MainViewModel, open: (String) -> Uni
             pick.album.link?.let { link ->
                 TextButton(onClick = { open(link) }) {
                     Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                    Text("Open in ${serviceName(link)}", Modifier.padding(start = 6.dp))
+                    Text("Open in ${serviceOfLink(link)}", Modifier.padding(start = 6.dp))
                 }
             }
             TextButton(onClick = { viewModel.moreLikeThis(pick.album) }) { Text("More like this") }

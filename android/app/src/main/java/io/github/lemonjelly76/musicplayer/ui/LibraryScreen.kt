@@ -13,6 +13,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 @Composable
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
@@ -33,7 +34,7 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
                     entry.album.link?.let { link ->
                         TextButton(onClick = { open(link) }) {
                             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                            Text("Open in ${serviceName(link)}", Modifier.padding(start = 6.dp))
+                            Text("Open in ${serviceOfLink(link)}", Modifier.padding(start = 6.dp))
                         }
                     }
                     TextButton(onClick = { viewModel.moreLikeThis(entry.album) }) { Text("More like this") }

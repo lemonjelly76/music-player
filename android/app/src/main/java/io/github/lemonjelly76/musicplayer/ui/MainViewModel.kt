@@ -5,22 +5,27 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.lemonjelly76.musicplayer.data.Album
 import io.github.lemonjelly76.musicplayer.data.ApiClient
+import io.github.lemonjelly76.musicplayer.data.ApiException
 import io.github.lemonjelly76.musicplayer.data.Candidate
 import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.ServerSettings
+import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.SettingsStore
 import io.github.lemonjelly76.musicplayer.data.Tracking
 import io.github.lemonjelly76.musicplayer.data.Verdict
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** "All" picks are the person's general list, which the server files under no category. */
+/** "All" is the person's general list, which the server files under no category. */
 const val GENERAL = "none"
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
@@ -30,15 +35,22 @@ data class UiState(
     val people: List<Person> = emptyList(),
     val personId: String? = null,
     val categories: List<Category> = emptyList(),
-    val tab: String = GENERAL,
+    val services: List<Service> = emptyList(),
+    /** The chosen category's id, or [GENERAL]. */
+    val category: String = GENERAL,
+    /** Whether the server answered with the saved login, so its settings can fold away. */
+    val serverConnected: Boolean = false,
     val list: PickList? = null,
     val library: List<LibraryAlbum> = emptyList(),
     val tracking: Tracking? = null,
     val moreLikeThis: MoreLikeThis? = null,
     val loading: Boolean = false,
     val message: String? = null,
+    /** A sign-in page the screen should open in the browser, then clear. */
+    val pendingLink: String? = null,
 ) {
     val person: Person? get() = people.firstOrNull { it.id == personId }
+    val chosenCategory: Category? get() = categories.firstOrNull { it.id == category }
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -48,18 +60,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val ui: StateFlow<UiState> = state.asStateFlow()
 
     private val api get() = ApiClient(state.value.server)
+    private var running = 0
 
-    fun saveServer(settings: ServerSettings) {
+    fun saveServer(entered: ServerSettings) {
+        val settings = entered.normalised()
         store.saveServer(settings)
-        state.update { it.copy(server = settings) }
+        state.update { it.copy(server = settings, serverConnected = false) }
         refresh()
     }
 
     fun refresh() = load {
-        val people = api.people()
-        val categories = api.categories()
+        val (people, categories, services) = coroutineScope {
+            val people = async { api.people() }
+            val categories = async { api.categories() }
+            // Only Settings needs these, so a server without the endpoint still shows picks.
+            val services = async { runCatching { api.services() }.getOrDefault(emptyList()) }
+            Triple(people.await(), categories.await(), services.await())
+        }
         val chosen = people.firstOrNull { it.id == state.value.personId } ?: people.firstOrNull()
-        state.update { it.copy(people = people, categories = categories, personId = chosen?.id) }
+        val category = state.value.category.takeIf { id -> id == GENERAL || categories.any { it.id == id } } ?: GENERAL
+        state.update {
+            it.copy(people = people, categories = categories, services = services, personId = chosen?.id,
+                category = category, serverConnected = true)
+        }
         chosen?.let { loadPerson(it.id) }
     }
 
@@ -69,9 +92,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadPerson(id)
     }
 
-    fun chooseTab(tab: String) = load {
-        state.update { it.copy(tab = tab, list = null) }
+    fun chooseCategory(category: String) = load {
+        state.update { it.copy(category = category, list = null) }
         loadList()
+    }
+
+    /**
+     * Sets the person's streaming service; they then connect their own account to it. The choice shows at once, and
+     * a reply to an earlier, overtaken tap is ignored.
+     */
+    fun chooseService(service: String) {
+        val personId = state.value.personId ?: return
+        replacePerson(personId) { it.copy(service = service, connected = false) }
+        load {
+            val changed = api.setService(personId, service)
+            if (state.value.people.firstOrNull { it.id == personId }?.service == service) {
+                replacePerson(personId) { changed }
+            }
+        }
+    }
+
+    private fun replacePerson(id: String, change: (Person) -> Person) = state.update { current ->
+        current.copy(people = current.people.map { if (it.id == id) change(it) else it })
     }
 
     fun feedback(pickId: String, verdict: Verdict) = load {
@@ -89,7 +131,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         state.update { it.copy(moreLikeThis = MoreLikeThis(album, true, emptyList())) }
         load {
             val candidates = api.moreLikeThis(personId, album.artist, album.title)
-            state.update { it.copy(moreLikeThis = MoreLikeThis(album, false, candidates)) }
+            // Closed or replaced while loading: leave it closed.
+            state.update {
+                if (it.moreLikeThis?.seed == album) it.copy(moreLikeThis = MoreLikeThis(album, false, candidates)) else it
+            }
         }
     }
 
@@ -108,41 +153,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         state.update { it.copy(tracking = tracking) }
     }
 
-    /** The sign-in page for the person's streaming service, for the activity to open in the browser. */
-    fun connect(open: (String) -> Unit) = load {
+    /** Asks for the sign-in page for the person's streaming service, which the screen then opens. */
+    fun connect() = load {
         val personId = state.value.personId ?: return@load
-        open(api.connectUrl(personId))
+        val link = api.connectUrl(personId)
+        state.update { it.copy(pendingLink = link) }
     }
+
+    fun linkOpened() = state.update { it.copy(pendingLink = null) }
 
     fun clearMessage() = state.update { it.copy(message = null) }
 
     private suspend fun loadPerson(id: String) {
-        state.update { it.copy(tracking = api.tracking(id)) }
+        val tracking = api.tracking(id)
+        state.update { if (it.personId == id) it.copy(tracking = tracking) else it }
         reloadLibrary(id)
         loadList()
     }
 
+    /**
+     * Answers can arrive after the person or category has changed again; only the latest choice's answer is kept.
+     */
     private suspend fun loadList() {
         val personId = state.value.personId ?: return
-        val list = api.lists(personId, state.value.tab).firstOrNull()
-        state.update { it.copy(list = list) }
+        val category = state.value.category
+        val list = api.lists(personId, category).firstOrNull()
+        state.update { if (it.personId == personId && it.category == category) it.copy(list = list) else it }
     }
 
     private suspend fun reloadLibrary(personId: String) {
         val library = api.library(personId)
-        state.update { it.copy(library = library) }
+        state.update { if (it.personId == personId) it.copy(library = library) else it }
     }
 
-    /** Runs a server call, showing progress and turning failures into a message. */
+    /**
+     * Runs a server call, showing progress while any call is running and turning failures into a message. Calls
+     * all run on the main thread, so the count needs no locking.
+     */
     private fun load(block: suspend () -> Unit) {
         viewModelScope.launch {
+            running++
             state.update { it.copy(loading = true) }
             try {
                 block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                state.update { it.copy(message = e.message, serverConnected = it.serverConnected && !e.unauthorized) }
             } catch (e: Exception) {
                 state.update { it.copy(message = e.message ?: "Something went wrong") }
             } finally {
-                state.update { it.copy(loading = false) }
+                running--
+                state.update { it.copy(loading = running > 0) }
             }
         }
     }

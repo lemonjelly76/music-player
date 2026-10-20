@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 /** Instant suggestions from the server's ranked pool; no model is asked (R15). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,14 +26,14 @@ fun MoreLikeThisSheet(state: MoreLikeThis, viewModel: MainViewModel, open: (Stri
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
         if (!state.loading && state.candidates.isEmpty()) Empty("Nothing new found for this one.")
         LazyColumn {
-            items(state.candidates, key = { it.album.ref }) { candidate ->
+            items(state.candidates) { candidate ->
                 AlbumCard(candidate.album) {
                     Text("Suggested by ${candidate.sources.joinToString()}", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row {
                         TextButton(onClick = { viewModel.addToLibrary(candidate.album) }) { Text("I like it") }
                         candidate.album.link?.let { link ->
-                            TextButton(onClick = { open(link) }) { Text("Open in ${serviceName(link)}") }
+                            TextButton(onClick = { open(link) }) { Text("Open in ${serviceOfLink(link)}") }
                         }
                     }
                 }

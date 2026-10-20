@@ -4,12 +4,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.MalformedURLException
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder
+import java.net.UnknownHostException
 import java.util.Base64
 
-class ApiException(message: String) : IOException(message)
+/** A failed server call; [unauthorized] when the server refused the saved login. */
+class ApiException(message: String, val unauthorized: Boolean = false) : IOException(message)
 
 /**
  * The server's REST API, signed in with the household login. The app only reads what the model wrote and records
@@ -18,6 +23,11 @@ class ApiException(message: String) : IOException(message)
 class ApiClient(private val settings: ServerSettings) {
 
     suspend fun people(): List<Person> = Json.people(get("/api/people"))
+
+    suspend fun services(): List<Service> = Json.services(get("/api/services"))
+
+    suspend fun setService(personId: String, service: String): Person =
+        Json.person(send("PUT", "/api/people/$personId/service", JSONObject().put("service", service)))
 
     suspend fun categories(): List<Category> = Json.categories(get("/api/categories"))
 
@@ -49,6 +59,18 @@ class ApiClient(private val settings: ServerSettings) {
     private suspend fun get(path: String): String = send("GET", path, null)
 
     private suspend fun send(method: String, path: String, body: JSONObject?): String = withContext(Dispatchers.IO) {
+        try {
+            exchange(method, path, body)
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: MalformedURLException) {
+            throw ApiException("The server address \"${settings.serverUrl}\" is not a web address; check Settings")
+        } catch (e: IOException) {
+            throw ApiException(unreachable(e))
+        }
+    }
+
+    private fun exchange(method: String, path: String, body: JSONObject?): String {
         val connection = (URL(settings.serverUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 10_000
@@ -65,12 +87,18 @@ class ApiClient(private val settings: ServerSettings) {
             val status = connection.responseCode
             val stream = if (status < 400) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (status == 401) throw ApiException("The server did not accept the login; check Settings")
+            if (status == 401) throw ApiException("The server did not accept the login; check Settings", unauthorized = true)
             if (status >= 400) throw ApiException(Json.errorMessage(text) ?: "The server answered $status")
-            text
+            return text
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun unreachable(e: IOException): String = when (e) {
+        is UnknownHostException, is ConnectException, is SocketTimeoutException ->
+            "Can't reach the server at ${settings.serverUrl}. Is Tailscale on?"
+        else -> e.message ?: "Can't reach the server"
     }
 
     companion object {

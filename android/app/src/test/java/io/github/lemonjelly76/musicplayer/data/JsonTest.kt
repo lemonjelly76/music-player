@@ -67,4 +67,34 @@ class JsonTest {
     fun signsInWithBasicAuth() {
         assertEquals("Basic dGVzdGVyOnNlY3JldA==", ApiClient.basic("tester", "secret"))
     }
+
+    @Test
+    fun readsWhichServicesTheServerIsSetUpFor() {
+        val services = Json.services("""[{"service":"tidal","configured":true},{"service":"spotify","configured":false}]""")
+
+        assertEquals(listOf(Service("tidal", true), Service("spotify", false)), services)
+        assertEquals("Spotify", services[1].label)
+    }
+
+    @Test
+    fun readsOnePerson() {
+        val person = Json.person("""{"id":"1","name":"Craig","service":"spotify","connected":false,"playTracking":true}""")
+
+        assertEquals("spotify", person.service)
+    }
+
+    @Test
+    fun aServerAddressWithoutASchemeIsTakenAsHttps() {
+        assertEquals(ServerSettings("https://pc.tailnet.ts.net:8444", "jelly", " pw"),
+            ServerSettings(" pc.tailnet.ts.net:8444/ ", " jelly ", " pw").normalised())
+        assertEquals("http://192.168.1.2:8082", ServerSettings("http://192.168.1.2:8082", "a", "b").normalised().serverUrl)
+    }
+
+    @Test
+    fun namesServicesTheSameWayEverywhere() {
+        assertEquals("Spotify", Service("spotify", true).label)
+        assertEquals("Spotify", serviceOfLink("https://open.spotify.com/album/1"))
+        assertEquals("Tidal", serviceOfLink("https://tidal.com/browse/album/1"))
+        assertEquals("app", serviceOfLink("https://example.com/album/1"))
+    }
 }

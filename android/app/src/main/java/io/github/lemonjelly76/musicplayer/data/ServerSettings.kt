@@ -4,6 +4,16 @@ import android.content.Context
 
 data class ServerSettings(val serverUrl: String, val username: String, val password: String) {
     val complete: Boolean get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+
+    /**
+     * Trims what was typed and assumes HTTPS when no scheme is given: Android refuses plain HTTP, and the server is
+     * reached through Tailscale Serve's HTTPS address.
+     */
+    fun normalised(): ServerSettings {
+        val url = serverUrl.trim().trimEnd('/')
+        val withScheme = if (url.isEmpty() || url.contains("://")) url else "https://$url"
+        return ServerSettings(withScheme, username.trim(), password)
+    }
 }
 
 /**
@@ -22,8 +32,8 @@ class SettingsStore(context: Context) {
 
     fun saveServer(settings: ServerSettings) {
         preferences.edit()
-            .putString(SERVER_URL, settings.serverUrl.trim())
-            .putString(USERNAME, settings.username.trim())
+            .putString(SERVER_URL, settings.serverUrl)
+            .putString(USERNAME, settings.username)
             .putString(PASSWORD, settings.password)
             .apply()
     }

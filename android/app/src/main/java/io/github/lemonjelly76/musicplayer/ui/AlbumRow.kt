@@ -34,10 +34,3 @@ fun AlbumCard(album: Album, content: @Composable ColumnScope.() -> Unit) {
         }
     }
 }
-
-/** Where a streaming link opens, for its button label. */
-fun serviceName(link: String): String = when {
-    "tidal" in link -> "Tidal"
-    "spotify" in link -> "Spotify"
-    else -> "app"
-}

@@ -13,6 +13,25 @@ data class Person(
 
 data class Category(val id: String, val name: String, val rules: String)
 
+/** A streaming service and whether the server is registered with it, so people can connect it. */
+data class Service(val name: String, val configured: Boolean) {
+    val label: String get() = serviceLabel(name)
+}
+
+/** The one place a service's display name comes from: "tidal" reads "Tidal". */
+fun serviceLabel(name: String): String = when (name) {
+    "tidal" -> "Tidal"
+    "spotify" -> "Spotify"
+    else -> name.replaceFirstChar { it.uppercase() }
+}
+
+/** The service a link opens in, for button labels such as "Open in Spotify". */
+fun serviceOfLink(link: String): String = when {
+    "tidal.com" in link -> serviceLabel("tidal")
+    "spotify.com" in link -> serviceLabel("spotify")
+    else -> "app"
+}
+
 /** An album as the server describes it; [link] opens it in the person's streaming app when it carries it. */
 data class Album(val ref: String, val artist: String, val title: String, val year: Int?, val link: String?)
 
@@ -58,14 +77,12 @@ data class Tracking(val enabled: Boolean, val categories: List<CategoryTracking>
 /** Reads the server's JSON. Missing optional fields read as null, so older servers still parse. */
 object Json {
 
-    fun people(text: String): List<Person> = array(text).map {
-        Person(
-            id = it.getString("id"),
-            name = it.getString("name"),
-            service = it.optStringOrNull("service"),
-            connected = it.optBoolean("connected"),
-            playTracking = it.optBoolean("playTracking", true),
-        )
+    fun people(text: String): List<Person> = array(text).map(::person)
+
+    fun person(text: String): Person = person(JSONObject(text))
+
+    fun services(text: String): List<Service> = array(text).map {
+        Service(it.getString("service"), it.optBoolean("configured"))
     }
 
     fun categories(text: String): List<Category> = array(text).map {
@@ -112,6 +129,14 @@ object Json {
     fun connectUrl(text: String): String = JSONObject(text).getString("url")
 
     fun errorMessage(text: String): String? = runCatching { JSONObject(text).optStringOrNull("message") }.getOrNull()
+
+    private fun person(json: JSONObject) = Person(
+        id = json.getString("id"),
+        name = json.getString("name"),
+        service = json.optStringOrNull("service"),
+        connected = json.optBoolean("connected"),
+        playTracking = json.optBoolean("playTracking", true),
+    )
 
     private fun pick(json: JSONObject) = Pick(
         id = json.getString("id"),
