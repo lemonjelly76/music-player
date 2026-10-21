@@ -107,6 +107,24 @@ data class Found(val album: Album, val rating: Rating?, val general: Boolean)
 
 data class Candidate(val album: Album, val score: Double, val sources: List<String>, val seeds: List<String>)
 
+/** An album the person played [plays] tracks from. */
+data class PlayedAlbum(val album: Album, val plays: Int)
+
+data class ArtistPlays(val name: String, val plays: Int, val albums: Int)
+
+/**
+ * What the person played over the last [days]: [tracks] across [albumCount] albums, and the most played. Nothing is
+ * there when [tracking] is off.
+ */
+data class Listening(
+    val tracking: Boolean,
+    val days: Int,
+    val tracks: Int,
+    val albumCount: Int,
+    val albums: List<PlayedAlbum>,
+    val artists: List<ArtistPlays>,
+)
+
 /** Whether the person's plays are counted; per-activity settings are Claude's to manage, so the app ignores them. */
 data class Tracking(val enabled: Boolean)
 
@@ -148,6 +166,17 @@ object Json {
             score = it.primitive("score")?.doubleOrNull ?: Double.NaN,
             sources = it.strings("sources"),
             seeds = it.strings("seeds"),
+        )
+    }
+
+    fun listening(text: String): Listening = obj(text).let { json ->
+        Listening(
+            tracking = json.boolean("tracking"),
+            days = json.int("days"),
+            tracks = json.int("tracks"),
+            albumCount = json.int("albumCount"),
+            albums = json.objects("albums").map { PlayedAlbum(album(it.obj("album")), it.int("plays")) },
+            artists = json.objects("artists").map { ArtistPlays(it.string("name"), it.int("plays"), it.int("albums")) },
         )
     }
 
@@ -206,6 +235,8 @@ object Json {
     private fun JsonObject.string(name: String): String = getValue(name).jsonPrimitive.content
 
     private fun JsonObject.stringOrNull(name: String): String? = primitive(name)?.content
+
+    private fun JsonObject.int(name: String): Int = primitive(name)?.intOrNull ?: 0
 
     private fun JsonObject.optString(name: String): String = stringOrNull(name).orEmpty()
 

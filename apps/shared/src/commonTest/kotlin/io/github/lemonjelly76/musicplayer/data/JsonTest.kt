@@ -2,6 +2,7 @@ package io.github.lemonjelly76.musicplayer.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -54,6 +55,29 @@ class JsonTest {
         assertTrue(known.general)
         assertEquals("Laughing Stock", new.album.title)
         assertNull(new.rating)
+    }
+
+    @Test
+    fun readsWhatThePersonPlayedMost() {
+        val listening = Json.listening("""
+            {"tracking":true,"days":28,"tracks":12,"albumCount":2,
+             "albums":[{"album":{"ref":"spotify:1","artist":"Air","title":"Moon Safari"},"plays":9}],
+             "artists":[{"name":"Air","plays":12,"albums":2}]}
+        """.trimIndent())
+
+        assertTrue(listening.tracking)
+        assertEquals(12, listening.tracks)
+        assertEquals(2, listening.albumCount)
+        assertEquals(PlayedAlbum(Album("spotify:1", "Air", "Moon Safari", null, null), 9), listening.albums.single())
+        assertEquals(ArtistPlays("Air", 12, 2), listening.artists.single())
+    }
+
+    @Test
+    fun readsThatCountingIsOff() {
+        val listening = Json.listening("""{"tracking":false,"days":28,"tracks":0,"albumCount":0}""")
+
+        assertFalse(listening.tracking)
+        assertTrue(listening.albums.isEmpty())
     }
 
     @Test

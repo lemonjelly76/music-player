@@ -84,6 +84,28 @@ object AppIcons {
         }
     }
 
+    val BarChart: ImageVector by lazy {
+        materialIcon(name = "Filled.BarChart") {
+            materialPath {
+                moveTo(4.0f, 9.0f)
+                horizontalLineToRelative(4.0f)
+                verticalLineToRelative(11.0f)
+                lineTo(4.0f, 20.0f)
+                close()
+                moveTo(16.0f, 13.0f)
+                horizontalLineToRelative(4.0f)
+                verticalLineToRelative(7.0f)
+                horizontalLineToRelative(-4.0f)
+                close()
+                moveTo(10.0f, 4.0f)
+                horizontalLineToRelative(4.0f)
+                verticalLineToRelative(16.0f)
+                horizontalLineToRelative(-4.0f)
+                close()
+            }
+        }
+    }
+
     val Bedtime: ImageVector by lazy {
         materialIcon(name = "Filled.Bedtime") {
             materialPath {

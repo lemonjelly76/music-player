@@ -81,6 +81,10 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         Json.candidates(get("api/people/$personId/more-like-this",
             "artist" to artist, "title" to title, "category" to category))
 
+    /** What the person played over the last [days], all of it in General or from the activity's picks. */
+    suspend fun listening(personId: String, category: String, days: Int): Listening =
+        Json.listening(get("api/people/$personId/plays", "category" to category, "days" to days.toString()))
+
     suspend fun tracking(personId: String): Tracking = Json.tracking(get("api/people/$personId/play-tracking"))
 
     /** The person's own switch, which every activity without a setting of its own follows. */

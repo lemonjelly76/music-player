@@ -37,7 +37,7 @@ import io.ktor.http.encodeURLParameter
 
 /**
  * Everything to put on for the chosen activity, as streaming apps lay out a home page: the pick lists as playlists,
- * the albums already loved or OK for it, and the newest picks to try and rate.
+ * the albums already loved or OK for it, what has been on repeat, and the newest picks to try and rate.
  */
 @Composable
 fun HomeScreen(
@@ -72,6 +72,15 @@ fun HomeScreen(
                     items(ui.library.take(ALBUMS_ON_HOME), key = { it.id }) { entry ->
                         AlbumTile(entry, viewModel, open, Modifier.width(140.dp), details = false)
                     }
+                }
+            }
+        }
+        ui.onRepeat?.albums?.takeIf { it.isNotEmpty() }?.let { played ->
+            val title = if (ui.chosenCategory == null) "On repeat" else "On repeat for ${ui.activityName}"
+            item { SectionTitle(title, action = "Your listening", onAction = viewModel::openListening) }
+            item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    items(played.take(ALBUMS_ON_HOME)) { PlayedTile(it, open, Modifier.width(140.dp)) }
                 }
             }
         }
@@ -129,7 +138,7 @@ private fun AskClaudeCard(activity: String, ask: () -> Unit) {
 }
 
 @Composable
-private fun SectionTitle(title: String, action: String? = null, onAction: () -> Unit = {}) {
+fun SectionTitle(title: String, action: String? = null, onAction: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 20.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

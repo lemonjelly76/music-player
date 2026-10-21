@@ -8,6 +8,9 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
+import io.github.lemonjelly76.musicplayer.domain.plays.ArtistPlays;
+import io.github.lemonjelly76.musicplayer.domain.plays.ListeningStats;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 
@@ -122,6 +125,34 @@ final class Responses {
         static CandidateResponse from(Candidate candidate, Function<AlbumRef, Optional<URI>> links) {
             return new CandidateResponse(AlbumResponse.from(candidate.album(), links), candidate.score(),
                     candidate.sources(), candidate.seeds());
+        }
+    }
+
+    /**
+     * What a person played over the last [days]; [tracking] is false, and everything empty, where counting is off.
+     */
+    record ListeningResponse(boolean tracking, int days, int tracks, int albumCount, List<PlayedAlbumResponse> albums,
+            List<ArtistResponse> artists) {
+
+        static ListeningResponse from(boolean tracking, int days, ListeningStats stats,
+                Function<AlbumRef, Optional<URI>> links) {
+            return new ListeningResponse(tracking, days, stats.tracks(), stats.albums(),
+                    stats.topAlbums().stream().map(total -> PlayedAlbumResponse.from(total, links)).toList(),
+                    stats.topArtists().stream().map(ArtistResponse::from).toList());
+        }
+    }
+
+    record PlayedAlbumResponse(AlbumResponse album, int plays, Instant lastPlayed) {
+
+        static PlayedAlbumResponse from(AlbumPlays total, Function<AlbumRef, Optional<URI>> links) {
+            return new PlayedAlbumResponse(AlbumResponse.from(total.album(), links), total.plays(), total.lastPlayed());
+        }
+    }
+
+    record ArtistResponse(String name, int plays, int albums) {
+
+        static ArtistResponse from(ArtistPlays artist) {
+            return new ArtistResponse(artist.artist(), artist.plays(), artist.albums());
         }
     }
 

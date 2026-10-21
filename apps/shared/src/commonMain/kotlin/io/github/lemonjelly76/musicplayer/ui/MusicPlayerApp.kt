@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -69,7 +70,13 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     var openListId by rememberSaveable { mutableStateOf<String?>(null) }
     val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
     val sorting = ui.sorting
-    val chooseScreen = { chosen: Screen -> screen = chosen; openListId = null; viewModel.stopSorting() }
+    val listening = ui.listening
+    val chooseScreen = { chosen: Screen ->
+        screen = chosen
+        openListId = null
+        viewModel.stopSorting()
+        viewModel.closeListening()
+    }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.pendingLink) {
@@ -92,10 +99,11 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         onPauseOrDispose { }
     }
 
-    SystemBack(enabled = settingsOpen || sorting != null || openList != null) {
+    SystemBack(enabled = settingsOpen || sorting != null || listening != null || openList != null) {
         when {
             settingsOpen -> settingsOpen = false
             sorting != null -> viewModel.stopSorting()
+            listening != null -> viewModel.closeListening()
             else -> openListId = null
         }
     }
@@ -126,6 +134,16 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                         },
                         colors = barColors,
                     )
+                } else if (listening != null) {
+                    TopAppBar(
+                        title = { Text("Your listening", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = viewModel::closeListening) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        colors = barColors,
+                    )
                 } else if (openList != null) {
                     TopAppBar(
                         title = { Text(openList.name, fontWeight = FontWeight.Bold) },
@@ -140,7 +158,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                     TopAppBar(
                         title = { Text(screen.label, fontWeight = FontWeight.Bold) },
                         actions = {
-                            PersonSwitcher(ui.people, ui.person, viewModel::choosePerson)
+                            PersonSwitcher(ui.people, ui.person, viewModel::choosePerson, viewModel::openListening)
                             IconButton(onClick = { settingsOpen = true }) {
                                 Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                             }
@@ -161,6 +179,10 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                     when {
                         settingsOpen -> SettingsScreen(ui, viewModel)
                         sorting != null -> SortScreen(sorting, ui.activityName, viewModel, open)
+                        listening != null -> Column {
+                            ActivityChips(activities(ui), ui.category, viewModel::chooseCategory)
+                            ListeningScreen(listening, ui, viewModel, open)
+                        }
                         openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
                         else -> Refreshable(ui.loading, viewModel::refresh) {
                             Column {
@@ -255,9 +277,12 @@ private fun activityIcon(kind: ActivityKind): ImageVector = when (kind) {
     ActivityKind.OTHER -> AppIcons.MusicNote
 }
 
-/** Whose music: the current person's initial in a circle, opening a list of everyone in the household. */
+/**
+ * Whose music: the current person's initial in a circle, opening a list of everyone in the household and, as in
+ * streaming apps' profile menus, what the current person has been listening to.
+ */
 @Composable
-private fun PersonSwitcher(people: List<Person>, current: Person?, choose: (String) -> Unit) {
+private fun PersonSwitcher(people: List<Person>, current: Person?, choose: (String) -> Unit, showListening: () -> Unit) {
     if (people.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -276,6 +301,15 @@ private fun PersonSwitcher(people: List<Person>, current: Person?, choose: (Stri
                     },
                 )
             }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Your listening") },
+                leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    showListening()
+                },
+            )
         }
     }
 }

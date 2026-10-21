@@ -48,7 +48,7 @@ import java.util.function.Function;
 class MusicController {
 
     static final int MAX_LIMIT = 50;
-    static final String GENERAL = "none";
+    static final String GENERAL = ActivityParameter.GENERAL;
     /**
      * Albums looked up on the person's service each time a screen opens, so ids and covers fill in a few at a time.
      */
@@ -191,9 +191,7 @@ class MusicController {
     }
 
     private Optional<Category> activity(String category) {
-        return category == null || category.isBlank() || category.equals(GENERAL)
-                ? Optional.empty()
-                : Optional.of(categories.find(category));
+        return ActivityParameter.resolve(categories, category);
     }
 
     private Function<AlbumRef, Optional<URI>> links(Person person) {

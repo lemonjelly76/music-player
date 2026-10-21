@@ -57,6 +57,14 @@ class ApiClientTest {
     }
 
     @Test
+    fun asksForPlaysOverAPeriodForTheActivity() = runTest {
+        client { json("""{"tracking":true,"days":182,"tracks":0,"albumCount":0}""") }.listening("1", "c1", 182)
+
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/plays?category=c1&days=182",
+            requests.single().url.toString())
+    }
+
+    @Test
     fun asksForTheAlbumsNotForThePersonAndThoseStillToSort() = runTest {
         val api = client { json("[]") }
 

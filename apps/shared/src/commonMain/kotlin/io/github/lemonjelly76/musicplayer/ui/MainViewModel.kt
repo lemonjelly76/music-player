@@ -10,6 +10,7 @@ import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.Found
 import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
+import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.ServerSettings
@@ -51,6 +52,10 @@ data class UiState(
     val toSort: List<LibraryAlbum> = emptyList(),
     val search: Search = Search(),
     val sorting: SortSession? = null,
+    /** What the person played most for the activity lately, for Home; null until it comes or if it fails. */
+    val onRepeat: Listening? = null,
+    /** The listening page, while it is open. */
+    val listening: ListeningPage? = null,
     val tracking: Tracking? = null,
     val moreLikeThis: MoreLikeThis? = null,
     val loading: Boolean = false,
@@ -103,6 +108,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         store.savePersonId(id)
         state.update {
             it.copy(personId = id, lists = emptyList(), tracking = null, sorting = null).withoutActivityAlbums()
+                .withoutListening()
         }
         coroutineScope {
             launch { loadPerson(id) }
@@ -112,16 +118,21 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     /** The activity every tab shows and rates for. */
     fun chooseCategory(category: String) = load {
-        state.update { it.copy(category = category, lists = emptyList(), sorting = null).withoutActivityAlbums() }
+        state.update {
+            it.copy(category = category, lists = emptyList(), sorting = null).withoutActivityAlbums().withoutListening()
+        }
         coroutineScope {
             launch { loadLists() }
             launch { state.value.personId?.let { reloadLibrary(it) } }
             launch { searchAgain() }
+            launch { loadListening() }
         }
     }
 
     private fun UiState.withoutActivityAlbums() =
         copy(library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
+
+    private fun UiState.withoutListening() = copy(onRepeat = null, listening = listening?.copy(stats = null))
 
     /**
      * Sets the person's streaming service; they then connect their own account to it. The choice shows at once, and
@@ -203,6 +214,19 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     fun stopSorting() = state.update { it.copy(sorting = null) }
 
+    /** Opens the listening page for the chosen activity, over the last four weeks to begin with. */
+    fun openListening() {
+        state.update { it.copy(listening = ListeningPage()) }
+        load { loadListeningPage() }
+    }
+
+    fun choosePeriod(period: Period) {
+        state.update { it.copy(listening = ListeningPage(period)) }
+        load { loadListeningPage() }
+    }
+
+    fun closeListening() = state.update { it.copy(listening = null) }
+
     fun moreLikeThis(album: Album) {
         val personId = state.value.personId ?: return
         state.update { it.copy(moreLikeThis = MoreLikeThis(album, true, emptyList())) }
@@ -240,6 +264,37 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         state.update { if (it.personId == id) it.copy(tracking = tracking) else it }
         reloadLibrary(id)
         loadLists()
+        loadListening()
+    }
+
+    private suspend fun loadListening() = coroutineScope {
+        launch { loadOnRepeat() }
+        launch { loadListeningPage() }
+    }
+
+    /** Only Home's shelf needs this, so a server without play stats still shows everything else. */
+    private suspend fun loadOnRepeat() {
+        val personId = state.value.personId ?: return
+        val category = state.value.category
+        val listening = try {
+            api.listening(personId, category, Period.MONTH.days)
+        } catch (e: ApiException) {
+            return
+        }
+        state.update { if (it.personId == personId && it.category == category) it.copy(onRepeat = listening) else it }
+    }
+
+    private suspend fun loadListeningPage() {
+        val personId = state.value.personId ?: return
+        val period = state.value.listening?.period ?: return
+        val category = state.value.category
+        val stats = api.listening(personId, category, period.days)
+        state.update {
+            val page = it.listening
+            if (it.personId == personId && it.category == category && page?.period == period) {
+                it.copy(listening = page.copy(stats = stats))
+            } else it
+        }
     }
 
     /**

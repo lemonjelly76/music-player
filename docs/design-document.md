@@ -116,6 +116,8 @@ Plays are stored one row per track (`play`, keyed by person, source and time so 
 
 Counting is on by default per person. Each category can override it either way, or follow the person's setting again. When counting is off for a person or category, nothing is collected there and `get_play_stats` returns nothing. Counts already kept stay until cleared (`set_play_tracking` with `clearExisting`).
 
+The apps show people their own counts (`GET /people/{id}/plays?category=&days=`): tracks played, albums, and the top 20 albums and artists. General covers all their plays, and an activity only plays from its picks. Like the model, the app gets nothing where counting is off.
+
 ### ADR-011 Access: one household login, and a bearer token for claude.ai — Accepted
 
 - **API and app:** HTTP Basic with `APP_USERNAME` and `APP_PASSWORD`, stateless, with no CSRF because no browser page holds a session. Claude Desktop reaches `/mcp` the same way through `mcp-remote`.
@@ -136,10 +138,12 @@ The app looks and behaves like a streaming app: always dark, album artwork throu
   - **Playlists:** the activity's pick lists as cards, newest first. Only the newest has a play button, as each new list replaces the playlist in the person's account (ADR-005); the server gives earlier lists no playlist link. A last card, "Get new picks", opens Claude with the request written out (`claude.ai/new?q=…`), as new picks come from a conversation (ADR-004).
   - **Your albums:** the activity's loved and OK albums as a shelf of covers, loved first, with "See all" opening Library.
   - **Sort for the activity:** a card, when there are any, for albums kept for other activities or in General but not rated for this one. It opens a page showing one album at a time, asking "Good for Chill?" with Not for me / OK / Love and Skip. Activities only differ once albums are rated for them, and one tap per album is the quickest way there. The albums are fixed when sorting starts, so ratings do not reshuffle the queue.
+  - **On repeat:** the activity's most-played albums over the last four weeks, with play counts, when there are any (ADR-010).
   - **New picks to try:** the newest list's albums with Claude's reasons and Not for me / OK / Love pills.
 - **Pick list:** a card opens its list as a playlist page: a cover mosaic, the name, a round play button on the newest, then each album with its reason and rating pills.
 - **Search:** a tab, as in streaming apps, that searches the person's streaming catalogue as they type (`GET /search`, the catalogue `search_catalogue` uses). Each result has rating pills for the activity, so albums the person already knows join the library without going through Claude, and Claude has more to pick from.
 - **Library:** the activity's albums as a grid of covers, narrowed to Loved, OK, only those rated for the activity itself ("in General" marks a rating standing in), or Not for me. Not for me lists what was turned down for the activity (`GET /library/disliked`), so a mistaken dislike can be found and taken back. Each album's ⋮ menu opens it, shows "More like this", rates it for the activity or removes the activity's own rating.
+- **Your listening:** opened from the person menu, as streaming apps put it in the profile menu, or from On repeat. It shows the tracks and albums played over 4 weeks, 6 months or a year, then top artists (each shown with their most-played album's cover in a circle, as there are no artist photos) and ranked top albums. It follows the activity chips. An empty page says why: counting is off, Tidal shares no history, or nothing has been played from that activity's playlist yet.
 - **More like this:** a sheet of instant suggestions (ADR-007); the heart loves one for the activity.
 - **Settings:** opened from the cog as its own page with a back arrow. The streaming service and its connection, the play-count switch, and the server address and login.
 

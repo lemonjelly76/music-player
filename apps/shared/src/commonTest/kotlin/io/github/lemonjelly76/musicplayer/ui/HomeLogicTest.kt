@@ -58,4 +58,16 @@ class HomeLogicTest {
         assertEquals("20 Oct 2026", shortDate("2026-10-20T18:00:00Z"))
         assertEquals("soon", shortDate("soon"))
     }
+
+    @Test
+    fun countsPlaysInWords() {
+        assertEquals("1 play", playCount(1))
+        assertEquals("12 plays", playCount(12))
+    }
+
+    @Test
+    fun periodsReadAsPeopleSayThem() {
+        assertEquals(listOf("4 weeks", "6 months", "1 year"), Period.entries.map { it.label })
+        assertEquals("the last 4 weeks", Period.MONTH.since)
+    }
 }
