@@ -54,16 +54,16 @@ class LibraryAlbumTest {
     }
 
     @Test
-    void generalStandsInForAnActivityWithoutItsOwnRating() {
+    void anActivityHasOnlyItsOwnRatingWithGeneralsOnHandAsAHint() {
         LibraryAlbum entry = album("Air", "Moon Safari", 1998).rated(rating(RUNNING, Rating.DISLIKE));
 
-        assertThat(entry.rating(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
-        assertThat(entry.rating(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
         assertThat(entry.own(DINNER)).isEmpty();
+        assertThat(entry.ownOrGeneral(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
+        assertThat(entry.ownOrGeneral(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
     }
 
     @Test
-    void anAlbumIsKeptWhereItIsLovedOrOkButNotWhereDisliked() {
+    void anAlbumIsKeptOnlyWhereItIsRatedLoveOrOk() {
         LibraryAlbum entry = album("Air", "Moon Safari", 1998)
                 .rated(rating(RUNNING, Rating.DISLIKE))
                 .rated(rating(DINNER, Rating.OK));
@@ -71,6 +71,18 @@ class LibraryAlbumTest {
         assertThat(entry.keptFor(GENERAL)).isTrue();
         assertThat(entry.keptFor(DINNER)).isTrue();
         assertThat(entry.keptFor(RUNNING)).isFalse();
+        assertThat(entry.keptFor(Optional.of(CategoryId.random()))).isFalse();
+    }
+
+    @Test
+    void notForMeInGeneralKeepsItAwayFromActivitiesWithoutTheirOwnRating() {
+        LibraryAlbum entry = album("Air", "Moon Safari", 1998)
+                .rated(rating(GENERAL, Rating.DISLIKE))
+                .rated(rating(DINNER, Rating.LOVE));
+
+        assertThat(entry.avoidedFor(RUNNING)).isTrue();
+        assertThat(entry.knownFor(RUNNING)).isTrue();
+        assertThat(entry.avoidedFor(DINNER)).isFalse();
     }
 
     @Test

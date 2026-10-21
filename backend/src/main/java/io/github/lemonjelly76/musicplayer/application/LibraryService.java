@@ -61,28 +61,36 @@ public class LibraryService {
 
     private static Comparator<LibraryAlbum> lovedFirst(Optional<CategoryId> activity) {
         return Comparator.comparing((LibraryAlbum entry) ->
-                entry.rating(activity).map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST);
+                entry.own(activity).map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST);
     }
 
     /**
-     * What the person does not want for the activity: disliked there, or in General with no rating there, by artist.
+     * What the person turned down for the activity itself, by artist, so a dislike can be found and taken back.
      */
     public List<LibraryAlbum> dislikedFor(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream()
-                .filter(entry -> entry.rating(activity).map(found -> found.rating() == Rating.DISLIKE).orElse(false))
+                .filter(entry -> entry.own(activity).map(found -> found.rating() == Rating.DISLIKE).orElse(false))
                 .sorted(BY_ARTIST)
                 .toList();
     }
 
     /**
-     * Albums the person keeps for some activity but has not rated for this one, to sort through quickly: loved
-     * through General first, then OK, then those kept only for other activities.
+     * What to leave out of anything made for the activity: turned down there, or in General with no rating there.
+     */
+    public List<LibraryAlbum> avoidedFor(PersonId person, Optional<CategoryId> activity) {
+        return repository.findByPerson(person).stream().filter(entry -> entry.avoidedFor(activity)).toList();
+    }
+
+    /**
+     * Albums the person keeps for some activity but has not rated for this one, to sort through quickly: loved in
+     * General first, then OK in General, then those kept only for other activities.
      */
     public List<LibraryAlbum> toSortFor(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream()
                 .filter(entry -> entry.own(activity).isEmpty())
                 .filter(entry -> entry.ratings().stream().anyMatch(found -> found.rating().keeps()))
-                .sorted(lovedFirst(activity))
+                .sorted(Comparator.comparing((LibraryAlbum entry) -> entry.ownOrGeneral(activity)
+                        .map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST))
                 .toList();
     }
 

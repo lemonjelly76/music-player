@@ -54,7 +54,7 @@ class CandidateServiceTest {
     }
 
     @Test
-    void anActivitySeedsFromWhatIsLovedThere() {
+    void anActivitySeedsFromWhatIsLovedThereOrInGeneralWhenNothingIsYet() {
         Person craig = world.withoutService("Craig");
         world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
         world.library.add(craig, dummy, Optional.of(running), Rating.LOVE, "", List.of());

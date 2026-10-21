@@ -95,19 +95,28 @@ public class CandidateService {
     }
 
     /**
-     * The albums the person loves for the activity (or in General), most played first when counting is on.
+     * The albums the person loves for the activity, most played first when counting is on. An activity with none
+     * loved yet starts from what they love in General, so a new activity still gets suggestions.
      */
     List<Seed> seeds(Person person, Optional<Category> category) {
         Optional<CategoryId> activity = category.map(Category::id);
+        List<LibraryAlbum> entries = library.entries(person.id());
+        Optional<CategoryId> seededBy = entries.stream().anyMatch(entry -> lovedFor(entry, activity))
+                ? activity
+                : Optional.empty();
         Map<AlbumKey, Integer> playCounts = plays.playsByAlbum(person, category, PLAY_WINDOW_DAYS);
-        return library.entries(person.id()).stream()
-                .filter(entry -> entry.rating(activity).map(found -> found.rating() == Rating.LOVE).orElse(false))
+        return entries.stream()
+                .filter(entry -> lovedFor(entry, seededBy))
                 .sorted(Comparator.comparing((LibraryAlbum entry) -> playCounts.getOrDefault(entry.album().key(), 0))
                         .reversed()
-                        .thenComparing(entry -> entry.rating(activity).orElseThrow().ratedAt(), Comparator.reverseOrder()))
+                        .thenComparing(entry -> entry.own(seededBy).orElseThrow().ratedAt(), Comparator.reverseOrder()))
                 .limit(MAX_SEEDS)
                 .map(entry -> new Seed(entry.album(), playCounts.getOrDefault(entry.album().key(), 0)))
                 .toList();
+    }
+
+    private static boolean lovedFor(LibraryAlbum entry, Optional<CategoryId> activity) {
+        return entry.own(activity).map(found -> found.rating() == Rating.LOVE).orElse(false);
     }
 
     /**

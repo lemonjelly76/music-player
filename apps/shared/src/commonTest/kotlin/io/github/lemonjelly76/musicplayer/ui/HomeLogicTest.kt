@@ -24,11 +24,10 @@ class HomeLogicTest {
     )
 
     @Test
-    fun filtersTheLibraryByRatingOrToTheActivitysOwnRatings() {
+    fun filtersTheLibraryByRating() {
         assertEquals(listOf("Loved here", "Loved in General", "OK here"), LibraryFilter.ALL.apply(library).map { it.album.title })
         assertEquals(listOf("Loved here", "Loved in General"), LibraryFilter.LOVED.apply(library).map { it.album.title })
         assertEquals(listOf("OK here"), LibraryFilter.OK.apply(library).map { it.album.title })
-        assertEquals(listOf("Loved here", "OK here"), LibraryFilter.THIS_ACTIVITY.apply(library).map { it.album.title })
         assertEquals(listOf("Not for me here", "Not for me in General"),
             LibraryFilter.NOT_FOR_ME.apply(library).map { it.album.title })
     }
@@ -93,7 +92,7 @@ class HomeLogicTest {
         val songs = listOf(loved, general, turnedDown)
 
         assertEquals(listOf(loved, general), LibraryFilter.ALL.applyToSongs(songs))
-        assertEquals(listOf(loved), LibraryFilter.THIS_ACTIVITY.applyToSongs(songs))
+        assertEquals(listOf(loved), LibraryFilter.LOVED.applyToSongs(songs))
         assertEquals(listOf(turnedDown), LibraryFilter.NOT_FOR_ME.applyToSongs(songs))
     }
 }

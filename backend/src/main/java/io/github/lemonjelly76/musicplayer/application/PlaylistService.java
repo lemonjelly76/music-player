@@ -58,7 +58,7 @@ public class PlaylistService {
         MusicProvider service = providers.forPerson(person).orElseThrow(() -> new MusicProviderUnavailableException(
                 person.name() + " has no streaming service set up, so there is nowhere to find the songs"));
         Optional<CategoryId> activity = category.map(Category::id);
-        Map<AlbumKey, String> turnedDown = library.dislikedFor(person.id(), activity).stream()
+        Map<AlbumKey, String> turnedDown = library.avoidedFor(person.id(), activity).stream()
                 .collect(Collectors.toMap(entry -> entry.album().key(), entry -> entry.album().title(),
                         (first, second) -> first));
         Set<String> songsTurnedDown = songs.turnedDown(person.id(), activity);

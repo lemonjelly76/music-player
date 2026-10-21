@@ -64,17 +64,19 @@ class SongServiceTest {
     }
 
     @Test
-    void anActivitysSongsAreLovedFirstWithGeneralStandingIn() {
+    void anActivityHasOnlyTheSongsRatedForItLovedFirst() {
         Person craig = world.tidalUser("Craig");
         world.songs.rate(craig, track("t1", "Air", "All I Need"), Optional.empty(), Optional.of(Rating.OK));
         world.songs.rate(craig, track("t2", "Air", "Sexy Boy"), Optional.of(running), Optional.of(Rating.LOVE));
         world.songs.rate(craig, track("t3", "Air", "Talisman"), Optional.of(running), Optional.of(Rating.DISLIKE));
+        world.songs.rate(craig, track("t4", "Air", "Remember"), Optional.empty(), Optional.of(Rating.DISLIKE));
 
         assertThat(world.songs.songsFor(craig.id(), Optional.of(running.id())))
-                .extracting(song -> song.track().title()).containsExactly("Sexy Boy", "All I Need", "Talisman");
-        assertThat(world.songs.turnedDown(craig.id(), Optional.of(running.id()))).containsExactly("air|talisman");
+                .extracting(song -> song.track().title()).containsExactly("Sexy Boy", "Talisman");
         assertThat(world.songs.songsFor(craig.id(), Optional.empty()))
-                .extracting(song -> song.track().title()).containsExactly("All I Need");
+                .extracting(song -> song.track().title()).containsExactly("All I Need", "Remember");
+        assertThat(world.songs.turnedDown(craig.id(), Optional.of(running.id())))
+                .containsExactlyInAnyOrder("air|talisman", "air|remember");
     }
 
     @Test

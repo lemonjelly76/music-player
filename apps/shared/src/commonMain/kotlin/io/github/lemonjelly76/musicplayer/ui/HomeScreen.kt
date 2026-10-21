@@ -74,7 +74,9 @@ fun HomeScreen(
         item { SectionTitle("Your albums for ${ui.activityName}", action = "See all".takeIf { ui.library.isNotEmpty() }, onAction = seeLibrary) }
         item {
             if (ui.library.isEmpty()) {
-                Hint("Nothing loved for ${ui.activityName} yet. Rate the albums to try below, or tell Claude what you love.")
+                Hint(if (ui.toSort.isEmpty()) "Nothing loved for ${ui.activityName} yet. Rate the albums to try below, " +
+                    "or tell Claude what you love." else "Nothing rated for ${ui.activityName} yet. Sort the albums " +
+                    "you keep elsewhere, below, to choose which belong here.")
             } else {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(ui.library.take(ALBUMS_ON_HOME), key = { it.id }) { entry ->

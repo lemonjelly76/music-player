@@ -69,7 +69,7 @@ final class Responses {
         static PickResponse from(Recommendation pick, Optional<CategoryId> activity,
                 Map<AlbumKey, LibraryAlbum> library, Function<AlbumRef, Optional<URI>> links) {
             Integer rating = Optional.ofNullable(library.get(pick.album().key()))
-                    .flatMap(entry -> entry.rating(activity))
+                    .flatMap(entry -> entry.own(activity))
                     .map(found -> found.rating().value())
                     .orElse(null);
             return new PickResponse(pick.id().toString(), AlbumResponse.from(pick.album(), links), pick.reason(),
@@ -99,7 +99,7 @@ final class Responses {
 
         static LibraryAlbumResponse from(LibraryAlbum entry, Optional<CategoryId> activity,
                 Function<AlbumRef, Optional<URI>> links) {
-            Optional<ActivityRating> rating = entry.rating(activity);
+            Optional<ActivityRating> rating = entry.ownOrGeneral(activity);
             return new LibraryAlbumResponse(entry.id().toString(), AlbumResponse.from(entry.album(), links),
                     rating.map(found -> found.rating().value()).orElse(null),
                     activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false), entry.notes(),
@@ -114,7 +114,7 @@ final class Responses {
 
         static FoundResponse from(AlbumRef album, Optional<LibraryAlbum> entry, Optional<CategoryId> activity,
                 Function<AlbumRef, Optional<URI>> links) {
-            Optional<ActivityRating> rating = entry.flatMap(found -> found.rating(activity));
+            Optional<ActivityRating> rating = entry.flatMap(found -> found.ownOrGeneral(activity));
             return new FoundResponse(AlbumResponse.from(album, links),
                     rating.map(found -> found.rating().value()).orElse(null),
                     activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false));
@@ -163,7 +163,7 @@ final class Responses {
 
         static TrackResponse from(Track track, Optional<LibrarySong> song, Optional<CategoryId> activity,
                 Function<Track, Optional<URI>> links) {
-            Optional<ActivityRating> rating = song.flatMap(found -> found.rating(activity));
+            Optional<ActivityRating> rating = song.flatMap(found -> found.ownOrGeneral(activity));
             return new TrackResponse(track.provider().prefix() + ":" + track.id(), track.id(), track.artist(),
                     track.title(), track.album(), track.cover().orElse(null),
                     links.apply(track).map(URI::toString).orElse(null),

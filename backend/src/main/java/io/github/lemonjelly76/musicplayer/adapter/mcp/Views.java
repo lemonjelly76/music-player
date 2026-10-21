@@ -95,7 +95,7 @@ final class Views {
 
         static PickView from(Recommendation pick, Optional<CategoryId> activity, Map<AlbumKey, LibraryAlbum> library) {
             String rating = Optional.ofNullable(library.get(pick.album().key()))
-                    .flatMap(entry -> entry.rating(activity))
+                    .flatMap(entry -> entry.own(activity))
                     .map(found -> found.rating().word())
                     .orElse(null);
             return new PickView(pick.id().toString(), AlbumView.from(pick.album()), pick.reason(),
@@ -126,7 +126,7 @@ final class Views {
                     playlist.tracks().stream()
                             .map(track -> new PlaylistSongView(track.label(), track.album(),
                                     Optional.ofNullable(rated.get(track.songKey()))
-                                            .flatMap(song -> song.rating(playlist.category()))
+                                            .flatMap(song -> song.own(playlist.category()))
                                             .map(rating -> rating.rating().word())
                                             .orElse(null)))
                             .toList());

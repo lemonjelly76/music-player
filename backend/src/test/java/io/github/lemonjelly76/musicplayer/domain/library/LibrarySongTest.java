@@ -27,14 +27,15 @@ class LibrarySongTest {
     }
 
     @Test
-    void generalStandsInForAnActivityWithoutItsOwnRating() {
+    void anActivityHasOnlyItsOwnRating() {
         LibrarySong song = lovedInGeneral().rated(new ActivityRating(RUNNING, Rating.DISLIKE, "", NOW.plusSeconds(1)));
 
-        assertThat(song.rating(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
-        assertThat(song.rating(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
+        assertThat(song.own(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
         assertThat(song.own(DINNER)).isEmpty();
+        assertThat(song.ownOrGeneral(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
         assertThat(song.keptFor(RUNNING)).isFalse();
-        assertThat(song.keptFor(DINNER)).isTrue();
+        assertThat(song.keptFor(DINNER)).isFalse();
+        assertThat(song.keptFor(Optional.empty())).isTrue();
     }
 
     @Test

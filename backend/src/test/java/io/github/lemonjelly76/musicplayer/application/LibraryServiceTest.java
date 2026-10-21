@@ -50,7 +50,7 @@ class LibraryServiceTest {
 
         assertThat(again.alreadyInLibrary()).isTrue();
         assertThat(again.entry().notes()).isEqualTo("Sad");
-        assertThat(again.entry().rating(Optional.empty())).map(ActivityRating::rating).contains(Rating.OK);
+        assertThat(again.entry().own(Optional.empty())).map(ActivityRating::rating).contains(Rating.OK);
         assertThat(world.library.all(craig.id(), LibraryFilter.ALL)).hasSize(1);
     }
 
@@ -99,7 +99,7 @@ class LibraryServiceTest {
     }
 
     @Test
-    void anActivitysLibraryHasWhatIsLovedOrOkThereLovedFirst() {
+    void anActivitysLibraryHasOnlyWhatIsLovedOrOkForItLovedFirst() {
         Person craig = world.withoutService("Craig");
         Category running = world.categories.upsert("Running", "");
         world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());
@@ -108,13 +108,25 @@ class LibraryServiceTest {
         world.library.rate(craig, "Air — Moon Safari", Optional.of(running), Optional.of(Rating.DISLIKE), "");
 
         assertThat(world.library.libraryFor(craig.id(), Optional.of(running.id()), LibraryFilter.ALL))
-                .extracting(entry -> entry.album().artist()).containsExactly("Pulp", "Blur");
+                .extracting(entry -> entry.album().artist()).containsExactly("Pulp");
         assertThat(world.library.libraryFor(craig.id(), Optional.empty(), LibraryFilter.ALL))
                 .extracting(entry -> entry.album().artist()).containsExactly("Air", "Blur");
     }
 
     @Test
-    void listsWhatIsNotForThePersonForAnActivityIncludingGeneralDislikesStandingIn() {
+    void aNewActivityStartsWithNothingInItsLibrary() {
+        Person craig = world.withoutService("Craig");
+        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        Category focus = world.categories.upsert("Focus", "");
+
+        assertThat(world.library.libraryFor(craig.id(), Optional.of(focus.id()), LibraryFilter.ALL)).isEmpty();
+        assertThat(world.library.dislikedFor(craig.id(), Optional.of(focus.id()))).isEmpty();
+        assertThat(world.library.toSortFor(craig.id(), Optional.of(focus.id())))
+                .extracting(entry -> entry.album().title()).containsExactly("Moon Safari");
+    }
+
+    @Test
+    void listsWhatIsNotForThePersonForAnActivityButAvoidsGeneralDislikesThereToo() {
         Person craig = world.withoutService("Craig");
         Category running = world.categories.upsert("Running", "");
         world.library.add(craig, "Blur — 13", GENERAL, Rating.DISLIKE, "", List.of());
@@ -124,7 +136,9 @@ class LibraryServiceTest {
         world.library.rate(craig, "Pulp — His 'n' Hers", Optional.of(running), Optional.of(Rating.LOVE), "");
 
         assertThat(world.library.dislikedFor(craig.id(), Optional.of(running.id())))
-                .extracting(entry -> entry.album().artist()).containsExactly("Air", "Blur");
+                .extracting(entry -> entry.album().artist()).containsExactly("Air");
+        assertThat(world.library.avoidedFor(craig.id(), Optional.of(running.id())))
+                .extracting(entry -> entry.album().artist()).containsExactlyInAnyOrder("Air", "Blur");
         assertThat(world.library.dislikedFor(craig.id(), Optional.empty()))
                 .extracting(entry -> entry.album().artist()).containsExactly("Blur", "Pulp");
     }

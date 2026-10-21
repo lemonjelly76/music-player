@@ -27,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Rating
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
@@ -40,8 +39,6 @@ import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
     var kind by rememberSaveable { mutableStateOf(MusicKind.ALBUMS) }
     var filter by rememberSaveable { mutableStateOf(LibraryFilter.ALL) }
-    val filters = LibraryFilter.entries.filter { it != LibraryFilter.THIS_ACTIVITY || ui.category != GENERAL }
-    if (filter !in filters) filter = LibraryFilter.ALL
     val anything = if (kind == MusicKind.ALBUMS) ui.library.isNotEmpty() || ui.disliked.isNotEmpty() else ui.songs.isNotEmpty()
     Column {
         KindPills(kind) { kind = it }
@@ -50,9 +47,8 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(filters) { option ->
-                    val label = if (option == LibraryFilter.THIS_ACTIVITY) "Rated for ${ui.activityName}" else option.label
-                    Pill(label, null, selected = option == filter) { filter = option }
+                items(LibraryFilter.entries) { option ->
+                    Pill(option.label, null, selected = option == filter) { filter = option }
                 }
             }
         }
@@ -85,7 +81,6 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
 private fun emptySongsText(ui: UiState, filter: LibraryFilter): String = when (filter) {
     LibraryFilter.ALL -> "No songs loved for ${ui.activityName} yet. Rate songs in a playlist or from Search, or " +
         "tell Claude which songs ${ui.person?.name ?: "you"} love."
-    LibraryFilter.THIS_ACTIVITY -> "No songs rated for ${ui.activityName} itself yet; these all come from General."
     LibraryFilter.NOT_FOR_ME -> "No songs turned down for ${ui.activityName}. Claude leaves them out of its playlists."
     else -> "No songs rated ${filter.label} for ${ui.activityName}."
 }
@@ -93,8 +88,6 @@ private fun emptySongsText(ui: UiState, filter: LibraryFilter): String = when (f
 private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when (filter) {
     LibraryFilter.ALL -> "Nothing loved for ${ui.activityName} yet. Rate picks on Home, or tell Claude which albums " +
         "${ui.person?.name ?: "you"} love."
-    LibraryFilter.THIS_ACTIVITY -> "No albums rated for ${ui.activityName} itself yet; these all come from General. " +
-        "Use an album's menu to rate it for ${ui.activityName}."
     LibraryFilter.NOT_FOR_ME -> "Nothing turned down for ${ui.activityName}. Albums rated Not for me show here, " +
         "so you can change your mind."
     else -> "No albums rated ${filter.label} for ${ui.activityName}."

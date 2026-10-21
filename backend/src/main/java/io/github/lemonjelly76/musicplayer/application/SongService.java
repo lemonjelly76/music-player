@@ -73,14 +73,13 @@ public class SongService {
     }
 
     /**
-     * The person's songs with a rating that applies to the activity, its own or General's: loved first, then OK,
-     * then those turned down, each by artist.
+     * The person's songs rated for the activity itself: loved first, then OK, then those turned down, each by artist.
      */
     public List<LibrarySong> songsFor(PersonId person, Optional<CategoryId> activity) {
         Comparator<LibrarySong> byRating = Comparator.comparing(
-                song -> song.rating(activity).map(found -> found.rating().value()).orElse(0), Comparator.reverseOrder());
+                song -> song.own(activity).map(found -> found.rating().value()).orElse(0), Comparator.reverseOrder());
         return repository.findByPerson(person).stream()
-                .filter(song -> song.rating(activity).isPresent())
+                .filter(song -> song.own(activity).isPresent())
                 .sorted(byRating.thenComparing(song -> song.track().artist().toLowerCase(Locale.ROOT))
                         .thenComparing(song -> song.track().title().toLowerCase(Locale.ROOT)))
                 .toList();
@@ -95,11 +94,12 @@ public class SongService {
     }
 
     /**
-     * Songs rated Not for me for the activity (or in General, without a rating of its own), by song key.
+     * Songs to leave out of the activity's playlists, by song key: turned down there, or in General with no rating
+     * there.
      */
     public Set<String> turnedDown(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream()
-                .filter(song -> song.rating(activity).map(found -> found.rating() == Rating.DISLIKE).orElse(false))
+                .filter(song -> song.avoidedFor(activity))
                 .map(song -> song.track().songKey())
                 .collect(Collectors.toSet());
     }

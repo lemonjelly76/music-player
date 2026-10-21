@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.domain.library;
 
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 
 import java.util.ArrayList;
@@ -8,8 +9,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * What albums and songs share about their ratings: at most one per activity, and General standing in for an activity
- * without its own (ADR-015).
+ * What albums and songs share about their ratings: at most one per activity, and each activity holding only what
+ * was rated for it (ADR-015). General's rating is on hand as a hint, and its Not for me keeps an album or song away
+ * from activities that have no rating of their own for it.
  */
 final class ActivityRatings {
 
@@ -28,12 +30,16 @@ final class ActivityRatings {
         return ratings.stream().filter(rating -> rating.category().equals(category)).findFirst();
     }
 
-    static Optional<ActivityRating> rating(List<ActivityRating> ratings, Optional<CategoryId> category) {
+    static Optional<ActivityRating> ownOrGeneral(List<ActivityRating> ratings, Optional<CategoryId> category) {
         return own(ratings, category).or(() -> own(ratings, Optional.empty()));
     }
 
     static boolean keptFor(List<ActivityRating> ratings, Optional<CategoryId> category) {
-        return rating(ratings, category).map(found -> found.rating().keeps()).orElse(false);
+        return own(ratings, category).map(found -> found.rating().keeps()).orElse(false);
+    }
+
+    static boolean avoidedFor(List<ActivityRating> ratings, Optional<CategoryId> category) {
+        return ownOrGeneral(ratings, category).map(found -> found.rating() == Rating.DISLIKE).orElse(false);
     }
 
     static List<ActivityRating> with(List<ActivityRating> ratings, ActivityRating rating) {
