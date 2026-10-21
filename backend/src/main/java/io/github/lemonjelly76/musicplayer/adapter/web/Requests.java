@@ -55,6 +55,9 @@ final class Requests {
     record ServiceRequest(String service) {
     }
 
+    record ChartPlaylistRequest(Boolean enabled) {
+    }
+
     /**
      * A category with {@code enabled} null follows the person's own setting again.
      */

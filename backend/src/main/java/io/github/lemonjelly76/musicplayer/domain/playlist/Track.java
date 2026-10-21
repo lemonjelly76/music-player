@@ -13,8 +13,6 @@ import java.util.regex.Pattern;
  */
 public record Track(Provider provider, String id, String artist, String title, String album, Optional<String> cover) {
 
-    private static final Pattern GUESTS = Pattern.compile("[(\\[](feat\\.?|ft\\.?|featuring|with) [^)\\]]*[)\\]]",
-            Pattern.CASE_INSENSITIVE);
     private static final Pattern DASH_EDITION = Pattern.compile(
             "\\s+[-–]\\s+[^-–]*\\b(remaster|remastered|radio edit|single version|album version|mono|stereo)\\b.*$",
             Pattern.CASE_INSENSITIVE);
@@ -33,7 +31,7 @@ public record Track(Provider provider, String id, String artist, String title, S
      * Need (feat. Beth Hirsch)" and "Air — All I Need - Remastered" are one song. Live takes and remixes stay apart.
      */
     public String songKey() {
-        String plainTitle = DASH_EDITION.matcher(GUESTS.matcher(title).replaceAll("")).replaceAll("");
+        String plainTitle = DASH_EDITION.matcher(Names.withoutGuests(title)).replaceAll("");
         return Names.normalise(artist.split(",")[0]) + "|" + Names.title(plainTitle);
     }
 

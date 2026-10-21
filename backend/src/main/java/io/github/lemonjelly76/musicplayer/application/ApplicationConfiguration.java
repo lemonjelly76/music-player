@@ -3,6 +3,8 @@ package io.github.lemonjelly76.musicplayer.application;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumWishlist;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.ChartSource;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -64,6 +67,12 @@ class ApplicationConfiguration {
     RecommendationService recommendationService(RecommendationRepository recommendations, AlbumResolver resolver,
             LibraryService library, MusicProviders providers, Clock clock) {
         return new RecommendationService(recommendations, resolver, library, providers, clock);
+    }
+
+    @Bean
+    ChartService chartService(ChartSource source, ChartRepository charts, MusicProviders providers,
+            PersonRepository people, Clock clock, @Value("${charts.lookup-pause}") Duration lookupPause) {
+        return new ChartService(source, charts, providers, people, clock, lookupPause);
     }
 
     @Bean

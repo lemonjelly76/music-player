@@ -186,6 +186,16 @@ An activity holds only what was rated for it, so a new activity starts empty. Ge
 
 **Consequences.** One API call rates anything the app shows (`POST /api/people/{id}/ratings`), and one MCP tool (`rate_album`) replaces `record_feedback`. Three choices are quick to give consistently; finer feelings belong in the comment.
 
+### ADR-017 Popular this week: charts kept by the server, not the model — Accepted
+
+**Context.** People want the week's most played songs and albums, as a playlist they can play. A chart is a fact, not a choice, so it needs no model. Spotify keeps its own Top 50 playlists from apps like this one.
+
+**Decision.** The server reads Apple Music's public chart feeds (`rss.marketingtools.apple.com`, no account or key needed) for one country (`CHARTS_COUNTRY`, default `gb`): the 50 most played songs and the 50 most played albums. `ChartJob` checks every hour. When a service's copy of the chart is a day old, the server fetches the chart again and finds every song and album on that service, pausing between lookups (`charts.lookup-pause`). Songs the service lacks are left out, and albums it lacks keep a search link. Each Monday, or on the first run, everyone with an account connected gets the songs as "AI Picks — Popular this week" in their account, replacing last week's, unless they turned it off in Settings.
+
+The app shows it on General's Home as "Popular this week": a "Top 50 songs" card that opens the full list (each song numbered by chart place, with rating buttons, and a play button for the person's playlist), then the top albums by place. Ratings there are General ones (`GET /people/{id}/charts`, `PUT /people/{id}/chart-playlist`).
+
+**Rate limits.** Spotify limits how fast an app may call it, and a development-mode app is easily locked out for most of a day after a burst. The Spotify adapter waits and retries when Spotify asks for a short pause (at most 30 seconds), and otherwise says how long Spotify wants. The chart job tries again each hour.
+
 ### ADR-016 One Compose codebase for Android and Windows — Accepted
 
 **Context.** R10 asks for a Windows client. The Android app is Kotlin and Compose, and almost none of it is Android-specific: the screens, the view model and the API client only need HTTP, JSON and a place to keep the login.

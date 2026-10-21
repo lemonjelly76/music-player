@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.data.ApiClient
 import io.github.lemonjelly76.musicplayer.data.ApiException
 import io.github.lemonjelly76.musicplayer.data.Candidate
 import io.github.lemonjelly76.musicplayer.data.Category
+import io.github.lemonjelly76.musicplayer.data.Charts
 import io.github.lemonjelly76.musicplayer.data.Found
 import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
@@ -76,6 +77,8 @@ data class UiState(
     val songs: List<Track> = emptyList(),
     val search: Search = Search(),
     val sorting: SortSession? = null,
+    /** The week's chart, for Home on General; null until it comes or if the server has none. */
+    val charts: Charts? = null,
     /** What the person played most for the activity lately, for Home; null until it comes or if it fails. */
     val onRepeat: Listening? = null,
     /** The listening page, while it is open. */
@@ -131,7 +134,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     fun choosePerson(id: String) = load {
         store.savePersonId(id)
         state.update {
-            it.copy(personId = id, tracking = null, sorting = null).withoutActivityAlbums()
+            it.copy(personId = id, tracking = null, sorting = null, charts = null).withoutActivityAlbums()
                 .withoutListening()
         }
         coroutineScope {
@@ -239,6 +242,11 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
                 search = current.search.copy(results = current.search.results?.map {
                     if (it.album.ref == album.ref) it.copy(rating = rating, general = false) else it
                 }),
+                charts = current.charts?.takeIf { current.category == GENERAL }?.let { charts ->
+                    charts.copy(albums = charts.albums.map {
+                        if (it.album.album.ref == album.ref) it.copy(album = it.album.copy(rating = rating)) else it
+                    })
+                } ?: current.charts,
             )
         }
         reloadLibrary(personId)
@@ -285,6 +293,9 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
             current.copy(
                 playlists = current.playlists.map { playlist -> playlist.copy(tracks = playlist.tracks.map(rated)) },
                 search = current.search.copy(songs = current.search.songs?.map(rated)),
+                charts = current.charts?.takeIf { current.category == GENERAL }
+                    ?.let { charts -> charts.copy(songs = charts.songs.map { it.copy(song = rated(it.song)) }) }
+                    ?: current.charts,
             )
         }
         coroutineScope {
@@ -360,6 +371,25 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         reloadLibrary(id)
         loadLists()
         loadListening()
+        loadCharts()
+    }
+
+    /** Only Home's chart needs this, so a server without charts still shows everything else. */
+    private suspend fun loadCharts() {
+        val personId = state.value.personId ?: return
+        val charts = try {
+            api.charts(personId)
+        } catch (e: ApiException) {
+            return
+        }
+        state.update { if (it.personId == personId) it.copy(charts = charts) else it }
+    }
+
+    /** Turns the person's weekly chart playlist on or off. */
+    fun setChartPlaylist(enabled: Boolean) = load {
+        val personId = state.value.personId ?: return@load
+        val now = api.setChartPlaylist(personId, enabled)
+        state.update { it.copy(charts = it.charts?.copy(playlistWanted = now)) }
     }
 
     private suspend fun loadListening() = coroutineScope {

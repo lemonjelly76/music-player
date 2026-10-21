@@ -5,6 +5,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +28,8 @@ import java.util.Optional;
 class SpotifyApi {
 
     private static final int MAX_PAGES = 40;
+    private static final int RETRIES = 2;
+    private static final Duration LONGEST_WAIT = Duration.ofSeconds(30);
     static final int COVER_WIDTH = 250;
 
     private final SpotifyProperties properties;
@@ -45,7 +49,47 @@ class SpotifyApi {
         return send(HttpMethod.GET, url, null, token);
     }
 
+    /**
+     * Sends the request; when Spotify says too many requests have been made and to wait a little, it waits and tries
+     * again, up to twice. A longer wait is reported, as nobody should be kept waiting for it.
+     */
     JsonNode send(HttpMethod method, String url, Object body, String token) {
+        for (int retry = 0; ; retry++) {
+            try {
+                return sendOnce(method, url, body, token);
+            } catch (MusicProviderUnavailableException e) {
+                Optional<Duration> wait = retryAfter(e);
+                if (retry >= RETRIES || wait.isEmpty() || wait.get().compareTo(LONGEST_WAIT) > 0) {
+                    throw e;
+                }
+                pause(wait.get());
+            }
+        }
+    }
+
+    private static Optional<Duration> retryAfter(MusicProviderUnavailableException e) {
+        if (!(e.getCause() instanceof HttpClientErrorException.TooManyRequests tooMany)) {
+            return Optional.empty();
+        }
+        String seconds = tooMany.getResponseHeaders() == null ? null
+                : tooMany.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER);
+        try {
+            return Optional.of(Duration.ofSeconds(seconds == null ? 1 : Long.parseLong(seconds.strip())));
+        } catch (NumberFormatException notSeconds) {
+            return Optional.empty();
+        }
+    }
+
+    private static void pause(Duration wait) {
+        try {
+            Thread.sleep(wait);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new MusicProviderUnavailableException("Interrupted while waiting for Spotify", interrupted);
+        }
+    }
+
+    private JsonNode sendOnce(HttpMethod method, String url, Object body, String token) {
         try {
             RestClient.RequestBodySpec request = restClient.method(method)
                     .uri(URI.create(url))
@@ -61,7 +105,7 @@ class SpotifyApi {
                 throw new MusicProviderUnavailableException("Spotify has no such item", e);
             }
             throw new MusicProviderUnavailableException("Spotify refused the request: " + e.getStatusCode()
-                    + reason(e.getResponseBodyAsString()), e);
+                    + reason(e.getResponseBodyAsString()) + whenToRetry(e), e);
         } catch (RestClientException | JacksonException e) {
             throw new MusicProviderUnavailableException("Could not reach Spotify", e);
         }
@@ -80,6 +124,22 @@ class SpotifyApi {
             page = next.isEmpty() ? null : next;
         }
         return items;
+    }
+
+    /**
+     * How long Spotify asks to be left alone after too many requests, in words.
+     */
+    private static String whenToRetry(HttpClientErrorException e) {
+        String seconds = e.getResponseHeaders() == null ? null : e.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER);
+        if (!(e instanceof HttpClientErrorException.TooManyRequests) || seconds == null) {
+            return "";
+        }
+        try {
+            long wait = Long.parseLong(seconds.strip());
+            return wait < 120 ? "; try again in " + wait + " seconds" : "; try again in " + (wait + 59) / 60 + " minutes";
+        } catch (NumberFormatException notSeconds) {
+            return "";
+        }
     }
 
     /**

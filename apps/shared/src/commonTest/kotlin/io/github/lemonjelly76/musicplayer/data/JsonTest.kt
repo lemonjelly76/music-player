@@ -70,6 +70,33 @@ class JsonTest {
     }
 
     @Test
+    fun readsTheWeeksChart() {
+        val charts = Json.charts("""
+            {"country":"gb","updatedAt":"2026-10-21T09:00:00Z","playlistWanted":true,
+             "playlistLink":"https://open.spotify.com/playlist/p9",
+             "songs":[{"position":1,"song":{"ref":"spotify:t1","id":"t1","artist":"Tate McRae","title":"Housewife",
+               "album":"Housewife","cover":"https://i/1","rating":3,"general":false}}],
+             "albums":[{"position":2,"album":{"album":{"ref":"spotify:a1","artist":"Fontaines D.C.",
+               "title":"Dopamine Chamber"},"rating":null,"general":false}}]}
+        """.trimIndent())
+
+        assertEquals("https://open.spotify.com/playlist/p9", charts.playlistLink)
+        assertEquals(1, charts.songs.single().position)
+        assertEquals(Rating.LOVE, charts.songs.single().song.rating)
+        assertEquals(2, charts.albums.single().position)
+        assertEquals("Dopamine Chamber", charts.albums.single().album.album.title)
+        assertEquals(listOf("https://i/1"), charts.covers.map { it.cover })
+    }
+
+    @Test
+    fun readsAChartNotFetchedYet() {
+        val charts = Json.charts("""{"updatedAt":null,"playlistWanted":true,"songs":[],"albums":[]}""")
+
+        assertNull(charts.updatedAt)
+        assertTrue(charts.songs.isEmpty())
+    }
+
+    @Test
     fun aPlaylistShowsItsSongsAlbumCoversOnceEach() {
         val tracks = listOf("a", "a", "b").mapIndexed { n, cover -> Track("t$n", "Air", "Song $n", "Album $cover", cover, null) }
 

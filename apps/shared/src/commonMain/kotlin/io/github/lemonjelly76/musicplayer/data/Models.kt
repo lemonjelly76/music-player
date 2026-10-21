@@ -165,6 +165,27 @@ data class Listening(
     val artists: List<ArtistPlays>,
 )
 
+data class ChartSong(val position: Int, val song: Track)
+
+data class ChartAlbum(val position: Int, val album: Found)
+
+/**
+ * The week's most played songs and albums at their chart places, with the person's General rating of each, and
+ * their weekly chart playlist. [updatedAt] is null, and the lists empty, until the server first fetches the chart.
+ */
+data class Charts(
+    val country: String?,
+    val updatedAt: String?,
+    val playlistWanted: Boolean,
+    val playlistLink: String?,
+    val songs: List<ChartSong>,
+    val albums: List<ChartAlbum>,
+) {
+    val covers: List<Album>
+        get() = songs.map { it.song }.filter { it.cover != null }.distinctBy { it.cover }
+            .map { Album(it.ref, it.artist, it.album, null, null, it.cover) }
+}
+
 /** Whether the person's plays are counted; per-activity settings are Claude's to manage, so the app ignores them. */
 data class Tracking(val enabled: Boolean)
 
@@ -209,11 +230,22 @@ object Json {
 
     fun songs(text: String): List<Track> = array(text).map(::track)
 
+    fun charts(text: String): Charts = obj(text).let { json ->
+        Charts(
+            country = json.stringOrNull("country"),
+            updatedAt = json.stringOrNull("updatedAt"),
+            playlistWanted = json.boolean("playlistWanted", true),
+            playlistLink = json.stringOrNull("playlistLink"),
+            songs = json.objects("songs").map { ChartSong(it.int("position"), track(it.obj("song"))) },
+            albums = json.objects("albums").map { ChartAlbum(it.int("position"), found(it.obj("album"))) },
+        )
+    }
+
     fun library(text: String): List<LibraryAlbum> = array(text).map(::libraryAlbum)
 
-    fun found(text: String): List<Found> = array(text).map {
-        Found(album(it.obj("album")), it.rating(), it.boolean("general"))
-    }
+    fun found(text: String): List<Found> = array(text).map(::found)
+
+    private fun found(json: JsonObject) = Found(album(json.obj("album")), json.rating(), json.boolean("general"))
 
     fun candidates(text: String): List<Candidate> = array(text).map {
         Candidate(

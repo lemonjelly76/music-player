@@ -4,6 +4,8 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
+import io.github.lemonjelly76.musicplayer.domain.chart.ResolvedChart;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
@@ -18,6 +20,7 @@ import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
@@ -233,6 +236,32 @@ final class FakePorts {
             return saved.values().stream()
                     .filter(list -> list.playlist().map(synced -> synced.playlistId().equals(playlistId)).orElse(false))
                     .findFirst();
+        }
+    }
+
+    static final class Charts implements ChartRepository {
+
+        final Map<Provider, ResolvedChart> charts = new HashMap<>();
+        final Map<PersonId, ChartPlaylist> playlists = new HashMap<>();
+
+        @Override
+        public void save(ResolvedChart chart) {
+            charts.put(chart.provider(), chart);
+        }
+
+        @Override
+        public Optional<ResolvedChart> find(Provider provider) {
+            return Optional.ofNullable(charts.get(provider));
+        }
+
+        @Override
+        public ChartPlaylist playlistFor(PersonId person) {
+            return playlists.getOrDefault(person, ChartPlaylist.wantedBy(person));
+        }
+
+        @Override
+        public void save(ChartPlaylist playlist) {
+            playlists.put(playlist.person(), playlist);
         }
     }
 

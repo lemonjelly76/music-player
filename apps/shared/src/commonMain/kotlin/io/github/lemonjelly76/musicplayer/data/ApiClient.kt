@@ -126,6 +126,14 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun listening(personId: String, category: String, days: Int): Listening =
         Json.listening(get("api/people/$personId/plays", "category" to category, "days" to days.toString()))
 
+    /** The week's most played songs and albums, with the person's ratings, and their weekly chart playlist. */
+    suspend fun charts(personId: String): Charts = Json.charts(get("api/people/$personId/charts"))
+
+    /** Turns the person's weekly chart playlist on or off, and says which it now is. */
+    suspend fun setChartPlaylist(personId: String, enabled: Boolean): Boolean =
+        send(HttpMethod.Put, "api/people/$personId/chart-playlist", buildJsonObject { put("enabled", enabled) })
+            .contains("true")
+
     suspend fun tracking(personId: String): Tracking = Json.tracking(get("api/people/$personId/play-tracking"))
 
     /** The person's own switch, which every activity without a setting of its own follows. */

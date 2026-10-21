@@ -51,20 +51,14 @@ fun SettingsScreen(ui: UiState, viewModel: MainViewModel) {
             StreamingSection(person, ui.services, viewModel)
             ui.tracking?.let { tracking ->
                 HorizontalDivider()
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Count my plays", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("What you replay, in every activity, helps pick the next albums. Off means nothing " +
-                            "is collected.", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = tracking.enabled, onCheckedChange = viewModel::setPlayCounting,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White))
-                }
+                SettingSwitch("Count my plays", "What you replay, in every activity, helps pick the next albums. " +
+                    "Off means nothing is collected.", tracking.enabled, viewModel::setPlayCounting)
+            }
+            ui.charts?.let { charts ->
+                HorizontalDivider()
+                SettingSwitch("Popular this week playlist", "The ${chartPlace(charts.country)}'s most played songs " +
+                    "as a playlist in your streaming app, replaced every Monday. Off leaves the last one there.",
+                    charts.playlistWanted, viewModel::setChartPlaylist)
             }
             HorizontalDivider()
         }
@@ -73,6 +67,21 @@ fun SettingsScreen(ui: UiState, viewModel: MainViewModel) {
 }
 
 /** Which service the person's picks become playlists in, and connecting their own account to it. */
+@Composable
+private fun SettingSwitch(title: String, explanation: String, checked: Boolean, change: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(explanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = change, colors = SwitchDefaults.colors(checkedThumbColor = Color.White))
+    }
+}
+
 @Composable
 private fun StreamingSection(person: Person, services: List<Service>, viewModel: MainViewModel) {
     Text("Streaming service", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

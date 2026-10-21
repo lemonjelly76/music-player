@@ -23,6 +23,13 @@ public class MusicProviders {
         this.providers = List.copyOf(providers);
     }
 
+    /**
+     * Every service the server is registered with.
+     */
+    public List<MusicProvider> configured() {
+        return providers.stream().filter(MusicProvider::configured).toList();
+    }
+
     public Optional<MusicProvider> find(Provider name) {
         return providers.stream().filter(provider -> provider.name() == name && provider.configured()).findFirst();
     }

@@ -5,6 +5,8 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
+import io.github.lemonjelly76.musicplayer.domain.chart.ResolvedChart;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
@@ -173,6 +175,40 @@ final class Responses {
     }
 
     record SongRatingResponse(String ref, Integer rating) {
+    }
+
+    /**
+     * The week's chart, its songs and albums at their chart places with the person's General rating of each, and
+     * their chart playlist; {@code updatedAt} is null, and the lists empty, until the chart is first fetched.
+     */
+    record ChartResponse(String country, Instant updatedAt, boolean playlistWanted, String playlistLink,
+                         List<ChartSongResponse> songs, List<ChartAlbumResponse> albums) {
+
+        static ChartResponse from(Optional<ResolvedChart> chart, ChartPlaylist playlist, Optional<URI> playlistLink,
+                Map<String, LibrarySong> songs, Map<AlbumKey, LibraryAlbum> albums,
+                Function<Track, Optional<URI>> trackLinks, Function<AlbumRef, Optional<URI>> albumLinks) {
+            Optional<CategoryId> general = Optional.empty();
+            return new ChartResponse(chart.map(ResolvedChart::country).orElse(null),
+                    chart.map(ResolvedChart::fetchedAt).orElse(null), playlist.wanted(),
+                    playlistLink.map(URI::toString).orElse(null),
+                    chart.map(ResolvedChart::songs).orElse(List.of()).stream()
+                            .map(song -> new ChartSongResponse(song.position(), TrackResponse.from(song.track(),
+                                    Optional.ofNullable(songs.get(song.track().songKey())), general, trackLinks)))
+                            .toList(),
+                    chart.map(ResolvedChart::albums).orElse(List.of()).stream()
+                            .map(found -> new ChartAlbumResponse(found.position(), FoundResponse.from(found.album(),
+                                    Optional.ofNullable(albums.get(found.album().key())), general, albumLinks)))
+                            .toList());
+        }
+    }
+
+    record ChartSongResponse(int position, TrackResponse song) {
+    }
+
+    record ChartAlbumResponse(int position, FoundResponse album) {
+    }
+
+    record ChartPlaylistResponse(boolean enabled) {
     }
 
     /**

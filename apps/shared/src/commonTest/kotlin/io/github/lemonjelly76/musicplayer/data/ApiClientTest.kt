@@ -98,6 +98,21 @@ class ApiClientTest {
     }
 
     @Test
+    fun readsTheChartAndTurnsTheWeeklyPlaylistOff() = runTest {
+        val api = client { request ->
+            json(if (request.method == HttpMethod.Put) """{"enabled":false}""" else """{"songs":[],"albums":[]}""")
+        }
+
+        api.charts("1")
+        val enabled = api.setChartPlaylist("1", false)
+
+        assertFalse(enabled)
+        val (read, change) = requests
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/charts", read.url.toString())
+        assertEquals("""{"enabled":false}""", change.body.toByteArray().decodeToString())
+    }
+
+    @Test
     fun removesAnActivity() = runTest {
         client { respond("", HttpStatusCode.NoContent) }.removeCategory("c1")
 

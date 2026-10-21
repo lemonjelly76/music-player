@@ -48,6 +48,7 @@ fun HomeScreen(
     open: (String) -> Unit,
     showList: (String) -> Unit,
     showPlaylist: (String) -> Unit,
+    showChart: () -> Unit,
     seeLibrary: () -> Unit,
 ) {
     val person = ui.person
@@ -70,6 +71,10 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        ui.charts?.takeIf { ui.chosenCategory == null && (it.songs.isNotEmpty() || it.albums.isNotEmpty()) }?.let { charts ->
+            item { SectionTitle("Popular this week", action = "See all", onAction = showChart) }
+            item { ChartShelf(charts, viewModel, open, showChart) }
         }
         item { SectionTitle("Your albums for ${ui.activityName}", action = "See all".takeIf { ui.library.isNotEmpty() }, onAction = seeLibrary) }
         item {

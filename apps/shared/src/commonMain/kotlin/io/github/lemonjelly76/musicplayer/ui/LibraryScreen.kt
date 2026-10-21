@@ -137,7 +137,7 @@ fun AlbumTile(
 
 /** Loved in green, OK and Not for me in grey; "in General" when no rating was given for this activity itself. */
 @Composable
-private fun RatingLabel(rating: Rating, general: Boolean) {
+fun RatingLabel(rating: Rating, general: Boolean) {
     val colour = if (rating == Rating.LOVE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(rating.icon, contentDescription = null, Modifier.size(14.dp), tint = colour)

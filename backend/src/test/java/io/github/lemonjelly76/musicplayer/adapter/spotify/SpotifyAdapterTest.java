@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.spotify;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.InMemoryTokenStore;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.OAuthProperties;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.ProviderAuthorization;
@@ -144,6 +145,31 @@ class SpotifyAdapterTest {
         spotify.verify(putRequestedFor(urlPathEqualTo("/v1/me/library"))
                 .withQueryParam("uris", equalTo("spotify:album:sp-blue"))
                 .withHeader("Authorization", equalTo("Bearer user-token")));
+    }
+
+    @Test
+    void waitsAndTriesAgainWhenSpotifyAsksForABreather() {
+        spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).inScenario("busy").whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(jsonResponse("""
+                        {"error":{"status":429,"message":"Too many requests"}}""", 429).withHeader("Retry-After", "0"))
+                .willSetStateTo("calm"));
+        spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).inScenario("busy").whenScenarioStateIs("calm")
+                .willReturn(ok()));
+
+        provider.addFavourite(CRAIG.id(), "sp-blue");
+
+        spotify.verify(2, putRequestedFor(urlPathEqualTo("/v1/me/library")));
+    }
+
+    @Test
+    void givesUpWhenSpotifyAsksForALongWait() {
+        spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).willReturn(jsonResponse("""
+                {"error":{"status":429,"message":"Too many requests"}}""", 429).withHeader("Retry-After", "3600")));
+
+        assertThatExceptionOfType(MusicProviderUnavailableException.class)
+                .isThrownBy(() -> provider.addFavourite(CRAIG.id(), "sp-blue"))
+                .withMessageContaining("Too many requests").withMessageContaining("try again in 60 minutes");
+        spotify.verify(1, putRequestedFor(urlPathEqualTo("/v1/me/library")));
     }
 
     @Test

@@ -69,6 +69,8 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     // A playlist or earlier album list opened from Home; it closes by itself when the activity or person changes.
     var openListId by rememberSaveable { mutableStateOf<String?>(null) }
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var chartOpen by rememberSaveable { mutableStateOf(false) }
+    val openChart = ui.charts.takeIf { chartOpen && screen == Screen.HOME && ui.category == GENERAL }
     val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
     val openPlaylist = ui.playlists.firstOrNull { it.id == openPlaylistId }.takeIf { screen == Screen.HOME }
     val sorting = ui.sorting
@@ -77,6 +79,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         screen = chosen
         openListId = null
         openPlaylistId = null
+        chartOpen = false
         viewModel.stopSorting()
         viewModel.closeListening()
     }
@@ -109,12 +112,13 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     }
 
     SystemBack(enabled = settingsOpen || sorting != null || listening != null || openList != null ||
-        openPlaylist != null) {
+        openPlaylist != null || openChart != null) {
         when {
             settingsOpen -> settingsOpen = false
             sorting != null -> viewModel.stopSorting()
             listening != null -> viewModel.closeListening()
             openPlaylist != null -> openPlaylistId = null
+            openChart != null -> chartOpen = false
             else -> openListId = null
         }
     }
@@ -155,11 +159,11 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                         },
                         colors = barColors,
                     )
-                } else if (openPlaylist != null) {
+                } else if (openPlaylist != null || openChart != null) {
                     TopAppBar(
                         title = { },
                         navigationIcon = {
-                            IconButton(onClick = { openPlaylistId = null }) {
+                            IconButton(onClick = { openPlaylistId = null; chartOpen = false }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         },
@@ -205,6 +209,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                             ListeningScreen(listening, ui, viewModel, open)
                         }
                         openPlaylist != null -> PlaylistScreen(openPlaylist, ui, viewModel, open)
+                        openChart != null -> ChartScreen(openChart, viewModel, open)
                         openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
                         else -> Refreshable(ui.loading, viewModel::refresh) {
                             Column {
@@ -212,6 +217,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                                 when (screen) {
                                     Screen.HOME -> HomeScreen(ui, viewModel, open,
                                         showList = { openListId = it }, showPlaylist = { openPlaylistId = it },
+                                        showChart = { chartOpen = true },
                                         seeLibrary = { screen = Screen.LIBRARY })
                                     Screen.SEARCH -> SearchScreen(ui, viewModel, open)
                                     Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
