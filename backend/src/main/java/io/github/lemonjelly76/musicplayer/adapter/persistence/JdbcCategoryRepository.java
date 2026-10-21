@@ -26,7 +26,7 @@ class JdbcCategoryRepository implements CategoryRepository {
 
     @Override
     public List<Category> findAll() {
-        return jdbc.sql("select * from category order by name").query(CATEGORY).list();
+        return jdbc.sql("select * from category order by position, name").query(CATEGORY).list();
     }
 
     @Override
@@ -37,12 +37,24 @@ class JdbcCategoryRepository implements CategoryRepository {
     @Override
     public void save(Category category) {
         jdbc.sql("""
-                        insert into category (id, name, rules) values (:id, :name, :rules)
+                        insert into category (id, name, rules, position)
+                        values (:id, :name, :rules, (select coalesce(max(position), 0) + 1 from category))
                         on conflict (id) do update set name = excluded.name, rules = excluded.rules""")
                 .param("id", category.id().value())
                 .param("name", category.name())
                 .param("rules", category.rules())
                 .update();
+    }
+
+    @Override
+    @Transactional
+    public void reorder(List<CategoryId> order) {
+        for (int position = 0; position < order.size(); position++) {
+            jdbc.sql("update category set position = :position where id = :id")
+                    .param("position", position + 1)
+                    .param("id", order.get(position).value())
+                    .update();
+        }
     }
 
     /**

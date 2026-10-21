@@ -80,6 +80,21 @@ class JdbcPeopleAndLibraryTest {
     }
 
     @Test
+    void keepsCategoriesInTheirOrderWithNewOnesLast() {
+        Category running = Category.create("Running", "");
+        Category dinner = Category.create("Dinner", "");
+        Category chill = Category.create("Chill", "");
+        categories.save(running);
+        categories.save(dinner);
+
+        categories.reorder(List.of(dinner.id(), running.id()));
+        categories.save(chill);
+        categories.save(running.withRules("Fast"));
+
+        assertThat(categories.findAll()).containsExactly(dinner, running.withRules("Fast"), chill);
+    }
+
+    @Test
     void keepsTasteProfilesAndCategories() {
         Person craig = Person.create("Craig", Optional.empty());
         people.save(craig);

@@ -138,6 +138,14 @@ final class FakePorts {
         }
 
         @Override
+        public void reorder(List<CategoryId> order) {
+            Map<CategoryId, Category> reordered = new LinkedHashMap<>();
+            order.forEach(id -> reordered.put(id, saved.get(id)));
+            saved.clear();
+            saved.putAll(reordered);
+        }
+
+        @Override
         public void delete(CategoryId id) {
             saved.remove(id);
         }

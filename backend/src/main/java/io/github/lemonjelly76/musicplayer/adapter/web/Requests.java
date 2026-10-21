@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.adapter.web;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,6 +35,12 @@ final class Requests {
             return new Track(Provider.parse(parts[0]), parts[1], artist.strip(), title.strip(),
                     Objects.requireNonNullElse(album, "").strip(), Optional.ofNullable(cover).filter(url -> !url.isBlank()));
         }
+    }
+
+    /**
+     * Every activity's id, in the order wanted.
+     */
+    record CategoryOrderRequest(List<String> ids) {
     }
 
     /**

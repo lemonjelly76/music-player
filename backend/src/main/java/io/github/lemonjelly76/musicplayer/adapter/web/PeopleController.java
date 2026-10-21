@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.adapter.web.Requests.CategoryOrderRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.CategoryRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.ServiceRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.TrackingRequest;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @RestController
@@ -82,6 +84,15 @@ class PeopleController {
     @GetMapping("/categories")
     List<CategoryResponse> categories() {
         return categories.all().stream().map(CategoryResponse::from).toList();
+    }
+
+    /**
+     * Puts the activities in the household's chosen order.
+     */
+    @PutMapping("/categories/order")
+    List<CategoryResponse> reorderCategories(@RequestBody CategoryOrderRequest request) {
+        categories.reorder(Objects.requireNonNullElse(request.ids(), List.of()));
+        return categories();
     }
 
     /**

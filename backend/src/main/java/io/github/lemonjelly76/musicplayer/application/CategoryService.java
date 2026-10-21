@@ -4,10 +4,10 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class CategoryService {
@@ -20,8 +20,23 @@ public class CategoryService {
         this.repository = repository;
     }
 
+    /**
+     * Every activity, in the household's order.
+     */
     public List<Category> all() {
-        return repository.findAll().stream().sorted(Comparator.comparing(Category::name)).toList();
+        return repository.findAll();
+    }
+
+    /**
+     * Puts the activities in the given order of names or ids, which must name each of them once.
+     */
+    public void reorder(List<String> namesOrIds) {
+        List<CategoryId> order = namesOrIds.stream().map(this::find).map(Category::id).toList();
+        Set<CategoryId> all = repository.findAll().stream().map(Category::id).collect(Collectors.toSet());
+        if (order.size() != all.size() || !Set.copyOf(order).equals(all)) {
+            throw new IllegalArgumentException("Give every activity once, in the order wanted");
+        }
+        repository.reorder(order);
     }
 
     public Map<CategoryId, String> names() {

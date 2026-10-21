@@ -30,6 +30,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** The list with the activity [id] moved [by] places, stopping at either end. */
+fun List<Category>.moved(id: String, by: Int): List<Category> {
+    val from = indexOfFirst { it.id == id }
+    if (from < 0) return this
+    val to = (from + by).coerceIn(0, lastIndex)
+    return toMutableList().apply { add(to, removeAt(from)) }
+}
+
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
 
 /** Albums or songs, as Search and Library each show one or the other. */
@@ -142,6 +150,20 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
             launch { state.value.personId?.let { reloadLibrary(it) } }
             launch { searchAgain() }
             launch { loadListening() }
+        }
+    }
+
+    /**
+     * Moves an activity [by] places, earlier when negative, for the whole household; the chips move at once and the
+     * server's order is kept once it answers.
+     */
+    fun moveCategory(id: String, by: Int) {
+        val moved = state.value.categories.moved(id, by)
+        if (moved == state.value.categories) return
+        state.update { it.copy(categories = moved) }
+        load {
+            val saved = api.reorderCategories(moved.map { it.id })
+            state.update { it.copy(categories = saved) }
         }
     }
 

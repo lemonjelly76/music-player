@@ -226,9 +226,10 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
 
     ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
     held?.let { current ->
-        ActivityActions(current, change = { held = it },
+        ActivityActions(current, activities(ui).drop(1), change = { held = it },
             rename = { viewModel.renameCategory(current.activity.id, it) },
-            remove = { viewModel.removeCategory(current.activity.id) })
+            remove = { viewModel.removeCategory(current.activity.id) },
+            move = viewModel::moveCategory)
     }
 }
 

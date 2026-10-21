@@ -20,6 +20,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,6 +80,22 @@ class PeopleControllerTest {
                 .bodyJson().isLenientlyEqualTo("""
                         {"name":"Focus","rules":"Instrumental"}""");
         verify(playlists).renameFor(focus);
+    }
+
+    @Test
+    void reordersTheActivities() {
+        Category dinner = Category.create("Dinner", "");
+        Category running = Category.create("Running", "");
+        given(categories.all()).willReturn(List.of(dinner, running));
+
+        assertThat(mvc.put().uri("/api/categories/order")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"ids":["c-2","c-1"]}"""))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        [{"name":"Dinner"},{"name":"Running"}]""");
+        verify(categories).reorder(List.of("c-2", "c-1"));
     }
 
     @Test

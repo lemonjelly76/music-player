@@ -87,6 +87,17 @@ class ApiClientTest {
     }
 
     @Test
+    fun reordersTheActivities() = runTest {
+        val order = client { json("""[{"id":"c2","name":"Dinner"},{"id":"c1","name":"Running"}]""") }
+            .reorderCategories(listOf("c2", "c1"))
+
+        assertEquals(listOf("Dinner", "Running"), order.map { it.name })
+        val request = requests.single()
+        assertEquals("https://pc.tailnet.ts.net:8444/api/categories/order", request.url.toString())
+        assertEquals("""{"ids":["c2","c1"]}""", request.body.toByteArray().decodeToString())
+    }
+
+    @Test
     fun removesAnActivity() = runTest {
         client { respond("", HttpStatusCode.NoContent) }.removeCategory("c1")
 

@@ -10,12 +10,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -42,25 +48,30 @@ import androidx.compose.ui.unit.dp
 
 /** An activity chip that was held, and how far the person has got with it. */
 data class HeldActivity(val activity: Activity, val step: Step) {
-    enum class Step { CHOOSE, RENAME, REMOVE }
+    enum class Step { CHOOSE, RENAME, REMOVE, REORDER }
 }
 
 /**
- * What holding an activity's chip offers, as streaming apps show a sheet of actions for a held item: rename it or
- * remove it, each affecting the whole household.
+ * What holding an activity's chip offers, as streaming apps show a sheet of actions for a held item: rename it,
+ * remove it, or reorder the activities, each affecting the whole household. [activities] are all but General, in
+ * order.
  */
 @Composable
 fun ActivityActions(
     held: HeldActivity,
+    activities: List<Activity>,
     change: (HeldActivity?) -> Unit,
     rename: (String) -> Unit,
     remove: () -> Unit,
+    move: (id: String, by: Int) -> Unit,
 ) {
     val activity = held.activity
     when (held.step) {
         HeldActivity.Step.CHOOSE -> ActivitySheet(activity, close = { change(null) },
             rename = { change(held.copy(step = HeldActivity.Step.RENAME)) },
-            remove = { change(held.copy(step = HeldActivity.Step.REMOVE)) })
+            remove = { change(held.copy(step = HeldActivity.Step.REMOVE)) },
+            reorder = { change(held.copy(step = HeldActivity.Step.REORDER)) })
+        HeldActivity.Step.REORDER -> ReorderSheet(activities, held = activity.id, move, close = { change(null) })
         HeldActivity.Step.RENAME -> RenameDialog(activity, close = { change(null) }, rename = { change(null); rename(it) })
         HeldActivity.Step.REMOVE -> RemoveDialog(activity, close = { change(null) }, remove = { change(null); remove() })
     }
@@ -68,7 +79,8 @@ fun ActivityActions(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ActivitySheet(activity: Activity, close: () -> Unit, rename: () -> Unit, remove: () -> Unit) {
+private fun ActivitySheet(activity: Activity, close: () -> Unit, rename: () -> Unit, remove: () -> Unit,
+    reorder: () -> Unit) {
     ModalBottomSheet(onDismissRequest = close, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -76,6 +88,7 @@ private fun ActivitySheet(activity: Activity, close: () -> Unit, rename: () -> U
             Text(activity.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         SheetAction(Icons.Outlined.Edit, "Rename", MaterialTheme.colorScheme.onSurface, rename)
+        SheetAction(Icons.AutoMirrored.Filled.List, "Reorder activities", MaterialTheme.colorScheme.onSurface, reorder)
         SheetAction(Icons.Outlined.Delete, "Remove", MaterialTheme.colorScheme.error, remove)
         Spacer(Modifier.height(24.dp))
     }
@@ -87,6 +100,39 @@ private fun SheetAction(icon: ImageVector, label: String, color: Color, onClick:
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Icon(icon, contentDescription = null, tint = color)
         Text(label, style = MaterialTheme.typography.bodyLarge, color = color)
+    }
+}
+
+/**
+ * Every activity with arrows to move it a place earlier or later; each move is saved at once and the chips follow.
+ * The activity that was held is picked out, so it is easy to find.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReorderSheet(activities: List<Activity>, held: String, move: (String, Int) -> Unit, close: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = close, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        Text("Reorder activities", Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold)
+        Text("General always comes first. The order is the same for everyone.",
+            Modifier.padding(horizontal = 24.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn {
+            itemsIndexed(activities, key = { _, activity -> activity.id }) { index, activity ->
+                val color = if (activity.id == held) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Icon(activity.icon, contentDescription = null, tint = color)
+                    Text(activity.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = color)
+                    IconButton(onClick = { move(activity.id, -1) }, enabled = index > 0) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move ${activity.name} earlier")
+                    }
+                    IconButton(onClick = { move(activity.id, 1) }, enabled = index < activities.lastIndex) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move ${activity.name} later")
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 

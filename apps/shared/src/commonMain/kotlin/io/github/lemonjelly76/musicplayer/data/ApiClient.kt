@@ -15,6 +15,7 @@ import io.ktor.http.appendPathSegments
 import io.ktor.http.contentType
 import io.ktor.http.takeFrom
 import kotlinx.io.IOException
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -47,6 +48,12 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         Json.person(send(HttpMethod.Put, "api/people/$personId/service", buildJsonObject { put("service", service) }))
 
     suspend fun categories(): List<Category> = Json.categories(get("api/categories"))
+
+    /** Puts the activities in the household's order, given every activity's id once. */
+    suspend fun reorderCategories(ids: List<String>): List<Category> =
+        Json.categories(send(HttpMethod.Put, "api/categories/order", buildJsonObject {
+            put("ids", JsonArray(ids.map(::JsonPrimitive)))
+        }))
 
     /** Renames an activity for the whole household, and its playlists with it. */
     suspend fun renameCategory(categoryId: String, name: String): Category =

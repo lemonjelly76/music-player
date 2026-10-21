@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.ui
 
 import io.github.lemonjelly76.musicplayer.data.Album
+import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.Rating
@@ -94,5 +95,16 @@ class HomeLogicTest {
         assertEquals(listOf(loved, general), LibraryFilter.ALL.applyToSongs(songs))
         assertEquals(listOf(loved), LibraryFilter.LOVED.applyToSongs(songs))
         assertEquals(listOf(turnedDown), LibraryFilter.NOT_FOR_ME.applyToSongs(songs))
+    }
+
+    @Test
+    fun movesAnActivityStoppingAtEitherEnd() {
+        val (running, dinner, chill) = listOf("Running", "Dinner", "Chill").map { Category(it.lowercase(), it, "") }
+        val activities = listOf(running, dinner, chill)
+
+        assertEquals(listOf(dinner, running, chill), activities.moved("dinner", -1))
+        assertEquals(listOf(running, chill, dinner), activities.moved("dinner", 1))
+        assertEquals(listOf(running, dinner, chill), activities.moved("chill", 1))
+        assertEquals(activities, activities.moved("nope", 1))
     }
 }
