@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.delete;
 import static com.github.tomakehurst.wiremock.client.WireMock.deleteRequestedFor;
@@ -31,6 +32,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.havingExactly;
 import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.patch;
+import static com.github.tomakehurst.wiremock.client.WireMock.patchRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
@@ -120,7 +123,7 @@ class TidalMusicProviderTest {
         tidal.stubFor(post(urlPathEqualTo("/v2/playlists")).willReturn(okJson("""
                 {"data":{"id":"new-playlist","type":"playlists"}}""")));
         tidal.stubFor(post(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items")).willReturn(okJson("{}")));
-        List<String> songs = java.util.stream.IntStream.rangeClosed(1, 21).mapToObj(n -> "t" + n).toList();
+        List<String> songs = IntStream.rangeClosed(1, 21).mapToObj(n -> "t" + n).toList();
 
         String id = provider.replacePlaylist(CRAIG, Optional.of("old"), "AI Picks", "Picked for Craig", songs);
 
@@ -133,6 +136,18 @@ class TidalMusicProviderTest {
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items"))
                 .withRequestBody(equalToJson("""
                         {"data":[{"id":"t21","type":"tracks"}]}""")));
+    }
+
+    @Test
+    void renamesAPlaylistInThePersonsAccount() {
+        tidal.stubFor(patch(urlPathEqualTo("/v2/playlists/pl-1")).willReturn(okJson("{}")));
+
+        provider.renamePlaylist(CRAIG, "pl-1", "AI Picks — Jogging");
+
+        tidal.verify(patchRequestedFor(urlPathEqualTo("/v2/playlists/pl-1"))
+                .withHeader("Authorization", equalTo("Bearer user-token"))
+                .withRequestBody(equalToJson("""
+                        {"data":{"id":"pl-1","type":"playlists","attributes":{"name":"AI Picks — Jogging"}}}""")));
     }
 
     @Test

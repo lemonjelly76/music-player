@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.adapter.web.Requests.CategoryRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.ServiceRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.TrackingRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.CategoryResponse;
@@ -11,6 +12,7 @@ import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.PlayService;
+import io.github.lemonjelly76.musicplayer.application.PlaylistService;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
@@ -38,12 +40,15 @@ class PeopleController {
     private final CategoryService categories;
     private final PlayService plays;
     private final MusicProviders providers;
+    private final PlaylistService playlists;
 
-    PeopleController(PersonService people, CategoryService categories, PlayService plays, MusicProviders providers) {
+    PeopleController(PersonService people, CategoryService categories, PlayService plays, MusicProviders providers,
+            PlaylistService playlists) {
         this.people = people;
         this.categories = categories;
         this.plays = plays;
         this.providers = providers;
+        this.playlists = playlists;
     }
 
     @GetMapping("/people")
@@ -77,6 +82,16 @@ class PeopleController {
     @GetMapping("/categories")
     List<CategoryResponse> categories() {
         return categories.all().stream().map(CategoryResponse::from).toList();
+    }
+
+    /**
+     * Renames an activity for the whole household, and its playlists with it.
+     */
+    @PutMapping("/categories/{id}")
+    CategoryResponse renameCategory(@PathVariable String id, @RequestBody CategoryRequest request) {
+        Category renamed = categories.rename(id, request.name());
+        playlists.renameFor(renamed);
+        return CategoryResponse.from(renamed);
     }
 
     /**

@@ -34,6 +34,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * In-memory stand-ins for the ports, so application services are tested without a database or the network.
@@ -227,6 +229,15 @@ final class FakePorts {
 
         final Map<String, Playlist> saved = new LinkedHashMap<>();
 
+        /**
+         * Newest first; the test clock stands still, so a later save counts as newer.
+         */
+        private Stream<Playlist> newestFirst() {
+            List<Playlist> all = new ArrayList<>(saved.values());
+            Collections.reverse(all);
+            return all.stream().sorted(Comparator.comparing(Playlist::createdAt).reversed());
+        }
+
         @Override
         public void save(Playlist playlist) {
             saved.put(playlist.id().toString(), playlist);
@@ -234,10 +245,16 @@ final class FakePorts {
 
         @Override
         public List<Playlist> latest(PersonId person, Optional<CategoryId> activity, int limit) {
-            return saved.values().stream()
+            return newestFirst()
                     .filter(playlist -> playlist.person().equals(person) && playlist.category().equals(activity))
-                    .sorted(Comparator.comparing(Playlist::createdAt).reversed())
                     .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public List<Playlist> forActivity(CategoryId activity) {
+            return newestFirst()
+                    .filter(playlist -> playlist.category().equals(Optional.of(activity)))
                     .toList();
         }
 
@@ -264,6 +281,7 @@ final class FakePorts {
         final Map<PersonId, List<AlbumRef>> storedFavourites = new HashMap<>();
         final List<String> playlistCalls = new ArrayList<>();
         final List<String> deletedPlaylists = new ArrayList<>();
+        final List<String> renamedPlaylists = new ArrayList<>();
         int findCalls;
         /** Searches after this many fail, as when the service goes down part way through. */
         int findsBeforeFailing = Integer.MAX_VALUE;
@@ -365,6 +383,12 @@ final class FakePorts {
         @Override
         public URI searchLink(String query) {
             return URI.create("https://" + name.prefix() + ".example/search/" + query.replace(' ', '+'));
+        }
+
+        @Override
+        public void renamePlaylist(PersonId person, String playlistId, String newName) {
+            requireConnected(person);
+            renamedPlaylists.add(playlistId + " " + newName);
         }
 
         @Override

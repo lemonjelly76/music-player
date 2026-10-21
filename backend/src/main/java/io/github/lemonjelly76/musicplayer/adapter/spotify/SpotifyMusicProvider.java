@@ -169,6 +169,12 @@ class SpotifyMusicProvider implements MusicProvider {
     }
 
     @Override
+    public void renamePlaylist(PersonId person, String playlistId, String newName) {
+        api.send(HttpMethod.PUT, api.url("/playlists/" + playlistId), Map.of("name", newName),
+                authorization.accessToken(person));
+    }
+
+    @Override
     public URI trackLink(String id) {
         return URI.create(properties.webUrl() + "/track/" + id);
     }

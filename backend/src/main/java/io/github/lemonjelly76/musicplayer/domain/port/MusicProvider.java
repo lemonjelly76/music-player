@@ -62,6 +62,11 @@ public interface MusicProvider {
      */
     URI searchLink(String query);
 
+    /**
+     * Gives a playlist in the person's account a new name, as when its activity is renamed.
+     */
+    void renamePlaylist(PersonId person, String playlistId, String newName);
+
     URI trackLink(String id);
 
     URI playlistLink(String playlistId);

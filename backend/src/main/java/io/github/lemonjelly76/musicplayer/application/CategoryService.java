@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 public class CategoryService {
 
+    private static final String GENERAL = "General";
+
     private final CategoryRepository repository;
 
     public CategoryService(CategoryRepository repository) {
@@ -47,6 +49,29 @@ public class CategoryService {
         Category category = find(nameOrId);
         repository.delete(category.id());
         return category;
+    }
+
+    /**
+     * Gives an activity a new name, keeping its rules; no other activity may have it, and General is not one.
+     */
+    public Category rename(String nameOrId, String newName) {
+        Category category = find(nameOrId);
+        String name = newName == null ? "" : newName.strip();
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("An activity needs a name");
+        }
+        if (name.equalsIgnoreCase(GENERAL)) {
+            throw new IllegalArgumentException("General is always there; choose another name");
+        }
+        repository.findAll().stream()
+                .filter(other -> !other.id().equals(category.id()) && other.isCalled(name))
+                .findFirst()
+                .ifPresent(other -> {
+                    throw new IllegalArgumentException("There is already an activity called " + other.name());
+                });
+        Category renamed = category.renamed(name);
+        repository.save(renamed);
+        return renamed;
     }
 
     public Category upsert(String name, String rules) {

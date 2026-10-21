@@ -37,17 +37,17 @@ data class Activity(val id: String, val name: String, val icon: ImageVector)
 
 /**
  * General and each activity, scrolling sideways; every page follows the chosen one. Holding an activity offers to
- * remove it; General stays.
+ * rename or remove it; General stays as it is.
  */
 @Composable
-fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -> Unit, remove: (Activity) -> Unit) {
+fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -> Unit, hold: (Activity) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(activities, key = { it.id }) { activity ->
             ActivityChip(activity, selected = activity.id == chosen, choose = { choose(activity.id) },
-                hold = { remove(activity) }.takeIf { activity.id != GENERAL })
+                hold = { hold(activity) }.takeIf { activity.id != GENERAL })
         }
     }
 }
@@ -62,7 +62,7 @@ private fun ActivityChip(activity: Activity, selected: Boolean, choose: () -> Un
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(
                 onClick = choose,
-                onLongClickLabel = hold?.let { "Remove ${activity.name}" },
+                onLongClickLabel = hold?.let { "Rename or remove ${activity.name}" },
                 onLongClick = hold?.let { { haptics.performHapticFeedback(HapticFeedbackType.LongPress); it() } },
             )
             .padding(start = 8.dp, end = 16.dp),

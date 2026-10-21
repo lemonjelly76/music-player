@@ -57,6 +57,18 @@ class ApiClientTest {
     }
 
     @Test
+    fun renamesAnActivity() = runTest {
+        val renamed = client { json("""{"id":"c1","name":"Focus","rules":"Instrumental"}""") }
+            .renameCategory("c1", "Focus")
+
+        assertEquals(Category("c1", "Focus", "Instrumental"), renamed)
+        val request = requests.single()
+        assertEquals(HttpMethod.Put, request.method)
+        assertEquals("https://pc.tailnet.ts.net:8444/api/categories/c1", request.url.toString())
+        assertEquals("""{"name":"Focus"}""", request.body.toByteArray().decodeToString())
+    }
+
+    @Test
     fun removesAnActivity() = runTest {
         client { respond("", HttpStatusCode.NoContent) }.removeCategory("c1")
 

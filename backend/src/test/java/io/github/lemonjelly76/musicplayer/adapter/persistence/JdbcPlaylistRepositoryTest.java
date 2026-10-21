@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,7 +49,7 @@ class JdbcPlaylistRepositoryTest {
     }
 
     private Playlist playlist(Optional<Category> category, Instant at, String... titles) {
-        List<Track> tracks = java.util.Arrays.stream(titles)
+        List<Track> tracks = Arrays.stream(titles)
                 .map(title -> new Track(Provider.SPOTIFY, "sp-" + title, "Artist", title, "Album",
                         Optional.of("https://covers/" + title)))
                 .toList();
@@ -80,5 +81,20 @@ class JdbcPlaylistRepositoryTest {
 
         assertThat(playlists.findBySynced("pl-1")).contains(synced);
         assertThat(playlists.findBySynced("pl-2")).isEmpty();
+    }
+
+    @Test
+    void findsAnActivitysPlaylistsForEveryoneAndSavesANewName() {
+        Person robin = Person.create("Robin", Optional.empty());
+        people.save(robin);
+        Playlist craigs = playlist(Optional.of(running), NOW, "A");
+        Playlist robins = Playlist.create(robin.id(), Optional.of(running), "", craigs.tracks(), NOW.minusSeconds(60));
+        playlists.save(craigs);
+        playlists.save(robins);
+        playlists.save(playlist(Optional.empty(), NOW, "B"));
+
+        playlists.save(craigs.renamed("AI Picks — Jogging"));
+
+        assertThat(playlists.forActivity(running.id())).containsExactly(craigs.renamed("AI Picks — Jogging"), robins);
     }
 }

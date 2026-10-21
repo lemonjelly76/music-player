@@ -48,6 +48,10 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
 
     suspend fun categories(): List<Category> = Json.categories(get("api/categories"))
 
+    /** Renames an activity for the whole household, and its playlists with it. */
+    suspend fun renameCategory(categoryId: String, name: String): Category =
+        Json.category(send(HttpMethod.Put, "api/categories/$categoryId", buildJsonObject { put("name", name) }))
+
     /** Removes an activity for the whole household, with everything rated, picked or made for it. */
     suspend fun removeCategory(categoryId: String) {
         send(HttpMethod.Delete, "api/categories/$categoryId", null)

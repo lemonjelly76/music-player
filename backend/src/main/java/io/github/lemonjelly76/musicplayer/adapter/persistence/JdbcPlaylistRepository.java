@@ -37,7 +37,7 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                         insert into playlist (id, person_id, category_id, name, description, created_at, provider,
                             provider_playlist_id)
                         values (:id, :person, :category, :name, :description, :createdAt, :provider, :synced)
-                        on conflict (id) do update set provider = excluded.provider,
+                        on conflict (id) do update set name = excluded.name, provider = excluded.provider,
                             provider_playlist_id = excluded.provider_playlist_id""")
                 .param("id", playlist.id().value())
                 .param("person", playlist.person().value())
@@ -79,6 +79,14 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                 .param("person", person.value())
                 .param("category", activity.map(CategoryId::value).orElse(null))
                 .param("limit", limit)
+                .query((row, number) -> withoutTracks(row))
+                .list());
+    }
+
+    @Override
+    public List<Playlist> forActivity(CategoryId activity) {
+        return withTracks(jdbc.sql("select * from playlist where category_id = :category order by created_at desc")
+                .param("category", activity.value())
                 .query((row, number) -> withoutTracks(row))
                 .list());
     }

@@ -132,6 +132,18 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         }
     }
 
+    /** Renames the activity for the whole household; its playlists take the new name too. */
+    fun renameCategory(id: String, name: String) = load {
+        val renamed = api.renameCategory(id, name)
+        state.update { current ->
+            current.copy(
+                categories = current.categories.map { if (it.id == id) renamed else it }.sortedBy { it.name.lowercase() },
+                message = "Renamed to ${renamed.name}",
+            )
+        }
+        if (state.value.category == id) loadLists()
+    }
+
     /** Removes the activity for the whole household; showing it, the app goes back to General. */
     fun removeCategory(id: String) {
         val removed = state.value.categories.firstOrNull { it.id == id } ?: return

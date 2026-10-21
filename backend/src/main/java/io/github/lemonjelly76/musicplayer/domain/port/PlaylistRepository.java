@@ -17,6 +17,11 @@ public interface PlaylistRepository {
     List<Playlist> latest(PersonId person, Optional<CategoryId> activity, int limit);
 
     /**
+     * Everyone's playlists for the activity, newest first.
+     */
+    List<Playlist> forActivity(CategoryId activity);
+
+    /**
      * The playlist written to the service under that id, so plays from it can be put down to its activity.
      */
     Optional<Playlist> findBySynced(String providerPlaylistId);

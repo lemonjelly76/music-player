@@ -173,9 +173,11 @@ object Json {
         Service(it.string("service"), it.boolean("configured"))
     }
 
-    fun categories(text: String): List<Category> = array(text).map {
-        Category(it.string("id"), it.string("name"), it.optString("rules"))
-    }
+    fun categories(text: String): List<Category> = array(text).map(::category)
+
+    fun category(text: String): Category = category(obj(text))
+
+    private fun category(json: JsonObject) = Category(json.string("id"), json.string("name"), json.optString("rules"))
 
     fun lists(text: String): List<PickList> = array(text).map { list ->
         PickList(

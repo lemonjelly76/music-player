@@ -24,6 +24,10 @@ public record Category(CategoryId id, String name, String rules) {
         return new Category(id, name, newRules);
     }
 
+    public Category renamed(String newName) {
+        return new Category(id, newName, rules);
+    }
+
     public boolean isCalled(String text) {
         return name.equalsIgnoreCase(text.strip());
     }

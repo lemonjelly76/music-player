@@ -4,12 +4,14 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 
 import java.time.Clock;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
  */
 public class PlaylistService {
 
+    private static final System.Logger LOG = System.getLogger(PlaylistService.class.getName());
     private static final int EARLIER_LISTS = 10;
 
     private final PlaylistRepository repository;
@@ -103,6 +106,29 @@ public class PlaylistService {
      */
     public List<Playlist> latest(Person person, Optional<CategoryId> activity, int limit) {
         return repository.latest(person.id(), activity, limit);
+    }
+
+    /**
+     * Gives the activity's playlists its new name, here and, for each person's newest, in their account. An account
+     * that cannot be reached keeps the old name until their next playlist replaces it.
+     */
+    public void renameFor(Category category) {
+        String name = RecommendationList.nameFor(Optional.of(category));
+        Set<PersonId> renamedInAccount = new HashSet<>();
+        for (Playlist playlist : repository.forActivity(category.id())) {
+            repository.save(playlist.renamed(name));
+            if (playlist.synced().isPresent() && renamedInAccount.add(playlist.person())) {
+                renameInAccount(playlist.person(), playlist.synced().get(), name);
+            }
+        }
+    }
+
+    private void renameInAccount(PersonId person, SyncedPlaylist synced, String name) {
+        try {
+            providers.find(synced.provider()).ifPresent(service -> service.renamePlaylist(person, synced.playlistId(), name));
+        } catch (MusicProviderUnavailableException e) {
+            LOG.log(System.Logger.Level.WARNING, "Could not rename playlist " + synced.playlistId() + " to " + name, e);
+        }
     }
 
     private static Optional<String> whyLeftOut(Track track, Set<String> songs, Set<String> ids,

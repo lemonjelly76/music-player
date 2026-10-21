@@ -124,6 +124,18 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void renamesAPlaylistInThePersonsAccount() {
+        spotify.stubFor(put(urlPathEqualTo("/v1/playlists/pl-1")).willReturn(ok()));
+
+        provider.renamePlaylist(CRAIG.id(), "pl-1", "AI Picks — Jogging");
+
+        spotify.verify(putRequestedFor(urlPathEqualTo("/v1/playlists/pl-1"))
+                .withHeader("Authorization", equalTo("Bearer user-token"))
+                .withRequestBody(equalToJson("""
+                        {"name":"AI Picks — Jogging"}""")));
+    }
+
+    @Test
     void savesAFavouriteToThePersonsLibrary() {
         spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).willReturn(ok()));
 

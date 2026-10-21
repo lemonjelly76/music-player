@@ -158,6 +158,14 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     @Override
+    public void renamePlaylist(PersonId person, String playlistId, String newName) {
+        ObjectNode playlist = jsonMapper.createObjectNode();
+        ObjectNode data = playlist.putObject("data").put("id", playlistId).put("type", "playlists");
+        data.putObject("attributes").put("name", newName);
+        send(HttpMethod.PATCH, "/playlists/" + playlistId, playlist, authorization.accessToken(person));
+    }
+
+    @Override
     public URI trackLink(String id) {
         return URI.create(properties.webUrl() + "/track/" + id);
     }

@@ -13,6 +13,12 @@ final class Requests {
     }
 
     /**
+     * A new name for an activity.
+     */
+    record CategoryRequest(String name) {
+    }
+
+    /**
      * A null or empty service leaves the person without one.
      */
     record ServiceRequest(String service) {

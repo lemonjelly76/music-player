@@ -16,6 +16,7 @@ import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationLi
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -58,7 +59,7 @@ class PlaylistServiceTest {
     void keepsTheFirstFiftySongsOnceEach() {
         Person craig = world.tidalUser("Craig");
         IntStream.range(0, 60).forEach(n -> world.tidal.carryTrack("tr-" + n, "Artist", "Song " + n, "Album"));
-        List<TrackRequest> requests = new java.util.ArrayList<>(List.of(song("Artist", "Song 0"), song("Artist", "Song 0")));
+        List<TrackRequest> requests = new ArrayList<>(List.of(song("Artist", "Song 0"), song("Artist", "Song 0")));
         IntStream.range(1, 60).forEach(n -> requests.add(song("Artist", "Song " + n)));
 
         Saved saved = world.playlists.save(craig, Optional.empty(), "", requests);
@@ -137,5 +138,32 @@ class PlaylistServiceTest {
         world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
 
         assertThat(world.playlists.latest(craig, Optional.empty(), 5)).isEmpty();
+    }
+
+    @Test
+    void renamingAnActivityRenamesItsPlaylistsHereAndInTheAccount() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
+        world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
+
+        world.playlists.renameFor(world.categories.rename("Running", "Jogging"));
+
+        assertThat(world.playlists.latest(craig, Optional.of(running.id()), 5))
+                .extracting(Playlist::name).containsExactly("AI Picks — Jogging", "AI Picks — Jogging");
+        assertThat(world.tidal.renamedPlaylists).containsExactly("playlist-2 AI Picks — Jogging");
+    }
+
+    @Test
+    void renamesThePlaylistsHereEvenWhenTheAccountCannotBeReached() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
+        world.tidal.connectedPeople.clear();
+
+        world.playlists.renameFor(world.categories.rename("Running", "Jogging"));
+
+        assertThat(world.playlists.latest(craig, Optional.of(running.id()), 1))
+                .extracting(Playlist::name).containsExactly("AI Picks — Jogging");
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,7 +34,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -83,10 +81,11 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         viewModel.closeListening()
     }
     val snackbar = remember { SnackbarHostState() }
-    // An activity held down, waiting for the person to confirm removing it.
-    var removing by remember { mutableStateOf<Activity?>(null) }
+    // An activity chip held down, to rename or remove.
+    var held by remember { mutableStateOf<HeldActivity?>(null) }
     val chips = @Composable {
-        ActivityChips(activities(ui), ui.category, viewModel::chooseCategory, remove = { removing = it })
+        ActivityChips(activities(ui), ui.category, viewModel::chooseCategory,
+            hold = { held = HeldActivity(it, HeldActivity.Step.CHOOSE) })
     }
 
     LaunchedEffect(ui.pendingLink) {
@@ -226,30 +225,13 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     }
 
     ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
-    removing?.let { activity ->
-        RemoveActivityDialog(activity, remove = { viewModel.removeCategory(activity.id) }, close = { removing = null })
+    held?.let { current ->
+        ActivityActions(current, change = { held = it },
+            rename = { viewModel.renameCategory(current.activity.id, it) },
+            remove = { viewModel.removeCategory(current.activity.id) })
     }
 }
 
-/** Removing an activity cannot be undone and affects everyone, so it is confirmed first. */
-@Composable
-private fun RemoveActivityDialog(activity: Activity, remove: () -> Unit, close: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = close,
-        title = { Text("Remove ${activity.name}?") },
-        text = {
-            Text("This removes it for everyone in the household, with the ratings, albums to try and playlists " +
-                "for it. Albums rated only for ${activity.name} leave the library. Playlists already in Spotify " +
-                "or Tidal stay there.")
-        },
-        confirmButton = {
-            TextButton(onClick = { close(); remove() }) {
-                Text("Remove", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = { TextButton(onClick = close) { Text("Cancel") } },
-    )
-}
 
 /** Pull down to fetch what Claude has written since; the spinner shows only for a pull, not for every rating. */
 @OptIn(ExperimentalMaterial3Api::class)

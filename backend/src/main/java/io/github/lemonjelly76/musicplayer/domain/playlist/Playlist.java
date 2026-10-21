@@ -43,6 +43,10 @@ public record Playlist(PlaylistId id, PersonId person, Optional<CategoryId> cate
                 RecommendationList.nameFor(category), description, createdAt, Optional.empty(), tracks);
     }
 
+    public Playlist renamed(String newName) {
+        return new Playlist(id, person, category, newName, description, createdAt, synced, tracks);
+    }
+
     public Playlist syncedTo(SyncedPlaylist playlist) {
         return new Playlist(id, person, category, name, description, createdAt, Optional.of(playlist), tracks);
     }

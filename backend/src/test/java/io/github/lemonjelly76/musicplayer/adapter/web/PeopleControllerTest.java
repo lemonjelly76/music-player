@@ -4,6 +4,8 @@ import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.PlayService;
+import io.github.lemonjelly76.musicplayer.application.PlaylistService;
+import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
@@ -44,6 +46,8 @@ class PeopleControllerTest {
     private PlayService plays;
     @MockitoBean
     private MusicProviders providers;
+    @MockitoBean
+    private PlaylistService playlists;
 
     @BeforeEach
     void setUp() {
@@ -60,6 +64,21 @@ class PeopleControllerTest {
                 .hasStatusOk()
                 .bodyJson().isEqualTo("""
                         [{"service":"tidal","configured":true},{"service":"spotify","configured":false}]""");
+    }
+
+    @Test
+    void renamesAnActivityAndItsPlaylists() {
+        Category focus = Category.create("Focus", "Instrumental");
+        given(categories.rename("c-1", "Focus")).willReturn(focus);
+
+        assertThat(mvc.put().uri("/api/categories/{id}", "c-1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"Focus"}"""))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"name":"Focus","rules":"Instrumental"}""");
+        verify(playlists).renameFor(focus);
     }
 
     @Test
