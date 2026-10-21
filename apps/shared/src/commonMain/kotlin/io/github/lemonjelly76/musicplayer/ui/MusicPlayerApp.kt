@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -25,6 +27,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -49,7 +52,7 @@ import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.Person
 
 private enum class Screen(val label: String, val icon: ImageVector, val chosenIcon: ImageVector) {
-    PICKS("Picks", AppIcons.AutoAwesomeOutlined, AppIcons.AutoAwesome),
+    HOME("Home", Icons.Outlined.Home, Icons.Filled.Home),
     LIBRARY("Library", AppIcons.LibraryMusicOutlined, AppIcons.LibraryMusic),
 }
 
@@ -57,8 +60,11 @@ private enum class Screen(val label: String, val icon: ImageVector, val chosenIc
 @Composable
 fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    var screen by rememberSaveable { mutableStateOf(Screen.PICKS) }
+    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var settingsOpen by rememberSaveable { mutableStateOf(!ui.server.complete) }
+    // A pick list opened from Home's Playlists shelf; it closes by itself when the activity or person changes.
+    var openListId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.pendingLink) {
@@ -81,7 +87,9 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         onPauseOrDispose { }
     }
 
-    SystemBack(enabled = settingsOpen) { settingsOpen = false }
+    SystemBack(enabled = settingsOpen || openList != null) {
+        if (settingsOpen) settingsOpen = false else openListId = null
+    }
 
     val barColors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
     // Phones get tabs along the bottom; wider windows, such as the desktop app, a rail down the side.
@@ -94,6 +102,16 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                         title = { Text("Settings", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             IconButton(onClick = { settingsOpen = false }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        colors = barColors,
+                    )
+                } else if (openList != null) {
+                    TopAppBar(
+                        title = { Text(openList.name, fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = { openListId = null }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         },
@@ -113,23 +131,28 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                 }
             },
             bottomBar = {
-                if (!settingsOpen && !wide) BottomTabs(screen) { screen = it }
+                if (!settingsOpen && !wide) BottomTabs(screen) { screen = it; openListId = null }
             },
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
             Row(Modifier.padding(padding).fillMaxSize()) {
-                if (!settingsOpen && wide) SideTabs(screen) { screen = it }
+                if (!settingsOpen && wide) SideTabs(screen) { screen = it; openListId = null }
                 Column(Modifier.fillMaxSize()) {
                     if (ui.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    if (settingsOpen) {
-                        SettingsScreen(ui, viewModel)
-                    } else {
-                        if (ui.people.isNotEmpty() && ui.categories.isNotEmpty()) {
-                            ActivityChips(activities(ui), ui.category, viewModel::chooseCategory)
-                        }
-                        when (screen) {
-                            Screen.PICKS -> PicksScreen(ui, viewModel, open)
-                            Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
+                    when {
+                        settingsOpen -> SettingsScreen(ui, viewModel)
+                        openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
+                        else -> Refreshable(ui.loading, viewModel::refresh) {
+                            Column {
+                                if (ui.people.isNotEmpty() && ui.categories.isNotEmpty()) {
+                                    ActivityChips(activities(ui), ui.category, viewModel::chooseCategory)
+                                }
+                                when (screen) {
+                                    Screen.HOME -> HomeScreen(ui, viewModel, open,
+                                        showList = { openListId = it }, seeLibrary = { screen = Screen.LIBRARY })
+                                    Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
+                                }
+                            }
                         }
                     }
                 }
@@ -138,6 +161,15 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     }
 
     ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
+}
+
+/** Pull down to fetch what Claude has written since; the spinner shows only for a pull, not for every rating. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Refreshable(loading: Boolean, refresh: () -> Unit, content: @Composable () -> Unit) {
+    var pulled by remember { mutableStateOf(false) }
+    LaunchedEffect(loading) { if (!loading) pulled = false }
+    PullToRefreshBox(isRefreshing = pulled, onRefresh = { pulled = true; refresh() }) { content() }
 }
 
 @Composable

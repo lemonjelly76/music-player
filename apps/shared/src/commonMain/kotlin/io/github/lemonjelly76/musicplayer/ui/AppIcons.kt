@@ -84,55 +84,6 @@ object AppIcons {
         }
     }
 
-    val AutoAwesomeOutlined: ImageVector by lazy {
-        materialIcon(name = "Outlined.AutoAwesome") {
-            materialPath {
-                moveTo(19.0f, 9.0f)
-                lineToRelative(1.25f, -2.75f)
-                lineToRelative(2.75f, -1.25f)
-                lineToRelative(-2.75f, -1.25f)
-                lineToRelative(-1.25f, -2.75f)
-                lineToRelative(-1.25f, 2.75f)
-                lineToRelative(-2.75f, 1.25f)
-                lineToRelative(2.75f, 1.25f)
-                close()
-            }
-            materialPath {
-                moveTo(19.0f, 15.0f)
-                lineToRelative(-1.25f, 2.75f)
-                lineToRelative(-2.75f, 1.25f)
-                lineToRelative(2.75f, 1.25f)
-                lineToRelative(1.25f, 2.75f)
-                lineToRelative(1.25f, -2.75f)
-                lineToRelative(2.75f, -1.25f)
-                lineToRelative(-2.75f, -1.25f)
-                close()
-            }
-            materialPath {
-                moveTo(11.5f, 9.5f)
-                lineTo(9.0f, 4.0f)
-                lineTo(6.5f, 9.5f)
-                lineTo(1.0f, 12.0f)
-                lineToRelative(5.5f, 2.5f)
-                lineTo(9.0f, 20.0f)
-                lineToRelative(2.5f, -5.5f)
-                lineTo(17.0f, 12.0f)
-                lineTo(11.5f, 9.5f)
-                close()
-                moveTo(9.99f, 12.99f)
-                lineTo(9.0f, 15.17f)
-                lineToRelative(-0.99f, -2.18f)
-                lineTo(5.83f, 12.0f)
-                lineToRelative(2.18f, -0.99f)
-                lineTo(9.0f, 8.83f)
-                lineToRelative(0.99f, 2.18f)
-                lineTo(12.17f, 12.0f)
-                lineTo(9.99f, 12.99f)
-                close()
-            }
-        }
-    }
-
     val Bedtime: ImageVector by lazy {
         materialIcon(name = "Filled.Bedtime") {
             materialPath {

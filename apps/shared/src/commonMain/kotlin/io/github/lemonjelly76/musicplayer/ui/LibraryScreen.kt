@@ -8,43 +8,86 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Rating
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
-/** The person's albums as a wall of covers; tapping one opens it in their streaming app. */
+/**
+ * The person's albums for the activity as a wall of covers, narrowed to loved, OK or only this activity's own
+ * ratings; tapping one opens it in their streaming app.
+ */
 @Composable
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
-    if (ui.library.isEmpty()) {
-        val activity = ui.chosenCategory?.name ?: "General"
-        Empty("Nothing loved for $activity yet. Rate picks here, or tell Claude which albums " +
-            "${ui.person?.name ?: "you"} love.")
-        return
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(150.dp),
-        contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        items(ui.library, key = { it.id }) { entry -> LibraryTile(entry, viewModel, open) }
+    var filter by rememberSaveable { mutableStateOf(LibraryFilter.ALL) }
+    val filters = LibraryFilter.entries.filter { it != LibraryFilter.THIS_ACTIVITY || ui.category != GENERAL }
+    if (filter !in filters) filter = LibraryFilter.ALL
+    val shown = filter.apply(ui.library)
+    Column {
+        if (ui.library.isNotEmpty()) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(filters) { option ->
+                    val label = if (option == LibraryFilter.THIS_ACTIVITY) "Rated for ${ui.activityName}" else option.label
+                    Pill(label, null, selected = option == filter) { filter = option }
+                }
+            }
+        }
+        if (shown.isEmpty()) {
+            Empty(emptyLibraryText(ui, filter))
+            return@Column
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(150.dp),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            items(shown, key = { it.id }) { entry -> AlbumTile(entry, viewModel, open) }
+        }
     }
 }
 
+private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when (filter) {
+    LibraryFilter.ALL -> "Nothing loved for ${ui.activityName} yet. Rate picks on Home, or tell Claude which albums " +
+        "${ui.person?.name ?: "you"} love."
+    LibraryFilter.THIS_ACTIVITY -> "No albums rated for ${ui.activityName} itself yet; these all come from General. " +
+        "Use an album's menu to rate it for ${ui.activityName}."
+    else -> "No albums rated ${filter.label} for ${ui.activityName}."
+}
+
+/**
+ * An album's cover, title, artist and rating, with a menu to open it, find more like it or rate it here; [details]
+ * adds its notes and tags.
+ */
 @Composable
-private fun LibraryTile(entry: LibraryAlbum, viewModel: MainViewModel, open: (String) -> Unit) {
+fun AlbumTile(
+    entry: LibraryAlbum,
+    viewModel: MainViewModel,
+    open: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    details: Boolean = true,
+) {
     val album = entry.album
     val link = album.link
     val ratings = Rating.entries.reversed().filter { it != entry.rating || entry.general }
@@ -53,7 +96,7 @@ private fun LibraryTile(entry: LibraryAlbum, viewModel: MainViewModel, open: (St
         link?.let { AlbumAction("Open in ${serviceOfLink(it)}") { open(it) } },
         AlbumAction("More like this") { viewModel.moreLikeThis(album) },
     ) + ratings
-    Column(Modifier.clickable(enabled = link != null) { link?.let(open) }) {
+    Column(modifier.clickable(enabled = link != null) { link?.let(open) }) {
         AlbumArt(album, Modifier.fillMaxWidth())
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f).padding(top = 8.dp)) {
@@ -62,9 +105,9 @@ private fun LibraryTile(entry: LibraryAlbum, viewModel: MainViewModel, open: (St
                 Text(album.artist, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 entry.rating?.let { RatingLabel(it, entry.general) }
-                val details = listOf(entry.notes, entry.tags.joinToString(" · ")).filter { it.isNotBlank() }
-                if (details.isNotEmpty()) {
-                    Text(details.joinToString(" — "), style = MaterialTheme.typography.bodySmall,
+                val notes = listOf(entry.notes, entry.tags.joinToString(" · ")).filter { details && it.isNotBlank() }
+                if (notes.isNotEmpty()) {
+                    Text(notes.joinToString(" — "), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
                         overflow = TextOverflow.Ellipsis)
                 }
@@ -74,13 +117,13 @@ private fun LibraryTile(entry: LibraryAlbum, viewModel: MainViewModel, open: (St
     }
 }
 
-/** Loved in green, OK in grey; "from General" when no rating was given for this activity itself. */
+/** Loved in green, OK in grey; "in General" when no rating was given for this activity itself. */
 @Composable
 private fun RatingLabel(rating: Rating, general: Boolean) {
     val colour = if (rating == Rating.LOVE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(rating.icon, contentDescription = null, Modifier.size(14.dp), tint = colour)
-        Text(if (general) "${rating.label} · from General" else rating.label, style = MaterialTheme.typography.bodySmall,
+        Text(if (general) "${rating.label} in General" else rating.label, style = MaterialTheme.typography.bodySmall,
             color = colour)
     }
 }

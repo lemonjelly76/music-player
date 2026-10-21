@@ -25,28 +25,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.lemonjelly76.musicplayer.data.Pick
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
+/** One pick list as a playlist page: the newest for an activity, or an earlier one from Home's Playlists shelf. */
 @Composable
-fun PicksScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
+fun PickListScreen(list: PickList, personName: String?, viewModel: MainViewModel, open: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxWidth()) {
-        val list = ui.list
-        if (list == null) {
-            val scope = ui.chosenCategory?.name ?: "General"
-            item {
-                Empty(when {
-                    ui.loading -> "Loading…"
-                    ui.person == null -> "Add someone through Claude first, e.g. \"Add me as Craig\"."
-                    else -> "No $scope picks for ${ui.person?.name} yet. Ask Claude for some."
-                })
-            }
-            return@LazyColumn
-        }
-        item { ListHeader(list, ui.person?.name, open) }
+        item { ListHeader(list, personName, open) }
         items(list.picks, key = { it.id }) { pick -> PickRow(pick, viewModel, open) }
     }
 }
@@ -96,7 +84,7 @@ private fun ListDetails(list: PickList, personName: String?) {
     personName?.let {
         Text("Picked by Claude for $it", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
-    Text("${list.picks.size} albums · ${list.createdAt.take(10)}",
+    Text("${list.picks.size} albums · ${shortDate(list.createdAt)}",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -113,7 +101,7 @@ private fun PlayButton(link: String, open: (String) -> Unit) {
 }
 
 @Composable
-private fun PickRow(pick: Pick, viewModel: MainViewModel, open: (String) -> Unit) {
+fun PickRow(pick: Pick, viewModel: MainViewModel, open: (String) -> Unit) {
     val actions = listOfNotNull(
         pick.album.link?.let { link -> AlbumAction("Open in ${serviceOfLink(link)}") { open(link) } },
         AlbumAction("More like this") { viewModel.moreLikeThis(pick.album) },
@@ -122,19 +110,5 @@ private fun PickRow(pick: Pick, viewModel: MainViewModel, open: (String) -> Unit
         Text(pick.reason, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         RatingPills(pick.rating) { viewModel.rate(pick.album, it) }
-    }
-}
-
-@Composable
-fun Empty(text: String) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Icon(AppIcons.MusicNote, contentDescription = null, Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

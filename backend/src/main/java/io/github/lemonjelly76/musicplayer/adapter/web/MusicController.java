@@ -15,6 +15,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryFilter;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
@@ -29,10 +30,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -85,10 +88,20 @@ class MusicController {
             lists = recommendations.lists(person, Optional.of(categories.find(category)), limit(limit));
         }
         Map<AlbumKey, LibraryAlbum> rated = library.byKey(person.id());
+        Set<Optional<CategoryId>> newestSeen = new HashSet<>();
         return lists.stream()
                 .map(list -> recommendations.withCovers(person, list, LOOKUPS_PER_VISIT))
-                .map(list -> ListResponse.from(list, list.playlist().flatMap(providers::link), rated, links(person)))
+                .map(list -> ListResponse.from(list, livePlaylist(list, newestSeen), rated, links(person)))
                 .toList();
+    }
+
+    /**
+     * Each new list replaces its activity's playlist, so only the newest list for an activity, the first one seen
+     * here, still has one to open.
+     */
+    private Optional<URI> livePlaylist(RecommendationList list, Set<Optional<CategoryId>> newestSeen) {
+        boolean newest = newestSeen.add(list.category());
+        return newest ? list.playlist().flatMap(providers::link) : Optional.empty();
     }
 
     /**

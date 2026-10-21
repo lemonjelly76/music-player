@@ -100,6 +100,29 @@ class MusicControllerTest {
     }
 
     @Test
+    void onlyTheNewestListForAnActivityStillHasItsPlaylist() {
+        Category running = Category.create("Running", "");
+        Recommendation pick = Recommendation.create(DUMMY, "Driving beat", PickSource.POOL);
+        RecommendationList newer = RecommendationList.create(CRAIG.id(), Optional.of(running), List.of(pick), NOW)
+                .syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-2"));
+        RecommendationList older = RecommendationList.create(CRAIG.id(), Optional.of(running), List.of(pick),
+                NOW.minusSeconds(86_400)).syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-1"));
+        RecommendationList general = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick),
+                NOW.minusSeconds(172_800)).syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-0"));
+        given(categories.find(running.id().toString())).willReturn(running);
+        given(recommendations.lists(CRAIG, Optional.of(running), 10)).willReturn(List.of(newer, older));
+        given(recommendations.history(CRAIG, 10)).willReturn(List.of(newer, older, general));
+
+        assertThat(mvc.get().uri("/api/people/{id}/lists?category={c}&limit=10", CRAIG.id(), running.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"playlistLink":"https://tidal.com/browse/playlist/pl-2"},{"playlistLink":null}]""");
+        assertThat(mvc.get().uri("/api/people/{id}/lists?limit=10", CRAIG.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"playlistLink":"https://tidal.com/browse/playlist/pl-2"},{"playlistLink":null},
+                         {"playlistLink":"https://tidal.com/browse/playlist/pl-0"}]""");
+    }
+
+    @Test
     void ratesAnAlbumForAnActivity() {
         LibraryAlbum rated = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.LOVE, NOW), "",
                 List.of(), LocalDate.of(2026, 10, 20));

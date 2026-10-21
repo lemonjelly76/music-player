@@ -38,7 +38,8 @@ data class UiState(
     val category: String = GENERAL,
     /** Whether the server answered with the saved login, so its settings can fold away. */
     val serverConnected: Boolean = false,
-    val list: PickList? = null,
+    /** The activity's pick lists, newest first; only the newest still has a playlist. */
+    val lists: List<PickList> = emptyList(),
     val library: List<LibraryAlbum> = emptyList(),
     val tracking: Tracking? = null,
     val moreLikeThis: MoreLikeThis? = null,
@@ -49,6 +50,8 @@ data class UiState(
 ) {
     val person: Person? get() = people.firstOrNull { it.id == personId }
     val chosenCategory: Category? get() = categories.firstOrNull { it.id == category }
+    val activityName: String get() = chosenCategory?.name ?: "General"
+    val latest: PickList? get() = lists.firstOrNull()
 }
 
 /** What both apps show and do; [http] is closed with the view model. */
@@ -88,15 +91,15 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     fun choosePerson(id: String) = load {
         store.savePersonId(id)
-        state.update { it.copy(personId = id, list = null, library = emptyList(), tracking = null) }
+        state.update { it.copy(personId = id, lists = emptyList(), library = emptyList(), tracking = null) }
         loadPerson(id)
     }
 
     /** The activity both Picks and Library show. */
     fun chooseCategory(category: String) = load {
-        state.update { it.copy(category = category, list = null, library = emptyList()) }
+        state.update { it.copy(category = category, lists = emptyList(), library = emptyList()) }
         coroutineScope {
-            launch { loadList() }
+            launch { loadLists() }
             launch { state.value.personId?.let { reloadLibrary(it) } }
         }
     }
@@ -129,14 +132,14 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     /** Loves a suggestion for the chosen activity, which puts it in the library there. */
     fun love(album: Album) = load {
         saveRating(album, Rating.LOVE)
-        state.update { it.copy(message = "${album.title} added to ${it.chosenCategory?.name ?: "General"}") }
+        state.update { it.copy(message = "${album.title} added to ${it.activityName}") }
     }
 
     private suspend fun saveRating(album: Album, rating: Rating?) {
         val personId = state.value.personId ?: return
         api.rate(personId, album.ref, state.value.category, rating)
         state.update { current ->
-            current.copy(list = current.list?.let { list ->
+            current.copy(lists = current.lists.map { list ->
                 list.copy(picks = list.picks.map { if (it.album.ref == album.ref) it.copy(rating = rating) else it })
             })
         }
@@ -179,17 +182,17 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         val tracking = api.tracking(id)
         state.update { if (it.personId == id) it.copy(tracking = tracking) else it }
         reloadLibrary(id)
-        loadList()
+        loadLists()
     }
 
     /**
      * Answers can arrive after the person or category has changed again; only the latest choice's answer is kept.
      */
-    private suspend fun loadList() {
+    private suspend fun loadLists() {
         val personId = state.value.personId ?: return
         val category = state.value.category
-        val list = api.lists(personId, category).firstOrNull()
-        state.update { if (it.personId == personId && it.category == category) it.copy(list = list) else it }
+        val lists = api.lists(personId, category, limit = LISTS_SHOWN)
+        state.update { if (it.personId == personId && it.category == category) it.copy(lists = lists) else it }
     }
 
     private suspend fun reloadLibrary(personId: String) {
@@ -219,5 +222,9 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
                 state.update { it.copy(loading = running > 0) }
             }
         }
+    }
+
+    private companion object {
+        const val LISTS_SHOWN = 10
     }
 }
