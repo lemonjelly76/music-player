@@ -25,6 +25,7 @@ final class World {
     final FakePorts.Plays playRepository = new FakePorts.Plays();
     final FakePorts.Recommendations recommendationRepository = new FakePorts.Recommendations();
     final FakePorts.Playlists playlistRepository = new FakePorts.Playlists();
+    final FakePorts.Songs songRepository = new FakePorts.Songs();
     final FakePorts.FakeProvider tidal = new FakePorts.FakeProvider(Provider.TIDAL);
     final FakePorts.Catalogue catalogue = new FakePorts.Catalogue();
     final FakePorts.Similarity lastFm = new FakePorts.Similarity("lastfm");
@@ -36,8 +37,9 @@ final class World {
     final LibraryService library = new LibraryService(libraryRepository, resolver, providers, clock);
     final RecommendationService recommendations = new RecommendationService(recommendationRepository, resolver,
             library, providers, clock);
+    final SongService songs = new SongService(songRepository, providers, clock);
     final PlaylistService playlists = new PlaylistService(playlistRepository, recommendationRepository, library,
-            providers, clock);
+            songs, providers, clock);
     final PlayService plays = new PlayService(playRepository, peopleRepository, playlistRepository,
             recommendationRepository, List.of(), clock);
     final CandidateService candidates = new CandidateService(library, plays, recommendations, List.of(lastFm),

@@ -72,17 +72,18 @@ class SpotifyMusicProvider implements MusicProvider {
 
     @Override
     public Optional<Track> findTrack(String artist, String title) {
-        return TrackMatch.best(searchTracks("track:" + title + " artist:" + artist), artist, title)
-                .or(() -> TrackMatch.best(searchTracks(artist + " " + title), artist, title));
+        return TrackMatch.best(searchTracks("track:" + title + " artist:" + artist, SEARCH_LIMIT), artist, title)
+                .or(() -> TrackMatch.best(searchTracks(artist + " " + title, SEARCH_LIMIT), artist, title));
     }
 
     /**
      * Songs from the artists' own albums and singles first, so a compilation's copy is only taken when it is the only
      * one.
      */
-    private List<Track> searchTracks(String query) {
+    @Override
+    public List<Track> searchTracks(String query, int limit) {
         List<JsonNode> items = new ArrayList<>();
-        search(query, "track", SEARCH_LIMIT).path("tracks").path("items").forEach(items::add);
+        search(query, "track", limit).path("tracks").path("items").forEach(items::add);
         return items.stream()
                 .sorted(Comparator.comparing(item -> item.path("album").path("album_type").asString("")
                         .equals("compilation")))

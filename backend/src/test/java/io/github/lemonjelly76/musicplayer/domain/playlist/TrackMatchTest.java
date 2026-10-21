@@ -61,6 +61,13 @@ class TrackMatchTest {
     }
 
     @Test
+    void knowsALiveTakeInPortugueseOrSpanish() {
+        List<Track> found = List.of(track("1", "Seu Jorge", "Tive Razão - Ao Vivo"), track("2", "Seu Jorge", "Tive Razão - Remastered"));
+
+        assertThat(TrackMatch.best(found, "Seu Jorge", "Tive Razão")).map(Track::id).contains("2");
+    }
+
+    @Test
     void takesAnotherPerformanceWhenThatIsAllThereIs() {
         List<Track> found = List.of(track("1", "Zero 7", "Somersault - Live Sessions"));
 

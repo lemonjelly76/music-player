@@ -38,4 +38,14 @@ class PlaylistTest {
         assertThatIllegalArgumentException().isThrownBy(() ->
                 Playlist.create(PersonId.random(), Optional.empty(), "", tracks(Playlist.SIZE + 1), NOW));
     }
+
+    @Test
+    void aSongIsTheSameWhateverItsEditionOrGuests() {
+        Track original = new Track(Provider.SPOTIFY, "1", "Air, Beth Hirsch", "All I Need (feat. Beth Hirsch)", "", Optional.empty());
+        Track remaster = new Track(Provider.TIDAL, "2", "Air", "All I Need - Remastered 2018", "", Optional.empty());
+        Track live = new Track(Provider.TIDAL, "3", "Air", "All I Need - Live", "", Optional.empty());
+
+        assertThat(original.songKey()).isEqualTo(remaster.songKey()).isEqualTo("air|all i need");
+        assertThat(live.songKey()).isNotEqualTo(original.songKey());
+    }
 }

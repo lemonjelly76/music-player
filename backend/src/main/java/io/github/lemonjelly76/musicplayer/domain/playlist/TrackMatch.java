@@ -21,7 +21,8 @@ public final class TrackMatch {
 
     private static final int NO_MATCH = Integer.MAX_VALUE;
     private static final Pattern OTHER_PERFORMANCE = Pattern.compile(
-            "\\b(live|demo|instrumental|remix|mix|acoustic|session|sessions|reprise|karaoke|rehearsal)\\b");
+            "\\b(live|ao vivo|en vivo|en directo|demo|instrumental|remix|mix|acoustic|session|sessions|reprise|karaoke|"
+                    + "rehearsal)\\b");
 
     private TrackMatch() {
     }

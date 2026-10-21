@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
@@ -138,20 +139,40 @@ final class Responses {
     record PlaylistResponse(String id, String name, String description, String categoryId, Instant createdAt,
                             String link, List<TrackResponse> tracks) {
 
-        static PlaylistResponse from(Playlist playlist, Optional<URI> link, Function<Track, Optional<URI>> links) {
+        /**
+         * Each song carries the person's rating of it for the playlist's activity.
+         */
+        static PlaylistResponse from(Playlist playlist, Optional<URI> link, Map<String, LibrarySong> rated,
+                Function<Track, Optional<URI>> links) {
             return new PlaylistResponse(playlist.id().toString(), playlist.name(), playlist.description(),
                     playlist.category().map(Object::toString).orElse(null), playlist.createdAt(),
                     link.map(URI::toString).orElse(null),
-                    playlist.tracks().stream().map(track -> TrackResponse.from(track, links)).toList());
+                    playlist.tracks().stream()
+                            .map(track -> TrackResponse.from(track, Optional.ofNullable(rated.get(track.songKey())),
+                                    playlist.category(), links))
+                            .toList());
         }
     }
 
-    record TrackResponse(String id, String artist, String title, String album, String cover, String link) {
+    /**
+     * A song as {@code ref} ({@code spotify:<id>} or {@code tidal:<id>}), with the person's rating of it (1 to 3) for
+     * the activity; {@code general} when that is the General rating standing in for the activity's own.
+     */
+    record TrackResponse(String ref, String id, String artist, String title, String album, String cover, String link,
+                         Integer rating, boolean general) {
 
-        static TrackResponse from(Track track, Function<Track, Optional<URI>> links) {
-            return new TrackResponse(track.id(), track.artist(), track.title(), track.album(),
-                    track.cover().orElse(null), links.apply(track).map(URI::toString).orElse(null));
+        static TrackResponse from(Track track, Optional<LibrarySong> song, Optional<CategoryId> activity,
+                Function<Track, Optional<URI>> links) {
+            Optional<ActivityRating> rating = song.flatMap(found -> found.rating(activity));
+            return new TrackResponse(track.provider().prefix() + ":" + track.id(), track.id(), track.artist(),
+                    track.title(), track.album(), track.cover().orElse(null),
+                    links.apply(track).map(URI::toString).orElse(null),
+                    rating.map(found -> found.rating().value()).orElse(null),
+                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false));
         }
+    }
+
+    record SongRatingResponse(String ref, Integer rating) {
     }
 
     /**

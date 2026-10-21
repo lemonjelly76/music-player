@@ -178,77 +178,6 @@ object AppIcons {
         }
     }
 
-    val DinnerDining: ImageVector by lazy {
-        materialIcon(name = "Filled.DinnerDining") {
-            materialPath {
-                moveTo(2.0f, 19.0f)
-                horizontalLineToRelative(20.0f)
-                lineToRelative(-2.0f, 2.0f)
-                horizontalLineTo(4.0f)
-                lineTo(2.0f, 19.0f)
-                close()
-                moveTo(5.0f, 6.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineTo(5.0f)
-                verticalLineTo(6.0f)
-                close()
-                moveTo(5.0f, 4.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineTo(5.0f)
-                verticalLineTo(4.0f)
-                close()
-                moveTo(9.0f, 4.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineTo(7.0f)
-                verticalLineTo(4.0f)
-                horizontalLineTo(9.0f)
-                close()
-                moveTo(9.0f, 7.0f)
-                horizontalLineTo(7.0f)
-                verticalLineTo(6.0f)
-                horizontalLineToRelative(2.0f)
-                verticalLineTo(7.0f)
-                close()
-                moveTo(6.0f, 15.23f)
-                curveToRelative(-0.36f, 0.11f, -0.69f, 0.28f, -1.0f, 0.47f)
-                verticalLineTo(8.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineTo(15.23f)
-                close()
-                moveTo(4.0f, 16.52f)
-                curveTo(3.62f, 16.96f, 3.32f, 17.45f, 3.16f, 18.0f)
-                horizontalLineToRelative(16.82f)
-                curveToRelative(0.01f, -0.16f, 0.03f, -0.33f, 0.03f, -0.5f)
-                curveToRelative(0.0f, -3.04f, -2.46f, -5.5f, -5.5f, -5.5f)
-                curveToRelative(-2.29f, 0.0f, -4.25f, 1.4f, -5.08f, 3.4f)
-                curveTo(8.84f, 15.15f, 8.19f, 15.0f, 7.5f, 15.0f)
-                curveToRelative(-0.17f, 0.0f, -0.33f, 0.02f, -0.5f, 0.04f)
-                verticalLineTo(8.0f)
-                horizontalLineToRelative(2.0f)
-                curveToRelative(1.03f, 0.06f, 1.9f, -0.96f, 2.0f, -2.0f)
-                horizontalLineToRelative(10.0f)
-                verticalLineTo(5.0f)
-                horizontalLineTo(11.0f)
-                curveToRelative(-0.1f, -1.05f, -0.97f, -1.97f, -2.0f, -2.0f)
-                horizontalLineTo(3.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineTo(3.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineTo(3.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineTo(16.52f)
-                close()
-            }
-        }
-    }
-
     val DirectionsCar: ImageVector by lazy {
         materialIcon(name = "Filled.DirectionsCar") {
             materialPath {
@@ -490,6 +419,39 @@ object AppIcons {
                 curveToRelative(0.05f, 0.09f, 0.03f, 0.2f, -0.05f, 0.26f)
                 lineToRelative(-0.85f, 0.66f)
                 curveTo(15.99f, 9.73f, 16.0f, 9.86f, 16.0f, 10.0f)
+                close()
+            }
+        }
+    }
+
+    val Restaurant: ImageVector by lazy {
+        materialIcon(name = "Filled.Restaurant") {
+            materialPath {
+                moveTo(11.0f, 9.0f)
+                horizontalLineTo(9.0f)
+                verticalLineTo(2.0f)
+                horizontalLineTo(7.0f)
+                verticalLineToRelative(7.0f)
+                horizontalLineTo(5.0f)
+                verticalLineTo(2.0f)
+                horizontalLineTo(3.0f)
+                verticalLineToRelative(7.0f)
+                curveToRelative(0.0f, 2.12f, 1.66f, 3.84f, 3.75f, 3.97f)
+                verticalLineTo(22.0f)
+                horizontalLineToRelative(2.5f)
+                verticalLineToRelative(-9.03f)
+                curveTo(11.34f, 12.84f, 13.0f, 11.12f, 13.0f, 9.0f)
+                verticalLineTo(2.0f)
+                horizontalLineToRelative(-2.0f)
+                verticalLineTo(9.0f)
+                close()
+                moveTo(16.0f, 6.0f)
+                verticalLineToRelative(8.0f)
+                horizontalLineToRelative(2.5f)
+                verticalLineToRelative(8.0f)
+                horizontalLineTo(21.0f)
+                verticalLineTo(2.0f)
+                curveTo(18.24f, 2.0f, 16.0f, 4.24f, 16.0f, 6.0f)
                 close()
             }
         }

@@ -4,6 +4,10 @@ import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.PlaylistService;
+import io.github.lemonjelly76.musicplayer.application.SongService;
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
@@ -22,7 +26,9 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,6 +57,8 @@ class PlaylistControllerTest {
     private PlaylistService playlists;
     @MockitoBean
     private MusicProviders providers;
+    @MockitoBean
+    private SongService songs;
 
     @BeforeEach
     void setUp() {
@@ -69,6 +77,8 @@ class PlaylistControllerTest {
 
     @Test
     void listsTheActivitysPlaylistsWithTheirSongsAndOnlyTheNewestToPlay() {
+        given(songs.bySong(CRAIG.id())).willReturn(Map.of(SEXY_BOY.songKey(), LibrarySong.create(CRAIG.id(), SEXY_BOY,
+                new ActivityRating(Optional.of(RUNNING.id()), Rating.LOVE, "", NOW), LocalDate.of(2026, 10, 21))));
         given(playlists.latest(CRAIG, Optional.of(RUNNING.id()), 5)).willReturn(List.of(
                 playlist(NOW, "pl-2"), playlist(NOW.minusSeconds(86_400), "pl-1")));
 
@@ -77,8 +87,9 @@ class PlaylistControllerTest {
                 .bodyJson().isLenientlyEqualTo("""
                         [{"name":"AI Picks — Running","description":"Bright and fast",
                           "link":"https://open.spotify.com/playlist/pl-2",
-                          "tracks":[{"id":"tr-1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
-                            "cover":"https://i/300","link":"https://open.spotify.com/track/tr-1"}]},
+                          "tracks":[{"ref":"spotify:tr-1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
+                            "cover":"https://i/300","link":"https://open.spotify.com/track/tr-1","rating":3,
+                            "general":false}]},
                          {"link":null}]""");
     }
 

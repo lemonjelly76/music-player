@@ -34,6 +34,8 @@ public interface MusicProvider {
      */
     Optional<AlbumRef> findAlbum(String artist, String title);
 
+    List<Track> searchTracks(String query, int limit);
+
     /**
      * The service's own song for an artist and title, matched loosely, or empty when it does not carry it.
      */

@@ -151,6 +151,28 @@ class TidalMusicProviderTest {
     }
 
     @Test
+    void searchesSongsWithTheirAlbumsCovers() {
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/river/relationships/tracks")).willReturn(okJson("""
+                {"data":[{"id":"s1","type":"tracks"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/tracks")).willReturn(okJson("""
+                {"data":[{"id":"s1","type":"tracks","attributes":{"title":"River"},
+                   "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]},
+                                    "albums":{"data":[{"id":"77","type":"albums"}]}}}],
+                 "included":[{"id":"a1","type":"artists","attributes":{"name":"Joni Mitchell"}},
+                             {"id":"77","type":"albums","attributes":{"title":"Blue"}}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson("""
+                {"data":[{"id":"77","type":"albums","attributes":{"title":"Blue","releaseDate":"1971-06-22"},
+                   "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]},
+                                    "coverArt":{"data":[{"id":"art-77","type":"artworks"}]}}}],
+                 "included":[{"id":"a1","type":"artists","attributes":{"name":"Joni Mitchell"}},
+                             {"id":"art-77","type":"artworks","attributes":{"files":[
+                               {"href":"https://covers/77-320.jpg","meta":{"width":320}}]}}]}""")));
+
+        assertThat(provider.searchTracks("river", 10)).containsExactly(new Track(Provider.TIDAL, "s1", "Joni Mitchell",
+                "River", "Blue", Optional.of("https://covers/77-320.jpg")));
+    }
+
+    @Test
     void findsASongWithItsAlbum() {
         tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/Joni%20Mitchell%20River/relationships/tracks"))
                 .willReturn(okJson("""

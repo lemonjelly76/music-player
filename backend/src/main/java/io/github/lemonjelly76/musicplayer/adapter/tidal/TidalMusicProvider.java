@@ -93,16 +93,35 @@ class TidalMusicProvider implements MusicProvider {
         return AlbumMatch.best(searchAlbums(artist + " " + title, 10), artist, title);
     }
 
+    /**
+     * Songs with their albums' covers, which take one more call for all of them.
+     */
+    @Override
+    public List<Track> searchTracks(String query, int limit) {
+        List<FoundTrack> found = searchFoundTracks(query, Math.min(limit, BATCH));
+        List<String> albumIds = found.stream().map(FoundTrack::albumId).filter(id -> !id.isEmpty()).distinct().toList();
+        Map<String, String> covers = new HashMap<>();
+        albums(albumIds).forEach(album -> album.ids().tidal()
+                .ifPresent(id -> album.cover().ifPresent(cover -> covers.put(id, cover))));
+        return found.stream()
+                .map(song -> withCover(song.track(), Optional.ofNullable(covers.get(song.albumId()))))
+                .toList();
+    }
+
     @Override
     public Optional<Track> findTrack(String artist, String title) {
-        String path = UriComponentsBuilder.fromPath("/searchResults/{query}/relationships/tracks")
-                .queryParam("countryCode", properties.countryCode())
-                .buildAndExpand(artist + " " + title)
-                .encode()
-                .toUriString();
-        List<FoundTrack> found = tracks(ids(get(path, authorization.appToken())).stream().limit(BATCH).toList());
+        List<FoundTrack> found = searchFoundTracks(artist + " " + title, BATCH);
         return TrackMatch.best(found.stream().map(FoundTrack::track).toList(), artist, title)
                 .map(best -> withCover(best, found));
+    }
+
+    private List<FoundTrack> searchFoundTracks(String query, int limit) {
+        String path = UriComponentsBuilder.fromPath("/searchResults/{query}/relationships/tracks")
+                .queryParam("countryCode", properties.countryCode())
+                .buildAndExpand(query)
+                .encode()
+                .toUriString();
+        return tracks(ids(get(path, authorization.appToken())).stream().limit(limit).toList());
     }
 
     @Override
@@ -285,10 +304,13 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     private Track withCover(Track track, List<FoundTrack> found) {
-        Optional<String> cover = found.stream().filter(candidate -> candidate.track().equals(track)).findFirst()
+        return withCover(track, found.stream().filter(candidate -> candidate.track().equals(track)).findFirst()
                 .filter(candidate -> !candidate.albumId().isEmpty())
                 .flatMap(candidate -> album(candidate.albumId()))
-                .flatMap(AlbumRef::cover);
+                .flatMap(AlbumRef::cover));
+    }
+
+    private static Track withCover(Track track, Optional<String> cover) {
         return new Track(track.provider(), track.id(), track.artist(), track.title(), track.album(), cover);
     }
 

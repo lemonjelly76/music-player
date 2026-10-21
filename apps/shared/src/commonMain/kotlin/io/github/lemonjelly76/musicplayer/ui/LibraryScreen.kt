@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -37,12 +38,14 @@ import io.github.lemonjelly76.musicplayer.data.serviceOfLink
  */
 @Composable
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
+    var kind by rememberSaveable { mutableStateOf(MusicKind.ALBUMS) }
     var filter by rememberSaveable { mutableStateOf(LibraryFilter.ALL) }
     val filters = LibraryFilter.entries.filter { it != LibraryFilter.THIS_ACTIVITY || ui.category != GENERAL }
     if (filter !in filters) filter = LibraryFilter.ALL
-    val shown = filter.apply(ui.library + ui.disliked)
+    val anything = if (kind == MusicKind.ALBUMS) ui.library.isNotEmpty() || ui.disliked.isNotEmpty() else ui.songs.isNotEmpty()
     Column {
-        if (ui.library.isNotEmpty() || ui.disliked.isNotEmpty()) {
+        KindPills(kind) { kind = it }
+        if (anything) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -53,6 +56,17 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
                 }
             }
         }
+        if (kind == MusicKind.SONGS) {
+            val songs = filter.applyToSongs(ui.songs)
+            if (songs.isEmpty()) Empty(emptySongsText(ui, filter))
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(songs, key = { it.ref }) { track ->
+                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open)
+                }
+            }
+            return@Column
+        }
+        val shown = filter.apply(ui.library + ui.disliked)
         if (shown.isEmpty()) {
             Empty(emptyLibraryText(ui, filter))
             return@Column
@@ -66,6 +80,14 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
             items(shown, key = { it.id }) { entry -> AlbumTile(entry, viewModel, open) }
         }
     }
+}
+
+private fun emptySongsText(ui: UiState, filter: LibraryFilter): String = when (filter) {
+    LibraryFilter.ALL -> "No songs loved for ${ui.activityName} yet. Rate songs in a playlist or from Search, or " +
+        "tell Claude which songs ${ui.person?.name ?: "you"} love."
+    LibraryFilter.THIS_ACTIVITY -> "No songs rated for ${ui.activityName} itself yet; these all come from General."
+    LibraryFilter.NOT_FOR_ME -> "No songs turned down for ${ui.activityName}. Claude leaves them out of its playlists."
+    else -> "No songs rated ${filter.label} for ${ui.activityName}."
 }
 
 private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when (filter) {

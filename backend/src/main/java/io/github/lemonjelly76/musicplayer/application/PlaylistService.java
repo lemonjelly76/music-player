@@ -37,14 +37,16 @@ public class PlaylistService {
     private final PlaylistRepository repository;
     private final RecommendationRepository albumLists;
     private final LibraryService library;
+    private final SongService songs;
     private final MusicProviders providers;
     private final Clock clock;
 
     public PlaylistService(PlaylistRepository repository, RecommendationRepository albumLists, LibraryService library,
-            MusicProviders providers, Clock clock) {
+            SongService songs, MusicProviders providers, Clock clock) {
         this.repository = repository;
         this.albumLists = albumLists;
         this.library = library;
+        this.songs = songs;
         this.providers = providers;
         this.clock = clock;
     }
@@ -59,6 +61,7 @@ public class PlaylistService {
         Map<AlbumKey, String> turnedDown = library.dislikedFor(person.id(), activity).stream()
                 .collect(Collectors.toMap(entry -> entry.album().key(), entry -> entry.album().title(),
                         (first, second) -> first));
+        Set<String> songsTurnedDown = songs.turnedDown(person.id(), activity);
         List<Track> tracks = new ArrayList<>();
         Set<String> songs = new HashSet<>();
         Set<String> ids = new HashSet<>();
@@ -71,7 +74,7 @@ public class PlaylistService {
             Optional<Track> found = service.findTrack(request.artist(), request.title());
             Optional<String> why = found.isEmpty()
                     ? Optional.of("not on " + service.name().prefix())
-                    : whyLeftOut(found.get(), songs, ids, turnedDown::get);
+                    : whyLeftOut(found.get(), songs, ids, songsTurnedDown, turnedDown::get);
             if (why.isPresent()) {
                 dropped.add(new Dropped(request.label(), why.get()));
             } else {
@@ -132,9 +135,12 @@ public class PlaylistService {
     }
 
     private static Optional<String> whyLeftOut(Track track, Set<String> songs, Set<String> ids,
-            Function<AlbumKey, String> turnedDown) {
+            Set<String> songsTurnedDown, Function<AlbumKey, String> turnedDown) {
         if (songs.contains(track.songKey()) || ids.contains(track.id())) {
             return Optional.of("already in this playlist");
+        }
+        if (songsTurnedDown.contains(track.songKey())) {
+            return Optional.of("they turned this song down for this");
         }
         return Optional.ofNullable(turnedDown.apply(track.albumKey()))
                 .map(album -> "from " + album + ", which they turned down for this");

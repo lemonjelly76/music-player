@@ -15,8 +15,8 @@ public interface CategoryRepository {
     void save(Category category);
 
     /**
-     * Removes the category for everyone, with every rating, album list and playlist for it; albums rated for nothing
-     * else leave their library. Plays from it count as general listening.
+     * Removes the category for everyone, with every rating, album list and playlist for it; albums and songs rated for
+     * nothing else leave their library. Plays from it count as general listening.
      */
     void delete(CategoryId id);
 }

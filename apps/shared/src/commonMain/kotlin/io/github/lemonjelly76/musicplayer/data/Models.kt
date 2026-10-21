@@ -88,7 +88,10 @@ data class PickList(
     val picks: List<Pick>,
 )
 
-/** A song in a playlist; [link] plays it in the person's streaming app. */
+/**
+ * A song; [link] plays it in the person's streaming app, and [ref] (such as spotify:<id>) names it to the server.
+ * [rating] is the person's for the activity it is shown for; [general] when that is the General rating standing in.
+ */
 data class Track(
     val id: String,
     val artist: String,
@@ -96,6 +99,9 @@ data class Track(
     val album: String,
     val cover: String?,
     val link: String?,
+    val ref: String = id,
+    val rating: Rating? = null,
+    val general: Boolean = false,
 )
 
 /**
@@ -197,12 +203,11 @@ object Json {
             categoryId = playlist.stringOrNull("categoryId"),
             createdAt = playlist.optString("createdAt"),
             link = playlist.stringOrNull("link"),
-            tracks = playlist.objects("tracks").map {
-                Track(it.string("id"), it.string("artist"), it.string("title"), it.optString("album"),
-                    it.stringOrNull("cover"), it.stringOrNull("link"))
-            },
+            tracks = playlist.objects("tracks").map(::track),
         )
     }
+
+    fun songs(text: String): List<Track> = array(text).map(::track)
 
     fun library(text: String): List<LibraryAlbum> = array(text).map(::libraryAlbum)
 
@@ -243,6 +248,13 @@ object Json {
         connected = json.boolean("connected"),
         playTracking = json.boolean("playTracking", true),
     )
+
+    private fun track(json: JsonObject): Track {
+        val id = json.string("id")
+        return Track(id, json.string("artist"), json.string("title"), json.optString("album"),
+            json.stringOrNull("cover"), json.stringOrNull("link"), json.stringOrNull("ref") ?: id, json.rating(),
+            json.boolean("general"))
+    }
 
     private fun pick(json: JsonObject) = Pick(
         id = json.string("id"),

@@ -1,6 +1,5 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
-import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
@@ -42,7 +41,7 @@ class JdbcLibraryRepository implements LibraryRepository {
                         select r.* from album_rating r join library_album a on a.id = r.library_album_id
                         where a.person_id = :person order by r.rated_at""")
                 .param("person", person.value())
-                .query((row, number) -> Map.entry(row.getObject("library_album_id", UUID.class), rating(row)))
+                .query((row, number) -> Map.entry(row.getObject("library_album_id", UUID.class), RatingColumns.read(row)))
                 .list()
                 .forEach(entry -> ratings.computeIfAbsent(entry.getKey(), ignored -> new ArrayList<>()).add(entry.getValue()));
         return entries.stream().map(entry -> withRatings(entry, ratings.getOrDefault(entry.id().value(), List.of())))
@@ -58,7 +57,7 @@ class JdbcLibraryRepository implements LibraryRepository {
                 .map(entry -> withRatings(entry, jdbc.sql(
                                 "select * from album_rating where library_album_id = :id order by rated_at")
                         .param("id", id.value())
-                        .query((row, number) -> rating(row))
+                        .query((row, number) -> RatingColumns.read(row))
                         .list()));
     }
 
@@ -115,13 +114,5 @@ class JdbcLibraryRepository implements LibraryRepository {
     private static LibraryAlbum withRatings(LibraryAlbum entry, List<ActivityRating> ratings) {
         return new LibraryAlbum(entry.id(), entry.person(), entry.album(), ratings, entry.notes(), entry.tags(),
                 entry.addedOn());
-    }
-
-    private static ActivityRating rating(ResultSet row) throws SQLException {
-        return new ActivityRating(
-                Columns.uuid(row, "category_id").map(CategoryId::new),
-                Rating.of(row.getInt("rating")),
-                row.getString("comment"),
-                row.getTimestamp("rated_at").toInstant());
     }
 }

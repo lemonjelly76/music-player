@@ -7,8 +7,10 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
@@ -112,13 +114,34 @@ final class Views {
         }
     }
 
+    /**
+     * A playlist with each song's rating for its activity (love, ok or dislike), where the person has given one.
+     */
     record PlaylistView(String name, String activity, String description, Instant createdAt, boolean synced,
-                        List<String> songs) {
+                        List<PlaylistSongView> songs) {
 
-        static PlaylistView from(Playlist playlist, String activity) {
+        static PlaylistView from(Playlist playlist, String activity, Map<String, LibrarySong> rated) {
             return new PlaylistView(playlist.name(), activity, playlist.description(), playlist.createdAt(),
                     playlist.synced().isPresent(),
-                    playlist.tracks().stream().map(track -> track.label() + " (" + track.album() + ")").toList());
+                    playlist.tracks().stream()
+                            .map(track -> new PlaylistSongView(track.label(), track.album(),
+                                    Optional.ofNullable(rated.get(track.songKey()))
+                                            .flatMap(song -> song.rating(playlist.category()))
+                                            .map(rating -> rating.rating().word())
+                                            .orElse(null)))
+                            .toList());
+        }
+    }
+
+    record PlaylistSongView(String song, String album, String rating) {
+    }
+
+    record SongView(String song, String album, String ref, List<RatingView> ratings) {
+
+        static SongView from(LibrarySong song, Map<CategoryId, String> names) {
+            Track track = song.track();
+            return new SongView(track.label(), track.album(), track.provider().prefix() + ":" + track.id(),
+                    song.ratings().stream().map(rating -> RatingView.from(rating, names)).toList());
         }
     }
 

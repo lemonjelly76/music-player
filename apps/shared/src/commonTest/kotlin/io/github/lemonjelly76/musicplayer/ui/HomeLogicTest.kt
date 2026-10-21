@@ -84,4 +84,16 @@ class HomeLogicTest {
         assertEquals(listOf("4 weeks", "6 months", "1 year"), Period.entries.map { it.label })
         assertEquals("the last 4 weeks", Period.MONTH.since)
     }
+
+    @Test
+    fun filtersSongsByRatingAsAlbumsAre() {
+        val loved = Track("t1", "Air", "Sexy Boy", "", null, null, rating = Rating.LOVE)
+        val general = Track("t2", "Air", "All I Need", "", null, null, rating = Rating.OK, general = true)
+        val turnedDown = Track("t3", "Air", "Talisman", "", null, null, rating = Rating.DISLIKE)
+        val songs = listOf(loved, general, turnedDown)
+
+        assertEquals(listOf(loved, general), LibraryFilter.ALL.applyToSongs(songs))
+        assertEquals(listOf(loved), LibraryFilter.THIS_ACTIVITY.applyToSongs(songs))
+        assertEquals(listOf(turnedDown), LibraryFilter.NOT_FOR_ME.applyToSongs(songs))
+    }
 }

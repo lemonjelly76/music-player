@@ -46,8 +46,8 @@ class JdbcCategoryRepository implements CategoryRepository {
     }
 
     /**
-     * Ratings, lists and playlists go with the category through the schema's cascades. An album with no rating left
-     * leaves the library, as it does when its last rating is taken away.
+     * Ratings, lists and playlists go with the category through the schema's cascades. An album or song with no
+     * rating left leaves the library, as it does when its last rating is taken away.
      */
     @Override
     @Transactional
@@ -56,6 +56,10 @@ class JdbcCategoryRepository implements CategoryRepository {
         jdbc.sql("""
                         delete from library_album album
                         where not exists (select 1 from album_rating rating where rating.library_album_id = album.id)""")
+                .update();
+        jdbc.sql("""
+                        delete from library_song song
+                        where not exists (select 1 from song_rating rating where rating.library_song_id = song.id)""")
                 .update();
     }
 }

@@ -81,6 +81,27 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun search(personId: String, query: String, category: String): List<Found> =
         Json.found(get("api/people/$personId/search", "q" to query, "category" to category))
 
+    /** The person's songs with a rating that applies to the activity, loved first. */
+    suspend fun songs(personId: String, category: String): List<Track> =
+        Json.songs(get("api/people/$personId/songs", "category" to category))
+
+    /** Songs in the person's streaming catalogue, with their rating of each for the activity. */
+    suspend fun searchSongs(personId: String, query: String, category: String): List<Track> =
+        Json.songs(get("api/people/$personId/songs/search", "q" to query, "category" to category))
+
+    /** Rates a song for the activity, adding it to the person's songs when new; null takes the rating away. */
+    suspend fun rateSong(personId: String, track: Track, category: String, rating: Rating?) {
+        send(HttpMethod.Post, "api/people/$personId/song-ratings", buildJsonObject {
+            put("ref", track.ref)
+            put("artist", track.artist)
+            put("title", track.title)
+            put("album", track.album)
+            put("cover", track.cover?.let(::JsonPrimitive) ?: JsonNull)
+            put("categoryId", category)
+            put("rating", rating?.let { JsonPrimitive(it.value) } ?: JsonNull)
+        })
+    }
+
     /** Rates any album for the activity, adding it to the library when new; a null [rating] takes the rating away. */
     suspend fun rate(personId: String, albumRef: String, category: String, rating: Rating?) {
         send(HttpMethod.Post, "api/people/$personId/ratings", buildJsonObject {

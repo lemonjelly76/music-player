@@ -5,7 +5,9 @@ import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.PlaylistService;
 import io.github.lemonjelly76.musicplayer.application.PlaylistService.Saved;
+import io.github.lemonjelly76.musicplayer.application.SongService;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -34,18 +36,20 @@ class PlaylistTools {
     private final PersonService people;
     private final CategoryService categories;
     private final PlaylistService playlists;
+    private final SongService songs;
 
-    PlaylistTools(PersonService people, CategoryService categories, PlaylistService playlists) {
+    PlaylistTools(PersonService people, CategoryService categories, PlaylistService playlists, SongService songs) {
         this.people = people;
         this.categories = categories;
         this.playlists = playlists;
+        this.songs = songs;
     }
 
     @McpTool(name = "save_playlist",
             description = "Saves a playlist of single songs (not albums) for a person, optionally for one category, "
                     + "and writes it to their streaming service as 'AI Picks' or 'AI Picks — <Category>', replacing "
                     + "the previous one. It keeps the first " + Playlist.SIZE + " songs found, so give about 60 in "
-                    + "play order. Songs their service does not have, repeats and songs from albums they turned down "
+                    + "play order. Songs their service does not have, repeats, and songs or albums they turned down "
                     + "for the category are dropped and listed with the reason.",
             annotations = @McpAnnotations(title = "Save playlist", destructiveHint = false, openWorldHint = true))
     CallToolResult savePlaylist(
@@ -69,7 +73,8 @@ class PlaylistTools {
 
     @McpTool(name = "get_playlists",
             description = "A person's latest playlists for a category (or their general ones), newest first, with "
-                    + "every song. Read it before a new playlist so songs are not all repeated.",
+                    + "every song and their rating of it there (love, ok, dislike) where they gave one. Read it "
+                    + "before a new playlist so songs are not all repeated, and to learn from the ratings.",
             annotations = @McpAnnotations(title = "Playlists", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getPlaylists(
@@ -80,9 +85,11 @@ class PlaylistTools {
         return attempt(() -> {
             Person who = people.find(person);
             Optional<Category> forCategory = categories.findOptional(category);
+            Map<String, LibrarySong> rated = songs.bySong(who.id());
             return json(playlists.latest(who, forCategory.map(Category::id),
                             ToolInputs.limit(limit, PLAYLISTS_DEFAULT, PLAYLISTS_MAX)).stream()
-                    .map(playlist -> PlaylistView.from(playlist, forCategory.map(Category::name).orElse("General")))
+                    .map(playlist -> PlaylistView.from(playlist, forCategory.map(Category::name).orElse("General"),
+                            rated))
                     .toList());
         });
     }

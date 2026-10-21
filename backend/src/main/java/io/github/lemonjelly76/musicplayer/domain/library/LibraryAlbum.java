@@ -5,10 +5,8 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -27,10 +25,7 @@ public record LibraryAlbum(LibraryAlbumId id, PersonId person, AlbumRef album, L
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(person, "person");
         Objects.requireNonNull(album, "album");
-        ratings = List.copyOf(ratings);
-        if (ratings.stream().map(ActivityRating::category).distinct().count() != ratings.size()) {
-            throw new IllegalArgumentException("an album has at most one rating per activity");
-        }
+        ratings = ActivityRatings.checked(ratings);
         notes = Objects.requireNonNull(notes, "notes").strip();
         tags = cleanTags(Objects.requireNonNull(tags, "tags"));
         Objects.requireNonNull(addedOn, "addedOn");
@@ -46,21 +41,21 @@ public record LibraryAlbum(LibraryAlbumId id, PersonId person, AlbumRef album, L
      * The rating given for exactly this activity, with no fallback.
      */
     public Optional<ActivityRating> own(Optional<CategoryId> category) {
-        return ratings.stream().filter(rating -> rating.category().equals(category)).findFirst();
+        return ActivityRatings.own(ratings, category);
     }
 
     /**
      * The activity's own rating, else the General one.
      */
     public Optional<ActivityRating> rating(Optional<CategoryId> category) {
-        return own(category).or(() -> own(Optional.empty()));
+        return ActivityRatings.rating(ratings, category);
     }
 
     /**
      * Whether it is in the person's library for the activity: rated love or OK there, or in General.
      */
     public boolean keptFor(Optional<CategoryId> category) {
-        return rating(category).map(found -> found.rating().keeps()).orElse(false);
+        return ActivityRatings.keptFor(ratings, category);
     }
 
     /**
@@ -72,17 +67,11 @@ public record LibraryAlbum(LibraryAlbumId id, PersonId person, AlbumRef album, L
     }
 
     public LibraryAlbum rated(ActivityRating rating) {
-        List<ActivityRating> changed = new ArrayList<>(ratings);
-        changed.removeIf(existing -> existing.category().equals(rating.category()));
-        changed.add(rating);
-        changed.sort(Comparator.comparing(ActivityRating::ratedAt));
-        return new LibraryAlbum(id, person, album, changed, notes, tags, addedOn);
+        return new LibraryAlbum(id, person, album, ActivityRatings.with(ratings, rating), notes, tags, addedOn);
     }
 
     public LibraryAlbum unrated(Optional<CategoryId> category) {
-        List<ActivityRating> changed = new ArrayList<>(ratings);
-        changed.removeIf(existing -> existing.category().equals(category));
-        return new LibraryAlbum(id, person, album, changed, notes, tags, addedOn);
+        return new LibraryAlbum(id, person, album, ActivityRatings.without(ratings, category), notes, tags, addedOn);
     }
 
     public LibraryAlbum withNotes(String newNotes) {

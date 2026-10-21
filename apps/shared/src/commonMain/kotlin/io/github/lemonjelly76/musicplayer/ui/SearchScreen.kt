@@ -1,6 +1,8 @@
 package io.github.lemonjelly76.musicplayer.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,8 +34,8 @@ import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 import kotlinx.coroutines.delay
 
 /**
- * Finds albums in the person's streaming catalogue so ones they already know can be rated for the activity; Claude
- * then has more to go on for new picks. It searches as they type, once they pause.
+ * Finds albums or songs in the person's streaming catalogue so ones they already know can be rated for the activity;
+ * Claude then has more to go on for picks and playlists. It searches as they type, once they pause.
  */
 @Composable
 fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
@@ -49,7 +51,7 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            placeholder = { Text("Albums or artists") },
+            placeholder = { Text(if (ui.search.kind == MusicKind.ALBUMS) "Albums or artists" else "Songs or artists") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
                 if (text.isNotEmpty()) {
@@ -69,16 +71,28 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { viewModel.search(text); focus.clearFocus() }),
         )
-        val results = ui.search.results
+        KindPills(ui.search.kind, viewModel::chooseSearchKind)
+        val search = ui.search
         val whoLoves = ui.person?.name?.let { "$it already loves" } ?: "you already love"
         when {
-            ui.search.query.isEmpty() -> Empty("Find albums $whoLoves and rate them for ${ui.activityName}. " +
-                "Claude uses them to pick new ones.")
-            results == null -> Unit
-            results.isEmpty() -> Empty("Nothing found for \"${ui.search.query}\".")
-            else -> LazyColumn(Modifier.fillMaxWidth()) {
-                items(results, key = { it.album.ref }) { found -> FoundRow(found, ui.activityName, viewModel, open) }
+            search.query.isEmpty() -> Empty(when (search.kind) {
+                MusicKind.ALBUMS -> "Find albums $whoLoves and rate them for ${ui.activityName}. " +
+                    "Claude uses them to pick new ones."
+                MusicKind.SONGS -> "Find songs and rate them for ${ui.activityName}. Claude makes playlists " +
+                    "from the ones ${ui.person?.name ?: "you"} love and leaves out the ones that aren't for them."
+            })
+            !search.answered -> Unit
+            search.kind == MusicKind.ALBUMS && search.results.orEmpty().isNotEmpty() -> LazyColumn(Modifier.fillMaxWidth()) {
+                items(search.results.orEmpty(), key = { it.album.ref }) { found ->
+                    FoundRow(found, ui.activityName, viewModel, open)
+                }
             }
+            search.kind == MusicKind.SONGS && search.songs.orEmpty().isNotEmpty() -> LazyColumn(Modifier.fillMaxWidth()) {
+                items(search.songs.orEmpty(), key = { it.ref }) { track ->
+                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open)
+                }
+            }
+            else -> Empty("Nothing found for \"${search.query}\".")
         }
     }
 }
@@ -98,6 +112,14 @@ private fun FoundRow(found: Found, activity: String, viewModel: MainViewModel, o
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         RatingPills(found.rating.takeIf { !found.general }) { viewModel.rate(album, it) }
+    }
+}
+
+/** Albums or songs, as pills, for Search and Library. */
+@Composable
+fun KindPills(chosen: MusicKind, choose: (MusicKind) -> Unit) {
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MusicKind.entries.forEach { kind -> Pill(kind.label, null, selected = kind == chosen) { choose(kind) } }
     }
 }
 

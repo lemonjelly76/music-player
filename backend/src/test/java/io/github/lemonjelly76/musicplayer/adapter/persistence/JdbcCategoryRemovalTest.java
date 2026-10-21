@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
@@ -19,6 +20,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository.CategorisedPlay;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.SongRepository;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
@@ -45,6 +47,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JdbcCategoryRemovalTest {
 
     private static final Instant NOW = Instant.parse("2026-10-21T18:00:00Z");
+    private static final Track IPANEMA = new Track(Provider.SPOTIFY, "t1", "Stan Getz", "The Girl From Ipanema",
+            "Getz/Gilberto", Optional.empty());
+    private static final Track SEXY_BOY = new Track(Provider.SPOTIFY, "t2", "Air", "Sexy Boy", "Moon Safari",
+            Optional.of("https://i/300"));
 
     @Autowired
     private PersonRepository people;
@@ -58,6 +64,8 @@ class JdbcCategoryRemovalTest {
     private PlaylistRepository playlists;
     @Autowired
     private PlayRepository plays;
+    @Autowired
+    private SongRepository songs;
 
     private final Person craig = Person.create("Craig", Optional.of(Provider.SPOTIFY));
     private final Category explore = Category.create("Dinner Explore", "");
@@ -81,19 +89,27 @@ class JdbcCategoryRemovalTest {
         recommendations.save(RecommendationList.create(craig.id(), Optional.of(explore),
                 List.of(Recommendation.create(AlbumRef.of("Céu", "Tropix"), "Warm", PickSource.POOL)), NOW));
         playlists.save(Playlist.create(craig.id(), Optional.of(explore), "", List.of(
-                new Track(Provider.SPOTIFY, "t1", "Stan Getz", "The Girl From Ipanema", "Getz/Gilberto", Optional.empty())),
+                IPANEMA),
                 NOW));
+        songs.save(LibrarySong.create(craig.id(), IPANEMA, new ActivityRating(Optional.of(explore.id()), Rating.LOVE,
+                "", NOW), LocalDate.of(2026, 10, 21)));
+        songs.save(LibrarySong.create(craig.id(), SEXY_BOY, ActivityRating.general(Rating.OK, NOW),
+                LocalDate.of(2026, 10, 21)).rated(new ActivityRating(Optional.of(explore.id()), Rating.LOVE, "", NOW)));
         plays.add(craig.id(), List.of(new CategorisedPlay(new Play(AlbumRef.of("Stan Getz", "Getz/Gilberto"), NOW,
                 "spotify", Optional.of("pl")), Optional.of(explore.id()))));
     }
 
     @Test
-    void takesTheActivitysListsPlaylistsAndRatingsWithIt() {
+    void takesTheActivitysListsPlaylistsAndAlbumAndSongRatingsWithIt() {
         categories.delete(explore.id());
 
         assertThat(categories.findAll()).containsExactly(running);
         assertThat(recommendations.findByPerson(craig.id(), Optional.empty(), 10)).isEmpty();
         assertThat(playlists.latest(craig.id(), Optional.empty(), 10)).isEmpty();
+        assertThat(songs.findByPerson(craig.id())).singleElement().satisfies(song -> {
+            assertThat(song.track()).isEqualTo(SEXY_BOY);
+            assertThat(song.ratings()).extracting(ActivityRating::category).containsExactly(Optional.empty());
+        });
         assertThat(library.findByPerson(craig.id())).singleElement().satisfies(entry -> {
             assertThat(entry.album().title()).isEqualTo("Moon Safari");
             assertThat(entry.ratings()).extracting(ActivityRating::category).containsExactly(Optional.empty());

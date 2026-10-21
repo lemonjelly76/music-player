@@ -48,9 +48,25 @@ class JsonTest {
         assertEquals("https://open.spotify.com/playlist/9", newest.link)
         assertEquals(Track("t1", "Air", "Sexy Boy", "Moon Safari", "https://i/300", "https://open.spotify.com/track/t1"),
             newest.tracks.single())
+        assertNull(newest.tracks.single().rating)
         assertNull(older.link)
         assertEquals("", older.description)
         assertNull(older.tracks.single().cover)
+    }
+
+    @Test
+    fun readsSongsWithTheirRatingForTheActivity() {
+        val (loved, general) = Json.songs("""
+            [{"ref":"spotify:t1","id":"t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari","rating":3,
+              "general":false},
+             {"ref":"spotify:t2","id":"t2","artist":"Air","title":"Talisman","album":"Moon Safari","rating":1,
+              "general":true}]
+        """.trimIndent())
+
+        assertEquals("spotify:t1", loved.ref)
+        assertEquals(Rating.LOVE, loved.rating)
+        assertEquals(Rating.DISLIKE, general.rating)
+        assertTrue(general.general)
     }
 
     @Test

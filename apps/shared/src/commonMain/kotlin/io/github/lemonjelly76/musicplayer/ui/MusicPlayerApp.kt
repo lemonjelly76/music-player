@@ -204,7 +204,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                             chips()
                             ListeningScreen(listening, ui, viewModel, open)
                         }
-                        openPlaylist != null -> PlaylistScreen(openPlaylist, ui.person?.name, open)
+                        openPlaylist != null -> PlaylistScreen(openPlaylist, ui, viewModel, open)
                         openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
                         else -> Refreshable(ui.loading, viewModel::refresh) {
                             Column {
@@ -296,7 +296,7 @@ private fun activityIcon(kind: ActivityKind): ImageVector = when (kind) {
     ActivityKind.RUNNING -> AppIcons.DirectionsRun
     ActivityKind.WORKOUT -> AppIcons.FitnessCenter
     ActivityKind.CHILL -> AppIcons.SelfImprovement
-    ActivityKind.DINNER -> AppIcons.DinnerDining
+    ActivityKind.DINNER -> AppIcons.Restaurant
     ActivityKind.DRIVING -> AppIcons.DirectionsCar
     ActivityKind.FOCUS -> AppIcons.Psychology
     ActivityKind.PARTY -> AppIcons.Celebration

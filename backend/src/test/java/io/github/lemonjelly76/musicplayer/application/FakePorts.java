@@ -7,6 +7,8 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
+import io.github.lemonjelly76.musicplayer.domain.library.LibrarySongId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
@@ -25,6 +27,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
+import io.github.lemonjelly76.musicplayer.domain.port.SongRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.TasteProfileRepository;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
@@ -225,6 +228,26 @@ final class FakePorts {
         }
     }
 
+    static final class Songs implements SongRepository {
+
+        final Map<LibrarySongId, LibrarySong> saved = new LinkedHashMap<>();
+
+        @Override
+        public List<LibrarySong> findByPerson(PersonId person) {
+            return saved.values().stream().filter(song -> song.person().equals(person)).toList();
+        }
+
+        @Override
+        public void save(LibrarySong song) {
+            saved.put(song.id(), song);
+        }
+
+        @Override
+        public void delete(LibrarySongId id) {
+            saved.remove(id);
+        }
+    }
+
     static final class Playlists implements PlaylistRepository {
 
         final Map<String, Playlist> saved = new LinkedHashMap<>();
@@ -339,6 +362,12 @@ final class FakePorts {
             }
             AlbumKey key = AlbumKey.of(artist, title);
             return catalogue.values().stream().filter(album -> album.key().equals(key)).findFirst();
+        }
+
+        @Override
+        public List<Track> searchTracks(String query, int limit) {
+            return songs.stream().filter(song -> song.label().toLowerCase().contains(query.toLowerCase()))
+                    .limit(limit).toList();
         }
 
         @Override

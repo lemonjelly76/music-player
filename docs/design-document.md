@@ -152,6 +152,7 @@ The app looks and behaves like a streaming app: always dark, album artwork throu
 - **Search:** a tab, as in streaming apps, that searches the person's streaming catalogue as they type (`GET /search`, the catalogue `search_catalogue` uses). Each result has rating pills for the activity, so albums the person already knows join the library without going through Claude, and Claude has more to pick from.
 - **Library:** the activity's albums as a grid of covers, narrowed to Loved, OK, only those rated for the activity itself ("in General" marks a rating standing in), or Not for me. Not for me lists what was turned down for the activity (`GET /library/disliked`), so a mistaken dislike can be found and taken back. Each album's ⋮ menu opens it, shows "More like this", rates it for the activity or removes the activity's own rating.
 - **Your listening:** opened from the person menu, as streaming apps put it in the profile menu, or from On repeat. It shows the tracks and albums played over 4 weeks, 6 months or a year, then top artists (each shown with their most-played album's cover in a circle, as there are no artist photos) and ranked top albums. It follows the activity chips. An empty page says why: counting is off, Tidal shares no history, or nothing has been played from that activity's playlist yet.
+- **Songs:** rated like albums, Love / OK / Not for me per activity with General standing in (`POST /song-ratings`). Each song in a playlist, in Search (Albums | Songs) and in Library (Albums | Songs) has a rating button showing its rating for the activity, outlined when General's stands in, with a menu to change or remove it. A song is the same whatever its edition or guests ("All I Need (feat. Beth Hirsch)" and "All I Need - Remastered"); live takes and remixes are separate. Claude reads them with `get_songs` before making a playlist and records what people say with `rate_song`; `save_playlist` leaves out songs turned down for the activity, and `get_playlists` shows each song's rating.
 - **More like this:** a sheet of instant suggestions (ADR-007); the heart loves one for the activity.
 - **Settings:** opened from the cog as its own page with a back arrow. The streaming service and its connection, the play-count switch, and the server address and login.
 
@@ -212,6 +213,7 @@ Wide windows show the tabs as a rail down the side and the playlist header besid
 | `get_candidates`, `get_similar` | The ranked pool, and ad-hoc similar albums |
 | `save_recommendations`, `get_recommendations` | Albums to try, with each pick's rating and validation (R3) |
 | `save_playlist`, `get_playlists`, `sync_playlist` | 50-song playlists written to the person's account (ADR-005) |
+| `rate_song`, `get_songs` | Songs rated per activity, which steer playlists |
 | `send_to_lidarr` | Wanted albums (R12) |
 
 ## 6. Requirements coverage

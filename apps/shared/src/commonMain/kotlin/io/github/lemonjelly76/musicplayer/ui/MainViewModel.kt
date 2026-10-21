@@ -17,6 +17,7 @@ import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.ServerSettings
 import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.SettingsStore
+import io.github.lemonjelly76.musicplayer.data.Track
 import io.github.lemonjelly76.musicplayer.data.Tracking
 import io.github.lemonjelly76.musicplayer.data.Rating
 import io.ktor.client.HttpClient
@@ -31,8 +32,18 @@ import kotlinx.coroutines.launch
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
 
-/** A catalogue search; [results] is null until the first answer comes. */
-data class Search(val query: String = "", val results: List<Found>? = null)
+/** Albums or songs, as Search and Library each show one or the other. */
+enum class MusicKind(val label: String) { ALBUMS("Albums"), SONGS("Songs") }
+
+/** A catalogue search; [results] or [songs], by [kind], is null until the first answer comes. */
+data class Search(
+    val query: String = "",
+    val kind: MusicKind = MusicKind.ALBUMS,
+    val results: List<Found>? = null,
+    val songs: List<Track>? = null,
+) {
+    val answered: Boolean get() = if (kind == MusicKind.ALBUMS) results != null else songs != null
+}
 
 data class UiState(
     val server: ServerSettings = ServerSettings("", "", ""),
@@ -53,6 +64,8 @@ data class UiState(
     val disliked: List<LibraryAlbum> = emptyList(),
     /** Albums kept elsewhere that have no rating for the activity yet. */
     val toSort: List<LibraryAlbum> = emptyList(),
+    /** Songs with a rating that applies to the activity, loved first. */
+    val songs: List<Track> = emptyList(),
     val search: Search = Search(),
     val sorting: SortSession? = null,
     /** What the person played most for the activity lately, for Home; null until it comes or if it fails. */
@@ -157,7 +170,8 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     }
 
     private fun UiState.withoutActivityAlbums() = copy(lists = emptyList(), playlists = emptyList(),
-        library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
+        library = emptyList(), disliked = emptyList(), toSort = emptyList(), songs = emptyList(),
+        search = search.copy(results = null, songs = null))
 
     private fun UiState.withoutListening() = copy(onRepeat = null, listening = listening?.copy(stats = null))
 
@@ -211,20 +225,52 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     /** Looks [query] up in the person's streaming catalogue; a blank one clears the results. */
     fun search(query: String) {
         val text = query.trim()
-        state.update { it.copy(search = Search(text)) }
+        state.update { it.copy(search = Search(text, it.search.kind)) }
         if (text.isNotEmpty()) load { searchAgain() }
+    }
+
+    fun chooseSearchKind(kind: MusicKind) {
+        state.update { it.copy(search = Search(it.search.query, kind)) }
+        load { searchAgain() }
     }
 
     /** Runs the current search for the chosen person and activity, keeping only the latest answer. */
     private suspend fun searchAgain() {
         val personId = state.value.personId ?: return
         val query = state.value.search.query.takeIf { it.isNotEmpty() } ?: return
+        val kind = state.value.search.kind
         val category = state.value.category
-        val results = api.search(personId, query, category)
+        val answer = when (kind) {
+            MusicKind.ALBUMS -> Search(query, kind, results = api.search(personId, query, category))
+            MusicKind.SONGS -> Search(query, kind, songs = api.searchSongs(personId, query, category))
+        }
         state.update {
-            if (it.personId == personId && it.category == category && it.search.query == query) {
-                it.copy(search = Search(query, results))
+            if (it.personId == personId && it.category == category && it.search.query == query && it.search.kind == kind) {
+                it.copy(search = answer)
             } else it
+        }
+    }
+
+    /**
+     * Rates a song for the chosen activity; null takes the rating away. Playlists and search show it at once, and
+     * the activity's songs are reloaded, as is everything when a rating is taken away and General may stand in.
+     */
+    fun rateSong(track: Track, rating: Rating?) = load {
+        val personId = state.value.personId ?: return@load
+        api.rateSong(personId, track, state.value.category, rating)
+        val rated = { song: Track -> if (song.ref == track.ref) song.copy(rating = rating, general = false) else song }
+        state.update { current ->
+            current.copy(
+                playlists = current.playlists.map { playlist -> playlist.copy(tracks = playlist.tracks.map(rated)) },
+                search = current.search.copy(songs = current.search.songs?.map(rated)),
+            )
+        }
+        coroutineScope {
+            launch { reloadLibrary(personId) }
+            if (rating == null) {
+                launch { loadLists() }
+                launch { searchAgain() }
+            }
         }
     }
 
@@ -340,16 +386,21 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         }
     }
 
-    /** The activity's library, what was turned down there and what is still to sort, which any rating can change. */
+    /**
+     * The activity's library: albums kept and turned down there, albums still to sort, and rated songs, which any
+     * rating can change.
+     */
     private suspend fun reloadLibrary(personId: String) = coroutineScope {
         val category = state.value.category
         val library = async { api.library(personId, category) }
         val disliked = async { api.disliked(personId, category) }
         val toSort = async { api.toSort(personId, category) }
+        val songs = async { api.songs(personId, category) }
         val answers = Triple(library.await(), disliked.await(), toSort.await())
+        val rated = songs.await()
         state.update {
             if (it.personId == personId && it.category == category) {
-                it.copy(library = answers.first, disliked = answers.second, toSort = answers.third)
+                it.copy(library = answers.first, disliked = answers.second, toSort = answers.third, songs = rated)
             } else it
         }
     }

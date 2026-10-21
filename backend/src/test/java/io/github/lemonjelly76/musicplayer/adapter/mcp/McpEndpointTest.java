@@ -46,7 +46,7 @@ class McpEndpointTest {
                 "update_album", "remove_album", "get_library", "get_taste_profile", "update_taste_profile",
                 "list_categories", "upsert_category", "get_play_stats", "set_play_tracking", "get_candidates",
                 "get_similar", "save_recommendations", "rate_album", "send_to_lidarr", "import_favourites",
-                "get_recommendations", "save_playlist", "get_playlists", "sync_playlist");
+                "get_recommendations", "save_playlist", "get_playlists", "sync_playlist", "rate_song", "get_songs");
     }
 
     @Test

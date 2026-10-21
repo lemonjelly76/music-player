@@ -69,6 +69,24 @@ class ApiClientTest {
     }
 
     @Test
+    fun ratesASongAsTheAppShowedItAndSearchesSongs() = runTest {
+        val api = client { request -> json(if (request.method == HttpMethod.Post) "{}" else "[]") }
+        val song = Track("t1", "Air", "Sexy Boy", "Moon Safari", null, null, ref = "spotify:t1")
+
+        api.rateSong("1", song, "c1", Rating.LOVE)
+        api.searchSongs("1", "sexy boy", GENERAL)
+        api.songs("1", "c1")
+
+        val (rate, search, songs) = requests
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/song-ratings", rate.url.toString())
+        assertEquals("""{"ref":"spotify:t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari","cover":null,""" +
+            """"categoryId":"c1","rating":3}""", rate.body.toByteArray().decodeToString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/songs/search?q=sexy+boy&category=none",
+            search.url.toString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/songs?category=c1", songs.url.toString())
+    }
+
+    @Test
     fun removesAnActivity() = runTest {
         client { respond("", HttpStatusCode.NoContent) }.removeCategory("c1")
 

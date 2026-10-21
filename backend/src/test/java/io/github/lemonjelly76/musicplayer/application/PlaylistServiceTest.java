@@ -85,6 +85,20 @@ class PlaylistServiceTest {
     }
 
     @Test
+    void dropsSongsTurnedDownForTheActivity() {
+        Person craig = world.tidalUser("Craig");
+        Track glory = world.tidal.carryTrack("tr-1", "Portishead", "Glory Box", "Dummy");
+        world.tidal.carryTrack("tr-2", "Air", "Sexy Boy", "Moon Safari");
+        world.songs.rate(craig, glory, Optional.of(running), Optional.of(Rating.DISLIKE));
+
+        Saved saved = world.playlists.save(craig, Optional.of(running), "", List.of(
+                song("Portishead", "Glory Box"), song("Air", "Sexy Boy")));
+
+        assertThat(saved.dropped()).containsExactly(
+                new Dropped("Portishead — Glory Box", "they turned this song down for this"));
+    }
+
+    @Test
     void replacesTheActivitysPlaylistEvenWhenItWasMadeFromAlbums() {
         Person craig = world.tidalUser("Craig");
         world.recommendationRepository.save(RecommendationList.create(craig.id(), Optional.of(running),

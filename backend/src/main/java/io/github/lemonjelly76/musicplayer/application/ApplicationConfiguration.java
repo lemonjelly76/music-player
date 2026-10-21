@@ -9,6 +9,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.SongRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
 import io.github.lemonjelly76.musicplayer.domain.port.TasteProfileRepository;
@@ -66,9 +67,14 @@ class ApplicationConfiguration {
     }
 
     @Bean
+    SongService songService(SongRepository songs, MusicProviders providers, Clock clock) {
+        return new SongService(songs, providers, clock);
+    }
+
+    @Bean
     PlaylistService playlistService(PlaylistRepository playlists, RecommendationRepository recommendations,
-            LibraryService library, MusicProviders providers, Clock clock) {
-        return new PlaylistService(playlists, recommendations, library, providers, clock);
+            LibraryService library, SongService songs, MusicProviders providers, Clock clock) {
+        return new PlaylistService(playlists, recommendations, library, songs, providers, clock);
     }
 
     @Bean
