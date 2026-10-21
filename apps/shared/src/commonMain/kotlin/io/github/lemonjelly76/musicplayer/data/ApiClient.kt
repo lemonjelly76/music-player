@@ -48,6 +48,11 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
 
     suspend fun categories(): List<Category> = Json.categories(get("api/categories"))
 
+    /** Removes an activity for the whole household, with everything rated, picked or made for it. */
+    suspend fun removeCategory(categoryId: String) {
+        send(HttpMethod.Delete, "api/categories/$categoryId", null)
+    }
+
     /** The person's latest lists of albums to try; [category] is a category id, or "none" for their general list. */
     suspend fun lists(personId: String, category: String, limit: Int = 1): List<PickList> =
         Json.lists(get("api/people/$personId/lists", "category" to category, "limit" to limit.toString()))

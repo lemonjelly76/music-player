@@ -63,6 +63,13 @@ class PeopleControllerTest {
     }
 
     @Test
+    void removesAnActivityForEveryone() {
+        assertThat(mvc.delete().uri("/api/categories/{id}", "c-1")).hasStatus(HttpStatus.NO_CONTENT);
+
+        verify(categories).remove("c-1");
+    }
+
+    @Test
     void changesAPersonsService() {
         MusicProvider spotify = mock(MusicProvider.class);
         given(providers.forPerson(any())).willReturn(Optional.of(spotify));

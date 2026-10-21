@@ -132,6 +132,18 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         }
     }
 
+    /** Removes the activity for the whole household; showing it, the app goes back to General. */
+    fun removeCategory(id: String) {
+        val removed = state.value.categories.firstOrNull { it.id == id } ?: return
+        load {
+            api.removeCategory(id)
+            state.update {
+                it.copy(categories = it.categories - removed, message = "${removed.name} removed")
+            }
+            if (state.value.category == id) chooseCategory(GENERAL)
+        }
+    }
+
     private fun UiState.withoutActivityAlbums() = copy(lists = emptyList(), playlists = emptyList(),
         library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
 

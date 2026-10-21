@@ -1,8 +1,13 @@
 package io.github.lemonjelly76.musicplayer.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -15,25 +20,57 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.Rating
 
 /** One of the activities a person's picks and library can be for, shown as a chip. */
 data class Activity(val id: String, val name: String, val icon: ImageVector)
 
-/** General and each activity, scrolling sideways; Picks and Library both follow the chosen one. */
+/**
+ * General and each activity, scrolling sideways; every page follows the chosen one. Holding an activity offers to
+ * remove it; General stays.
+ */
 @Composable
-fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -> Unit) {
+fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -> Unit, remove: (Activity) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(activities, key = { it.id }) { activity ->
-            Pill(activity.name, activity.icon, selected = activity.id == chosen) { choose(activity.id) }
+            ActivityChip(activity, selected = activity.id == chosen, choose = { choose(activity.id) },
+                hold = { remove(activity) }.takeIf { activity.id != GENERAL })
         }
+    }
+}
+
+/** Drawn like [Pill], but it can also be held, which a Material chip cannot. */
+@Composable
+private fun ActivityChip(activity: Activity, selected: Boolean, choose: () -> Unit, hold: (() -> Unit)?) {
+    val haptics = LocalHapticFeedback.current
+    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    Row(
+        Modifier.minimumInteractiveComponentSize().height(32.dp).clip(CircleShape)
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
+            .combinedClickable(
+                onClick = choose,
+                onLongClickLabel = hold?.let { "Remove ${activity.name}" },
+                onLongClick = hold?.let { { haptics.performHapticFeedback(HapticFeedbackType.LongPress); it() } },
+            )
+            .padding(start = 8.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(activity.icon, contentDescription = null, Modifier.size(18.dp), tint = content)
+        Text(activity.name, style = MaterialTheme.typography.labelLarge, color = content)
     }
 }
 

@@ -16,11 +16,14 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayTracking;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
@@ -74,6 +77,15 @@ class PeopleController {
     @GetMapping("/categories")
     List<CategoryResponse> categories() {
         return categories.all().stream().map(CategoryResponse::from).toList();
+    }
+
+    /**
+     * Removes an activity for the whole household, with every rating, album list and playlist for it.
+     */
+    @DeleteMapping("/categories/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void removeCategory(@PathVariable String id) {
+        categories.remove(id);
     }
 
     @GetMapping("/people/{id}/play-tracking")

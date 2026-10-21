@@ -131,6 +131,11 @@ final class FakePorts {
         public void save(Category category) {
             saved.put(category.id(), category);
         }
+
+        @Override
+        public void delete(CategoryId id) {
+            saved.remove(id);
+        }
     }
 
     static final class Plays implements PlayRepository {

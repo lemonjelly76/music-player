@@ -40,6 +40,15 @@ public class CategoryService {
         return nameOrId == null || nameOrId.isBlank() ? Optional.empty() : Optional.of(find(nameOrId));
     }
 
+    /**
+     * Removes the activity for the whole household, with everything rated, picked or made for it.
+     */
+    public Category remove(String nameOrId) {
+        Category category = find(nameOrId);
+        repository.delete(category.id());
+        return category;
+    }
+
     public Category upsert(String name, String rules) {
         Category category = repository.findAll().stream()
                 .filter(existing -> existing.isCalled(name))

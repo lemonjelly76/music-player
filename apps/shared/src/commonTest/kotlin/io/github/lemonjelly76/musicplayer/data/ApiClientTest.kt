@@ -57,6 +57,15 @@ class ApiClientTest {
     }
 
     @Test
+    fun removesAnActivity() = runTest {
+        client { respond("", HttpStatusCode.NoContent) }.removeCategory("c1")
+
+        val request = requests.single()
+        assertEquals(HttpMethod.Delete, request.method)
+        assertEquals("https://pc.tailnet.ts.net:8444/api/categories/c1", request.url.toString())
+    }
+
+    @Test
     fun asksForTheActivitysPlaylists() = runTest {
         client { json("[]") }.playlists("1", "c1", 5)
 
