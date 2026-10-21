@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +74,10 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        if (ui.toSort.isNotEmpty()) {
+            item { Spacer(Modifier.height(16.dp)) }
+            item { SortCard(ui.toSort, ui.activityName, viewModel::startSorting) }
         }
         ui.latest?.let { latest ->
             item { SectionTitle("New picks to try", action = "Get more", onAction = askClaude) }

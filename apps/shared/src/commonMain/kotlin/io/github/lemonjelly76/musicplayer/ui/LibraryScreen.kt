@@ -32,17 +32,17 @@ import io.github.lemonjelly76.musicplayer.data.Rating
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 /**
- * The person's albums for the activity as a wall of covers, narrowed to loved, OK or only this activity's own
- * ratings; tapping one opens it in their streaming app.
+ * The person's albums for the activity as a wall of covers, narrowed to loved, OK, only this activity's own ratings,
+ * or what they turned down; tapping one opens it in their streaming app.
  */
 @Composable
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
     var filter by rememberSaveable { mutableStateOf(LibraryFilter.ALL) }
     val filters = LibraryFilter.entries.filter { it != LibraryFilter.THIS_ACTIVITY || ui.category != GENERAL }
     if (filter !in filters) filter = LibraryFilter.ALL
-    val shown = filter.apply(ui.library)
+    val shown = filter.apply(ui.library + ui.disliked)
     Column {
-        if (ui.library.isNotEmpty()) {
+        if (ui.library.isNotEmpty() || ui.disliked.isNotEmpty()) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -73,6 +73,8 @@ private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when 
         "${ui.person?.name ?: "you"} love."
     LibraryFilter.THIS_ACTIVITY -> "No albums rated for ${ui.activityName} itself yet; these all come from General. " +
         "Use an album's menu to rate it for ${ui.activityName}."
+    LibraryFilter.NOT_FOR_ME -> "Nothing turned down for ${ui.activityName}. Albums rated Not for me show here, " +
+        "so you can change your mind."
     else -> "No albums rated ${filter.label} for ${ui.activityName}."
 }
 
@@ -91,7 +93,8 @@ fun AlbumTile(
     val album = entry.album
     val link = album.link
     val ratings = Rating.entries.reversed().filter { it != entry.rating || entry.general }
-        .map { rating -> AlbumAction(rating.label) { viewModel.rate(album, rating) } }
+        .map { rating -> AlbumAction(rating.label) { viewModel.rate(album, rating) } } +
+        listOfNotNull(AlbumAction("Remove rating") { viewModel.rate(album, null) }.takeIf { !entry.general })
     val actions = listOfNotNull(
         link?.let { AlbumAction("Open in ${serviceOfLink(it)}") { open(it) } },
         AlbumAction("More like this") { viewModel.moreLikeThis(album) },
@@ -117,7 +120,7 @@ fun AlbumTile(
     }
 }
 
-/** Loved in green, OK in grey; "in General" when no rating was given for this activity itself. */
+/** Loved in green, OK and Not for me in grey; "in General" when no rating was given for this activity itself. */
 @Composable
 private fun RatingLabel(rating: Rating, general: Boolean) {
     val colour = if (rating == Rating.LOVE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant

@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.data.ApiClient
 import io.github.lemonjelly76.musicplayer.data.ApiException
 import io.github.lemonjelly76.musicplayer.data.Candidate
 import io.github.lemonjelly76.musicplayer.data.Category
+import io.github.lemonjelly76.musicplayer.data.Found
 import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Person
@@ -28,6 +29,9 @@ import kotlinx.coroutines.launch
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
 
+/** A catalogue search; [results] is null until the first answer comes. */
+data class Search(val query: String = "", val results: List<Found>? = null)
+
 data class UiState(
     val server: ServerSettings = ServerSettings("", "", ""),
     val people: List<Person> = emptyList(),
@@ -41,6 +45,12 @@ data class UiState(
     /** The activity's pick lists, newest first; only the newest still has a playlist. */
     val lists: List<PickList> = emptyList(),
     val library: List<LibraryAlbum> = emptyList(),
+    /** What the person turned down for the activity, so a dislike can be taken back. */
+    val disliked: List<LibraryAlbum> = emptyList(),
+    /** Albums kept elsewhere that have no rating for the activity yet. */
+    val toSort: List<LibraryAlbum> = emptyList(),
+    val search: Search = Search(),
+    val sorting: SortSession? = null,
     val tracking: Tracking? = null,
     val moreLikeThis: MoreLikeThis? = null,
     val loading: Boolean = false,
@@ -91,18 +101,27 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     fun choosePerson(id: String) = load {
         store.savePersonId(id)
-        state.update { it.copy(personId = id, lists = emptyList(), library = emptyList(), tracking = null) }
-        loadPerson(id)
+        state.update {
+            it.copy(personId = id, lists = emptyList(), tracking = null, sorting = null).withoutActivityAlbums()
+        }
+        coroutineScope {
+            launch { loadPerson(id) }
+            launch { searchAgain() }
+        }
     }
 
-    /** The activity both Picks and Library show. */
+    /** The activity every tab shows and rates for. */
     fun chooseCategory(category: String) = load {
-        state.update { it.copy(category = category, lists = emptyList(), library = emptyList()) }
+        state.update { it.copy(category = category, lists = emptyList(), sorting = null).withoutActivityAlbums() }
         coroutineScope {
             launch { loadLists() }
             launch { state.value.personId?.let { reloadLibrary(it) } }
+            launch { searchAgain() }
         }
     }
+
+    private fun UiState.withoutActivityAlbums() =
+        copy(library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
 
     /**
      * Sets the person's streaming service; they then connect their own account to it. The choice shows at once, and
@@ -139,12 +158,50 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         val personId = state.value.personId ?: return
         api.rate(personId, album.ref, state.value.category, rating)
         state.update { current ->
-            current.copy(lists = current.lists.map { list ->
-                list.copy(picks = list.picks.map { if (it.album.ref == album.ref) it.copy(rating = rating) else it })
-            })
+            current.copy(
+                lists = current.lists.map { list ->
+                    list.copy(picks = list.picks.map { if (it.album.ref == album.ref) it.copy(rating = rating) else it })
+                },
+                search = current.search.copy(results = current.search.results?.map {
+                    if (it.album.ref == album.ref) it.copy(rating = rating, general = false) else it
+                }),
+            )
         }
         reloadLibrary(personId)
     }
+
+    /** Looks [query] up in the person's streaming catalogue; a blank one clears the results. */
+    fun search(query: String) {
+        val text = query.trim()
+        state.update { it.copy(search = Search(text)) }
+        if (text.isNotEmpty()) load { searchAgain() }
+    }
+
+    /** Runs the current search for the chosen person and activity, keeping only the latest answer. */
+    private suspend fun searchAgain() {
+        val personId = state.value.personId ?: return
+        val query = state.value.search.query.takeIf { it.isNotEmpty() } ?: return
+        val category = state.value.category
+        val results = api.search(personId, query, category)
+        state.update {
+            if (it.personId == personId && it.category == category && it.search.query == query) {
+                it.copy(search = Search(query, results))
+            } else it
+        }
+    }
+
+    /** Goes through the albums to sort for the chosen activity, one at a time. */
+    fun startSorting() = state.update { it.copy(sorting = SortSession(it.category, it.toSort)) }
+
+    /** Rates the album being sorted and moves on; null skips it. */
+    fun sort(rating: Rating?) {
+        val session = state.value.sorting ?: return
+        val album = session.current?.album ?: return
+        state.update { it.copy(sorting = session.next(rated = rating != null)) }
+        if (rating != null) load { saveRating(album, rating) }
+    }
+
+    fun stopSorting() = state.update { it.copy(sorting = null) }
 
     fun moreLikeThis(album: Album) {
         val personId = state.value.personId ?: return
@@ -195,10 +252,18 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         state.update { if (it.personId == personId && it.category == category) it.copy(lists = lists) else it }
     }
 
-    private suspend fun reloadLibrary(personId: String) {
+    /** The activity's library, what was turned down there and what is still to sort, which any rating can change. */
+    private suspend fun reloadLibrary(personId: String) = coroutineScope {
         val category = state.value.category
-        val library = api.library(personId, category)
-        state.update { if (it.personId == personId && it.category == category) it.copy(library = library) else it }
+        val library = async { api.library(personId, category) }
+        val disliked = async { api.disliked(personId, category) }
+        val toSort = async { api.toSort(personId, category) }
+        val answers = Triple(library.await(), disliked.await(), toSort.await())
+        state.update {
+            if (it.personId == personId && it.category == category) {
+                it.copy(library = answers.first, disliked = answers.second, toSort = answers.third)
+            } else it
+        }
     }
 
     /**

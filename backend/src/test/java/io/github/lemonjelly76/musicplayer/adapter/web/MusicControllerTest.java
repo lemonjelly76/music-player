@@ -36,6 +36,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 
@@ -162,6 +163,53 @@ class MusicControllerTest {
         assertThat(mvc.get().uri("/api/people/{id}/library?category={c}", CRAIG.id(), running.id()))
                 .hasStatusOk().bodyJson().isLenientlyEqualTo("""
                         [{"rating":3,"general":true}]""");
+    }
+
+    @Test
+    void listsTheAlbumsNotForThePersonForAnActivity() {
+        Category running = Category.create("Running", "");
+        LibraryAlbum disliked = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.DISLIKE, NOW), "",
+                List.of(), LocalDate.of(2026, 10, 20));
+        given(categories.find(running.id().toString())).willReturn(running);
+        given(library.dislikedFor(CRAIG.id(), Optional.of(running.id()))).willReturn(List.of(disliked));
+
+        assertThat(mvc.get().uri("/api/people/{id}/library/disliked?category={c}", CRAIG.id(), running.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"album":{"ref":"tidal:t-9"},"rating":1,"general":true}]""");
+    }
+
+    @Test
+    void listsTheAlbumsStillToSortForAnActivity() {
+        Category running = Category.create("Running", "");
+        LibraryAlbum loved = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.LOVE, NOW), "",
+                List.of(), LocalDate.of(2026, 10, 20));
+        given(categories.find(running.id().toString())).willReturn(running);
+        given(library.toSortFor(CRAIG.id(), Optional.of(running.id()))).willReturn(List.of(loved));
+
+        assertThat(mvc.get().uri("/api/people/{id}/library/to-sort?category={c}", CRAIG.id(), running.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"album":{"title":"Dummy"},"rating":3,"general":true}]""");
+    }
+
+    @Test
+    void searchesTheCatalogueWithThePersonsRatingOfEachAlbumForTheActivity() {
+        AlbumRef third = new AlbumRef("Portishead", "Third", Optional.of(2008), ProviderIds.of(Provider.TIDAL, "t-3"));
+        LibraryAlbum loved = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.LOVE, NOW), "",
+                List.of(), LocalDate.of(2026, 10, 20));
+        given(providers.search(CRAIG, "Portishead", 20)).willReturn(List.of(DUMMY, third));
+        given(library.byKey(CRAIG.id())).willReturn(Map.of(DUMMY.key(), loved));
+
+        assertThat(mvc.get().uri("/api/people/{id}/search?q=Portishead&category=none", CRAIG.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"album":{"ref":"tidal:t-9","title":"Dummy","link":"https://tidal.com/browse/album/t-9"},
+                          "rating":3,"general":false},
+                         {"album":{"ref":"tidal:t-3","title":"Third"},"rating":null,"general":false}]""");
+    }
+
+    @Test
+    void aBlankSearchIsABadRequest() {
+        assertThat(mvc.get().uri("/api/people/{id}/search?q= ", CRAIG.id()))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test

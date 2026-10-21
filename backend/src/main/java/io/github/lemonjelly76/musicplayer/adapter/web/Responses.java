@@ -100,6 +100,20 @@ final class Responses {
         }
     }
 
+    /**
+     * A catalogue search result with the person's rating of it for the activity, when the album is in their library.
+     */
+    record FoundResponse(AlbumResponse album, Integer rating, boolean general) {
+
+        static FoundResponse from(AlbumRef album, Optional<LibraryAlbum> entry, Optional<CategoryId> activity,
+                Function<AlbumRef, Optional<URI>> links) {
+            Optional<ActivityRating> rating = entry.flatMap(found -> found.rating(activity));
+            return new FoundResponse(AlbumResponse.from(album, links),
+                    rating.map(found -> found.rating().value()).orElse(null),
+                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false));
+        }
+    }
+
     record RatingResponse(String albumRef, Integer rating) {
     }
 

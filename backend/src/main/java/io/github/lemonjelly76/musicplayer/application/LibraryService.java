@@ -52,12 +52,37 @@ public class LibraryService {
      * The person's library for one activity (none for General): albums rated love or OK there, loved first.
      */
     public List<LibraryAlbum> libraryFor(PersonId person, Optional<CategoryId> activity, LibraryFilter filter) {
-        Comparator<LibraryAlbum> lovedFirst = Comparator.comparing((LibraryAlbum entry) ->
-                entry.rating(activity).map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST);
         return repository.findByPerson(person).stream()
                 .filter(entry -> entry.keptFor(activity))
                 .filter(filter::matches)
-                .sorted(lovedFirst)
+                .sorted(lovedFirst(activity))
+                .toList();
+    }
+
+    private static Comparator<LibraryAlbum> lovedFirst(Optional<CategoryId> activity) {
+        return Comparator.comparing((LibraryAlbum entry) ->
+                entry.rating(activity).map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST);
+    }
+
+    /**
+     * What the person does not want for the activity: disliked there, or in General with no rating there, by artist.
+     */
+    public List<LibraryAlbum> dislikedFor(PersonId person, Optional<CategoryId> activity) {
+        return repository.findByPerson(person).stream()
+                .filter(entry -> entry.rating(activity).map(found -> found.rating() == Rating.DISLIKE).orElse(false))
+                .sorted(BY_ARTIST)
+                .toList();
+    }
+
+    /**
+     * Albums the person keeps for some activity but has not rated for this one, to sort through quickly: loved
+     * through General first, then OK, then those kept only for other activities.
+     */
+    public List<LibraryAlbum> toSortFor(PersonId person, Optional<CategoryId> activity) {
+        return repository.findByPerson(person).stream()
+                .filter(entry -> entry.own(activity).isEmpty())
+                .filter(entry -> entry.ratings().stream().anyMatch(found -> found.rating().keeps()))
+                .sorted(lovedFirst(activity))
                 .toList();
     }
 

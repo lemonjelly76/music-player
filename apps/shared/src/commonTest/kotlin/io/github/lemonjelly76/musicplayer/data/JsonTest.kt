@@ -44,6 +44,19 @@ class JsonTest {
     }
 
     @Test
+    fun readsSearchResultsWithThePersonsRating() {
+        val (known, new) = Json.found("""
+            [{"album":{"ref":"tidal:1","artist":"Talk Talk","title":"Spirit of Eden"},"rating":3,"general":true},
+             {"album":{"ref":"tidal:2","artist":"Talk Talk","title":"Laughing Stock"},"rating":null,"general":false}]
+        """.trimIndent())
+
+        assertEquals(Rating.LOVE, known.rating)
+        assertTrue(known.general)
+        assertEquals("Laughing Stock", new.album.title)
+        assertNull(new.rating)
+    }
+
+    @Test
     fun readsTheLibraryWithoutARating() {
         val entry = Json.library("""
             [{"id":"a1","album":{"ref":"tidal:1","artist":"Joni Mitchell","title":"Blue"},"tags":["folk"],

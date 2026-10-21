@@ -47,6 +47,15 @@ public class MusicProviders {
     }
 
     /**
+     * Albums matching the query in the catalogue the person's searches use.
+     */
+    public List<AlbumRef> search(Person person, String query, int limit) {
+        return catalogueFor(Optional.of(person)).orElseThrow(() -> new MusicProviderUnavailableException(
+                        "No streaming service is set up to search; the server needs a Tidal or Spotify client id"))
+                .searchAlbums(query, limit);
+    }
+
+    /**
      * Opens the album in the person's service; when its id there is not known yet, opens a search for it instead.
      */
     public Optional<URI> link(Person person, AlbumRef album) {

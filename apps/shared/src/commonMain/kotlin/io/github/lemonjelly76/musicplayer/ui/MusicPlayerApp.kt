@@ -11,7 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,6 +55,7 @@ import io.github.lemonjelly76.musicplayer.data.Person
 
 private enum class Screen(val label: String, val icon: ImageVector, val chosenIcon: ImageVector) {
     HOME("Home", Icons.Outlined.Home, Icons.Filled.Home),
+    SEARCH("Search", Icons.Outlined.Search, Icons.Filled.Search),
     LIBRARY("Library", AppIcons.LibraryMusicOutlined, AppIcons.LibraryMusic),
 }
 
@@ -65,6 +68,8 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     // A pick list opened from Home's Playlists shelf; it closes by itself when the activity or person changes.
     var openListId by rememberSaveable { mutableStateOf<String?>(null) }
     val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
+    val sorting = ui.sorting
+    val chooseScreen = { chosen: Screen -> screen = chosen; openListId = null; viewModel.stopSorting() }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.pendingLink) {
@@ -87,8 +92,12 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         onPauseOrDispose { }
     }
 
-    SystemBack(enabled = settingsOpen || openList != null) {
-        if (settingsOpen) settingsOpen = false else openListId = null
+    SystemBack(enabled = settingsOpen || sorting != null || openList != null) {
+        when {
+            settingsOpen -> settingsOpen = false
+            sorting != null -> viewModel.stopSorting()
+            else -> openListId = null
+        }
     }
 
     val barColors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -102,6 +111,16 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                         title = { Text("Settings", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             IconButton(onClick = { settingsOpen = false }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        colors = barColors,
+                    )
+                } else if (sorting != null) {
+                    TopAppBar(
+                        title = { Text("Sort for ${ui.activityName}", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = viewModel::stopSorting) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         },
@@ -131,16 +150,17 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                 }
             },
             bottomBar = {
-                if (!settingsOpen && !wide) BottomTabs(screen) { screen = it; openListId = null }
+                if (!settingsOpen && !wide) BottomTabs(screen, chooseScreen)
             },
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
             Row(Modifier.padding(padding).fillMaxSize()) {
-                if (!settingsOpen && wide) SideTabs(screen) { screen = it; openListId = null }
+                if (!settingsOpen && wide) SideTabs(screen, chooseScreen)
                 Column(Modifier.fillMaxSize()) {
                     if (ui.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                     when {
                         settingsOpen -> SettingsScreen(ui, viewModel)
+                        sorting != null -> SortScreen(sorting, ui.activityName, viewModel, open)
                         openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
                         else -> Refreshable(ui.loading, viewModel::refresh) {
                             Column {
@@ -150,6 +170,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                                 when (screen) {
                                     Screen.HOME -> HomeScreen(ui, viewModel, open,
                                         showList = { openListId = it }, seeLibrary = { screen = Screen.LIBRARY })
+                                    Screen.SEARCH -> SearchScreen(ui, viewModel, open)
                                     Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
                                 }
                             }

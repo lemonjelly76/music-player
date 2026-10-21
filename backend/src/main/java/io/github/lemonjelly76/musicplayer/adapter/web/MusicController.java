@@ -2,6 +2,7 @@ package io.github.lemonjelly76.musicplayer.adapter.web;
 
 import io.github.lemonjelly76.musicplayer.adapter.web.Requests.RatingRequest;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.CandidateResponse;
+import io.github.lemonjelly76.musicplayer.adapter.web.Responses.FoundResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.LibraryAlbumResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.ListResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.RatingResponse;
@@ -114,6 +115,49 @@ class MusicController {
         Optional<Category> activity = activity(category);
         return library.libraryFor(person.id(), activity.map(Category::id), LibraryFilter.ALL).stream()
                 .map(entry -> LibraryAlbumResponse.from(entry, activity.map(Category::id), links(person)))
+                .toList();
+    }
+
+    /**
+     * Albums the person has turned down for the activity, so a dislike can be found again and taken back.
+     */
+    @GetMapping("/people/{id}/library/disliked")
+    List<LibraryAlbumResponse> disliked(@PathVariable String id, @RequestParam(required = false) String category) {
+        Person person = people.get(PersonId.of(id));
+        Optional<CategoryId> activity = activity(category).map(Category::id);
+        return library.dislikedFor(person.id(), activity).stream()
+                .map(entry -> LibraryAlbumResponse.from(entry, activity, links(person)))
+                .toList();
+    }
+
+    /**
+     * Albums kept for other activities, or in General, that the person has not yet rated for this one.
+     */
+    @GetMapping("/people/{id}/library/to-sort")
+    List<LibraryAlbumResponse> toSort(@PathVariable String id, @RequestParam(required = false) String category) {
+        Person person = people.get(PersonId.of(id));
+        Optional<CategoryId> activity = activity(category).map(Category::id);
+        return library.toSortFor(person.id(), activity).stream()
+                .map(entry -> LibraryAlbumResponse.from(entry, activity, links(person)))
+                .toList();
+    }
+
+    /**
+     * Albums from the person's streaming catalogue, with their rating of each for the activity, so ones they already
+     * know can be rated straight away.
+     */
+    @GetMapping("/people/{id}/search")
+    List<FoundResponse> search(@PathVariable String id, @RequestParam String q,
+            @RequestParam(required = false) String category, @RequestParam(defaultValue = "20") int limit) {
+        if (q.isBlank()) {
+            throw new IllegalArgumentException("Type something to search for");
+        }
+        Person person = people.get(PersonId.of(id));
+        Optional<CategoryId> activity = activity(category).map(Category::id);
+        Map<AlbumKey, LibraryAlbum> rated = library.byKey(person.id());
+        return providers.search(person, q.strip(), limit(limit)).stream()
+                .map(album -> FoundResponse.from(album, Optional.ofNullable(rated.get(album.key())), activity,
+                        links(person)))
                 .toList();
     }
 

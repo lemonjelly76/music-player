@@ -114,6 +114,40 @@ class LibraryServiceTest {
     }
 
     @Test
+    void listsWhatIsNotForThePersonForAnActivityIncludingGeneralDislikesStandingIn() {
+        Person craig = world.withoutService("Craig");
+        Category running = world.categories.upsert("Running", "");
+        world.library.add(craig, "Blur — 13", GENERAL, Rating.DISLIKE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        world.library.rate(craig, "Air — Moon Safari", Optional.of(running), Optional.of(Rating.DISLIKE), "");
+        world.library.add(craig, "Pulp — His 'n' Hers", GENERAL, Rating.DISLIKE, "", List.of());
+        world.library.rate(craig, "Pulp — His 'n' Hers", Optional.of(running), Optional.of(Rating.LOVE), "");
+
+        assertThat(world.library.dislikedFor(craig.id(), Optional.of(running.id())))
+                .extracting(entry -> entry.album().artist()).containsExactly("Air", "Blur");
+        assertThat(world.library.dislikedFor(craig.id(), Optional.empty()))
+                .extracting(entry -> entry.album().artist()).containsExactly("Blur", "Pulp");
+    }
+
+    @Test
+    void albumsToSortForAnActivityAreKeptElsewhereButNotRatedThereLovedFirst() {
+        Person craig = world.withoutService("Craig");
+        Category running = world.categories.upsert("Running", "");
+        Category dinner = world.categories.upsert("Dinner", "");
+        world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());
+        world.library.add(craig, "Pulp — Different Class", Optional.of(dinner), Rating.LOVE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Suede — Suede", GENERAL, Rating.LOVE, "", List.of());
+        world.library.rate(craig, "Suede — Suede", Optional.of(running), Optional.of(Rating.OK), "");
+        world.library.add(craig, "Oasis — Be Here Now", GENERAL, Rating.DISLIKE, "", List.of());
+
+        assertThat(world.library.toSortFor(craig.id(), Optional.of(running.id())))
+                .extracting(entry -> entry.album().artist()).containsExactly("Air", "Blur", "Pulp");
+        assertThat(world.library.toSortFor(craig.id(), Optional.empty()))
+                .extracting(entry -> entry.album().artist()).containsExactly("Pulp");
+    }
+
+    @Test
     void takingAwayAnAlbumsLastRatingTakesItOutOfTheLibrary() {
         Person craig = world.withoutService("Craig");
         world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());

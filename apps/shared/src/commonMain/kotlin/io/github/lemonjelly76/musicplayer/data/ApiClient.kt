@@ -56,6 +56,18 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun library(personId: String, category: String): List<LibraryAlbum> =
         Json.library(get("api/people/$personId/library", "category" to category))
 
+    /** What the person turned down for the activity, there or in General. */
+    suspend fun disliked(personId: String, category: String): List<LibraryAlbum> =
+        Json.library(get("api/people/$personId/library/disliked", "category" to category))
+
+    /** Albums kept elsewhere that the person has not yet rated for the activity. */
+    suspend fun toSort(personId: String, category: String): List<LibraryAlbum> =
+        Json.library(get("api/people/$personId/library/to-sort", "category" to category))
+
+    /** Albums in the person's streaming catalogue, with their rating of each for the activity. */
+    suspend fun search(personId: String, query: String, category: String): List<Found> =
+        Json.found(get("api/people/$personId/search", "q" to query, "category" to category))
+
     /** Rates any album for the activity, adding it to the library when new; a null [rating] takes the rating away. */
     suspend fun rate(personId: String, albumRef: String, category: String, rating: Rating?) {
         send(HttpMethod.Post, "api/people/$personId/ratings", buildJsonObject {

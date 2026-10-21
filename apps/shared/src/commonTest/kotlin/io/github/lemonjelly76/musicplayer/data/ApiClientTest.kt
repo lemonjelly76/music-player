@@ -49,6 +49,26 @@ class ApiClientTest {
     }
 
     @Test
+    fun searchesTheCatalogueForTheActivity() = runTest {
+        client { json("[]") }.search("1", "Talk Talk", "c1")
+
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/search?q=Talk+Talk&category=c1",
+            requests.single().url.toString())
+    }
+
+    @Test
+    fun asksForTheAlbumsNotForThePersonAndThoseStillToSort() = runTest {
+        val api = client { json("[]") }
+
+        api.disliked("1", "c1")
+        api.toSort("1", GENERAL)
+
+        assertEquals(listOf("https://pc.tailnet.ts.net:8444/api/people/1/library/disliked?category=c1",
+            "https://pc.tailnet.ts.net:8444/api/people/1/library/to-sort?category=none"),
+            requests.map { it.url.toString() })
+    }
+
+    @Test
     fun ratesWithTheActivityAndTakesARatingAwayWithNull() = runTest {
         val api = client { json("{}") }
 

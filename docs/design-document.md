@@ -130,18 +130,20 @@ Counting is on by default per person. Each category can override it either way, 
 
 ### ADR-013 The Android app — Accepted
 
-The app looks and behaves like a streaming app: always dark, album artwork throughout, one green accent. The person switcher and a settings cog sit top right. Home and Library share a row of activity chips (General plus each category), because the question the app answers is "what do I put on for this activity?"
+The app looks and behaves like a streaming app: always dark, album artwork throughout, one green accent. The person switcher and a settings cog sit top right. Home, Search and Library share a row of activity chips (General plus each category), because the question the app answers is "what do I put on for this activity?"
 
 - **Home:** everything for the chosen activity on one page, as streaming apps lay out a home page, rather than separate tabs for albums and playlists, which would split one decision across two places.
   - **Playlists:** the activity's pick lists as cards, newest first. Only the newest has a play button, as each new list replaces the playlist in the person's account (ADR-005); the server gives earlier lists no playlist link. A last card, "Get new picks", opens Claude with the request written out (`claude.ai/new?q=…`), as new picks come from a conversation (ADR-004).
   - **Your albums:** the activity's loved and OK albums as a shelf of covers, loved first, with "See all" opening Library.
+  - **Sort for the activity:** a card, when there are any, for albums kept for other activities or in General but not rated for this one. It opens a page showing one album at a time, asking "Good for Chill?" with Not for me / OK / Love and Skip. Activities only differ once albums are rated for them, and one tap per album is the quickest way there. The albums are fixed when sorting starts, so ratings do not reshuffle the queue.
   - **New picks to try:** the newest list's albums with Claude's reasons and Not for me / OK / Love pills.
 - **Pick list:** a card opens its list as a playlist page: a cover mosaic, the name, a round play button on the newest, then each album with its reason and rating pills.
-- **Library:** the activity's albums as a grid of covers, narrowed to Loved, OK or only those rated for the activity itself ("in General" marks a rating standing in). Each album's ⋮ menu opens it, shows "More like this" or rates it for the activity.
+- **Search:** a tab, as in streaming apps, that searches the person's streaming catalogue as they type (`GET /search`, the catalogue `search_catalogue` uses). Each result has rating pills for the activity, so albums the person already knows join the library without going through Claude, and Claude has more to pick from.
+- **Library:** the activity's albums as a grid of covers, narrowed to Loved, OK, only those rated for the activity itself ("in General" marks a rating standing in), or Not for me. Not for me lists what was turned down for the activity (`GET /library/disliked`), so a mistaken dislike can be found and taken back. Each album's ⋮ menu opens it, shows "More like this", rates it for the activity or removes the activity's own rating.
 - **More like this:** a sheet of instant suggestions (ADR-007); the heart loves one for the activity.
 - **Settings:** opened from the cog as its own page with a back arrow. The streaming service and its connection, the play-count switch, and the server address and login.
 
-Tapping any album opens it in Tidal or Spotify. Pulling Home or Library down fetches what Claude has written since.
+Tapping any album opens it in Tidal or Spotify. Pulling Home, Search or Library down fetches what Claude has written since.
 
 Covers come from the server: Spotify and Tidal artwork when the album is on the person's service, else the Cover Art Archive by MusicBrainz id. Albums without one show a coloured placeholder.
 

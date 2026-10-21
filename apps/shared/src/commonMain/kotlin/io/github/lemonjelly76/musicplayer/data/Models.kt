@@ -102,6 +102,9 @@ data class LibraryAlbum(
     val addedOn: String,
 )
 
+/** A catalogue search result with the person's [rating] of it for the activity, when it is in their library. */
+data class Found(val album: Album, val rating: Rating?, val general: Boolean)
+
 data class Candidate(val album: Album, val score: Double, val sources: List<String>, val seeds: List<String>)
 
 /** Whether the person's plays are counted; per-activity settings are Claude's to manage, so the app ignores them. */
@@ -134,6 +137,10 @@ object Json {
     }
 
     fun library(text: String): List<LibraryAlbum> = array(text).map(::libraryAlbum)
+
+    fun found(text: String): List<Found> = array(text).map {
+        Found(album(it.obj("album")), it.rating(), it.boolean("general"))
+    }
 
     fun candidates(text: String): List<Candidate> = array(text).map {
         Candidate(
