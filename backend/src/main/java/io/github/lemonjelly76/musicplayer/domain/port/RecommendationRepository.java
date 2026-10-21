@@ -2,8 +2,6 @@ package io.github.lemonjelly76.musicplayer.domain.port;
 
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
 
@@ -21,9 +19,5 @@ public interface RecommendationRepository {
      */
     List<RecommendationList> findByPerson(PersonId person, Optional<CategoryId> category, int limit);
 
-    Optional<RecommendationList> findContaining(RecommendationId pick);
-
     Optional<RecommendationList> findByPlaylist(String playlistId);
-
-    void saveFeedback(RecommendationId pick, Feedback feedback);
 }

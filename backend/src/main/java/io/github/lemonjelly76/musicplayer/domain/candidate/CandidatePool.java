@@ -15,8 +15,8 @@ import java.util.TreeSet;
  * Steps 2 and 3 of the recommendation pipeline: merges what the similarity sources suggest, drops what the person
  * should not be offered, and ranks the rest on simple signals.
  * <p>
- * Score = 2 per source that suggests the album + 1 per seed that leads to it + the best seed's rating (out of 5) +
- * half the log2 of the seeds' play counts. Several sources agreeing counts most; a well-loved seed comes next.
+ * Score = 2 per source that suggests the album + 1 per loved album that leads to it + half the log2 of those albums'
+ * play counts. Several sources agreeing counts most; several loved albums agreeing comes next.
  */
 public final class CandidatePool {
 
@@ -54,11 +54,10 @@ public final class CandidatePool {
         }
 
         Candidate toCandidate() {
-            int bestRating = seeds.values().stream().mapToInt(Seed::ratingOrDefault).max().orElse(Seed.UNRATED);
             int plays = seeds.values().stream().mapToInt(Seed::plays).sum();
-            double score = 2.0 * sources.size() + seeds.size() + bestRating + 0.5 * log2(1 + plays);
+            double score = 2.0 * sources.size() + seeds.size() + 0.5 * log2(1 + plays);
             List<String> seedLabels = seeds.values().stream().map(seed -> seed.album().label()).toList();
-            return new Candidate(album, round(score), sources, seedLabels, bestRating, plays);
+            return new Candidate(album, round(score), sources, seedLabels, plays);
         }
 
         private static double log2(int value) {

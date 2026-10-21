@@ -2,16 +2,21 @@ package io.github.lemonjelly76.musicplayer.adapter.mcp;
 
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.AlbumView;
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.LibraryAlbumView;
-import io.github.lemonjelly76.musicplayer.application.LibraryService;
+import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.LibraryService.Added;
+import io.github.lemonjelly76.musicplayer.application.LibraryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryFilter;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpTool.McpAnnotations;
+import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
@@ -31,12 +36,23 @@ class LibraryTools {
 
     private final PersonService people;
     private final LibraryService library;
+    private final CategoryService categories;
     private final MusicProviders providers;
 
-    LibraryTools(PersonService people, LibraryService library, MusicProviders providers) {
+    LibraryTools(PersonService people, LibraryService library, CategoryService categories, MusicProviders providers) {
         this.people = people;
         this.library = library;
+        this.categories = categories;
         this.providers = providers;
+    }
+
+    /**
+     * "General" is the rating that is not for one activity.
+     */
+    private Optional<CategoryId> activity(String category) {
+        return category.strip().equalsIgnoreCase(Views.GENERAL)
+                ? Optional.empty()
+                : Optional.of(categories.find(category).id());
     }
 
     @McpTool(name = "search_catalogue",
@@ -67,45 +83,71 @@ class LibraryTools {
     }
 
     @McpTool(name = "add_liked_album",
-            description = "Saves an album to a person's library, and to their streaming favourites when their "
-                    + "service carries it. An album already there is left unchanged; use update_album to change it.",
+            description = "Saves an album a person likes to their library, rated for an activity (General when none "
+                    + "is given; love when no rating is given), and to their streaming favourites when loved. An "
+                    + "album already there keeps its notes and tags and takes the new rating.",
             annotations = @McpAnnotations(title = "Add liked album", destructiveHint = false, openWorldHint = true))
     CallToolResult addLikedAlbum(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "A ref from search_catalogue, e.g. tidal:251380836, or 'Artist — Title'")
-            String albumRef,
-            @McpToolParam(description = "1 to 5", required = false) Integer rating,
+            @McpToolParam(description = "A ref from search_catalogue, e.g. spotify:4LH4d3cOWNNsVw41Gqt2kv, or "
+                    + "'Artist — Title'") String albumRef,
+            @McpToolParam(description = "love (default), ok or dislike", required = false) String rating,
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for General", required = false)
+            String category,
             @McpToolParam(description = "Why they like it, in their words", required = false) String notes,
             @McpToolParam(description = "Tags such as genre, mood or era, e.g. ['britpop', '90s']", required = false)
             List<String> tags) {
         return attempt(() -> {
-            Added added = library.add(people.find(person), albumRef, ToolInputs.rating(rating),
-                    ToolInputs.text(notes), ToolInputs.tags(tags));
+            Added added = library.add(people.find(person), albumRef, categories.findOptional(category),
+                    ToolInputs.rating(rating).orElse(Rating.LOVE), ToolInputs.text(notes), ToolInputs.tags(tags));
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("album", LibraryAlbumView.from(added.entry()));
+            result.put("album", LibraryAlbumView.from(added.entry(), categories.names()));
             result.put("alreadyInLibrary", added.alreadyInLibrary());
             result.put("favourites", added.favouriteProblem());
             return json(result);
         });
     }
 
+    @McpTool(name = "rate_album",
+            description = "Records how much a person likes an album for an activity: love (it joins that activity's "
+                    + "library and leads to similar albums), ok (kept, not used to find more) or dislike (never "
+                    + "recommended for that activity). Without an activity it is the General rating, which counts "
+                    + "for every activity without its own. 'none' removes the rating. Use it whenever they say what "
+                    + "they think of an album or a pick, with what they said as the comment.",
+            annotations = @McpAnnotations(title = "Rate album", idempotentHint = true, openWorldHint = true))
+    CallToolResult rateAlbum(
+            @McpToolParam(description = "Name or id from list_people") String person,
+            @McpToolParam(description = "A ref from get_recommendations, get_library or search_catalogue, or "
+                    + "'Artist — Title'") String albumRef,
+            @McpToolParam(description = "love, ok, dislike, or none to remove") String rating,
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for General", required = false)
+            String category,
+            @McpToolParam(description = "What they said about it", required = false) String comment) {
+        return attempt(() -> {
+            Optional<LibraryAlbum> rated = library.rate(people.find(person), albumRef,
+                    categories.findOptional(category), ToolInputs.rating(rating), ToolInputs.text(comment));
+            return json(rated.<Object>map(entry -> LibraryAlbumView.from(entry, categories.names()))
+                    .orElse(Map.of("removed", albumRef)));
+        });
+    }
+
     @McpTool(name = "update_album",
-            description = "Changes the rating, notes or tags of an album in a person's library. Only the fields "
-                    + "passed change; tags replace the old ones.",
+            description = "Changes the notes or tags of an album in a person's library; use rate_album for ratings. "
+                    + "Only the fields passed change; tags replace the old ones.",
             annotations = @McpAnnotations(title = "Update album", idempotentHint = true, openWorldHint = false))
     CallToolResult updateAlbum(
             @McpToolParam(description = "Name or id from list_people") String person,
             @McpToolParam(description = "The library album's id from get_library") String id,
-            @McpToolParam(description = "1 to 5", required = false) Integer rating,
             @McpToolParam(description = "New notes", required = false) String notes,
             @McpToolParam(description = "New tags", required = false) List<String> tags) {
         return attempt(() -> json(LibraryAlbumView.from(library.update(people.find(person).id(),
-                ToolInputs.libraryAlbumId(id), ToolInputs.rating(rating), Optional.ofNullable(notes),
-                Optional.ofNullable(tags)))));
+                ToolInputs.libraryAlbumId(id), Optional.ofNullable(notes), Optional.ofNullable(tags)),
+                categories.names())));
     }
 
     @McpTool(name = "remove_album",
-            description = "Removes an album from a person's library. Their streaming favourites are left alone.",
+            description = "Removes an album and all its ratings from a person's library. Their streaming favourites "
+                    + "are left alone. To say they dislike it, use rate_album instead.",
             annotations = @McpAnnotations(title = "Remove album", destructiveHint = true, idempotentHint = true,
                     openWorldHint = false))
     CallToolResult removeAlbum(
@@ -118,21 +160,27 @@ class LibraryTools {
     }
 
     @McpTool(name = "get_library",
-            description = "Lists a person's albums, best rated first, with ratings, notes, tags and the date "
-                    + "added. Filters narrow it; leave them out for everything.",
+            description = "Lists a person's albums with their ratings per activity, notes, tags and date added. With "
+                    + "an activity, only albums they love or rate ok for it (or in General), loved first; without, "
+                    + "every album they have rated, disliked ones included.",
             annotations = @McpAnnotations(title = "Library", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getLibrary(
             @McpToolParam(description = "Name or id from list_people") String person,
+            @McpToolParam(description = "Activity name, or General", required = false) String category,
             @McpToolParam(description = "Only albums with this tag", required = false) String tag,
-            @McpToolParam(description = "Only albums rated at least this, 1 to 5", required = false) Integer minRating,
             @McpToolParam(description = "Only albums from this decade, e.g. 1990", required = false) Integer decade,
             @McpToolParam(description = "Only albums by artists whose name contains this", required = false)
             String artist) {
         return attempt(() -> {
-            LibraryFilter filter = new LibraryFilter(ToolInputs.optional(tag), Optional.ofNullable(minRating),
-                    Optional.ofNullable(decade), ToolInputs.optional(artist));
-            return json(library.list(people.find(person).id(), filter).stream().map(LibraryAlbumView::from).toList());
+            PersonId who = people.find(person).id();
+            LibraryFilter filter = new LibraryFilter(ToolInputs.optional(tag), Optional.ofNullable(decade),
+                    ToolInputs.optional(artist));
+            List<LibraryAlbum> entries = ToolInputs.optional(category).isEmpty()
+                    ? library.all(who, filter)
+                    : library.libraryFor(who, activity(category), filter);
+            Map<CategoryId, String> names = categories.names();
+            return json(entries.stream().map(entry -> LibraryAlbumView.from(entry, names)).toList());
         });
     }
 

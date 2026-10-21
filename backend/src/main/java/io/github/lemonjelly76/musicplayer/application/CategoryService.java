@@ -6,7 +6,9 @@ import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class CategoryService {
 
@@ -18,6 +20,10 @@ public class CategoryService {
 
     public List<Category> all() {
         return repository.findAll().stream().sorted(Comparator.comparing(Category::name)).toList();
+    }
+
+    public Map<CategoryId, String> names() {
+        return repository.findAll().stream().collect(Collectors.toMap(Category::id, Category::name));
     }
 
     public Category find(String nameOrId) {

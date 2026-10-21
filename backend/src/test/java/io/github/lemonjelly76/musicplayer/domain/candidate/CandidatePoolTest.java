@@ -4,19 +4,17 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
-import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CandidatePoolTest {
 
-    private static final Seed LOVED = new Seed(AlbumRef.of("Radiohead", "OK Computer"), Optional.of(new Rating(5)), 0);
-    private static final Seed LIKED = new Seed(AlbumRef.of("Blur", "13"), Optional.of(new Rating(3)), 0);
+    private static final Seed LOVED = Seed.of(AlbumRef.of("Radiohead", "OK Computer"));
+    private static final Seed ALSO_LOVED = Seed.of(AlbumRef.of("Blur", "13"));
 
     private static final AlbumRef MEZZANINE = AlbumRef.of("Massive Attack", "Mezzanine");
     private static final AlbumRef DUMMY = AlbumRef.of("Portishead", "Dummy");
@@ -33,28 +31,30 @@ class CandidatePoolTest {
         assertThat(top.sources()).containsExactly("lastfm", "tidal");
         assertThat(top.album().ids().tidal()).contains("t-1");
         assertThat(top.seeds()).containsExactly("Radiohead — OK Computer");
-        assertThat(top.score()).isEqualTo(2 * 2 + 1 + 5);
+        assertThat(top.score()).isEqualTo(2 * 2 + 1);
     }
 
     @Test
-    void aBetterLovedSeedOutranksALesserOne() {
+    void severalLovedAlbumsLeadingToOneOutrankASingleOne() {
         List<Candidate> ranked = CandidatePool.rank(List.of(
-                new Suggestion(DUMMY, "lastfm", LIKED),
-                new Suggestion(MEZZANINE, "lastfm", LOVED)), Set.of());
+                new Suggestion(DUMMY, "lastfm", LOVED),
+                new Suggestion(MEZZANINE, "lastfm", LOVED),
+                new Suggestion(MEZZANINE, "lastfm", ALSO_LOVED)), Set.of());
 
-        assertThat(ranked).extracting(Candidate::bestSeedRating).containsExactly(5, 3);
+        assertThat(ranked).extracting(candidate -> candidate.album().title()).containsExactly("Mezzanine", "Dummy");
+        assertThat(ranked.getFirst().score()).isEqualTo(2 + 2);
     }
 
     @Test
     void playsOfTheSeedAddWeight() {
-        Seed replayed = new Seed(AlbumRef.of("Blur", "13"), Optional.of(new Rating(3)), 15);
+        Seed replayed = new Seed(AlbumRef.of("Blur", "13"), 15);
 
         List<Candidate> ranked = CandidatePool.rank(List.of(
-                new Suggestion(DUMMY, "lastfm", LIKED),
+                new Suggestion(DUMMY, "lastfm", ALSO_LOVED),
                 new Suggestion(MEZZANINE, "lastfm", replayed)), Set.of());
 
         assertThat(ranked.getFirst().album()).isEqualTo(MEZZANINE);
-        assertThat(ranked.getFirst().score()).isEqualTo(2 + 1 + 3 + 0.5 * 4);
+        assertThat(ranked.getFirst().score()).isEqualTo(2 + 1 + 0.5 * 4);
     }
 
     @Test

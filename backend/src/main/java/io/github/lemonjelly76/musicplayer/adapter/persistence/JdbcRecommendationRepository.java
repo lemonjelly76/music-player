@@ -4,14 +4,12 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +20,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,7 +33,7 @@ class JdbcRecommendationRepository implements RecommendationRepository {
     }
 
     /**
-     * Saving a list again updates its playlist and picks but keeps any feedback already given.
+     * Saving a list again updates its playlist and its picks' ids and covers.
      */
     @Override
     @Transactional
@@ -61,7 +58,8 @@ class JdbcRecommendationRepository implements RecommendationRepository {
                             insert into recommendation (id, list_id, position, %s, reason, source)
                             values (:id, :list, :position, %s, :reason, :source)
                             on conflict (id) do update set tidal_id = excluded.tidal_id,
-                                spotify_id = excluded.spotify_id, musicbrainz_id = excluded.musicbrainz_id"""
+                                spotify_id = excluded.spotify_id, musicbrainz_id = excluded.musicbrainz_id,
+                                cover_url = excluded.cover_url"""
                             .formatted(AlbumColumns.NAMES, AlbumColumns.PARAMS)), pick.album())
                     .param("id", pick.id().value())
                     .param("list", list.id().value())
@@ -96,16 +94,6 @@ class JdbcRecommendationRepository implements RecommendationRepository {
     }
 
     @Override
-    public Optional<RecommendationList> findContaining(RecommendationId pick) {
-        return withPicks(jdbc.sql("""
-                        select l.* from recommendation_list l join recommendation r on r.list_id = l.id
-                        where r.id = :pick""")
-                .param("pick", pick.value())
-                .query((row, number) -> listWithoutPicks(row))
-                .list()).stream().findFirst();
-    }
-
-    @Override
     public Optional<RecommendationList> findByPlaylist(String playlistId) {
         return withPicks(jdbc.sql("""
                         select * from recommendation_list where provider_playlist_id = :playlist
@@ -113,16 +101,6 @@ class JdbcRecommendationRepository implements RecommendationRepository {
                 .param("playlist", playlistId)
                 .query((row, number) -> listWithoutPicks(row))
                 .list()).stream().findFirst();
-    }
-
-    @Override
-    public void saveFeedback(RecommendationId pick, Feedback feedback) {
-        jdbc.sql("update recommendation set verdict = :verdict, comment = :comment, feedback_at = :at where id = :id")
-                .param("verdict", feedback.verdict().name())
-                .param("comment", feedback.comment())
-                .param("at", Columns.timestamp(feedback.at()))
-                .param("id", pick.value())
-                .update();
     }
 
     private List<RecommendationList> withPicks(List<RecommendationList> lists) {
@@ -158,16 +136,10 @@ class JdbcRecommendationRepository implements RecommendationRepository {
     }
 
     private static Recommendation pick(ResultSet row) throws SQLException {
-        String verdict = row.getString("verdict");
-        Optional<Feedback> feedback = verdict == null
-                ? Optional.empty()
-                : Optional.of(new Feedback(Verdict.valueOf(verdict), Objects.requireNonNullElse(row.getString("comment"), ""),
-                        row.getTimestamp("feedback_at").toInstant()));
         return new Recommendation(
                 new RecommendationId(row.getObject("id", UUID.class)),
                 AlbumColumns.read(row),
                 row.getString("reason"),
-                PickSource.valueOf(row.getString("source")),
-                feedback);
+                PickSource.valueOf(row.getString("source")));
     }
 }

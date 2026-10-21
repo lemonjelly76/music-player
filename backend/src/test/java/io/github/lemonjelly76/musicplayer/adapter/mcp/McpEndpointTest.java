@@ -45,7 +45,7 @@ class McpEndpointTest {
         assertThat(names).contains("list_people", "add_person", "search_catalogue", "add_liked_album",
                 "update_album", "remove_album", "get_library", "get_taste_profile", "update_taste_profile",
                 "list_categories", "upsert_category", "get_play_stats", "set_play_tracking", "get_candidates",
-                "get_similar", "save_recommendations", "record_feedback", "send_to_lidarr", "import_favourites",
+                "get_similar", "save_recommendations", "rate_album", "send_to_lidarr", "import_favourites",
                 "get_recommendations");
     }
 
@@ -68,7 +68,7 @@ class McpEndpointTest {
         claude.callTool("upsert_category", """
                 {"name":"Focus","rules":"Mostly instrumental"}""");
         JsonNode added = claude.callTool("add_liked_album", """
-                {"person":"robin","albumRef":"Boards of Canada — Music Has the Right to Children","rating":5,
+                {"person":"robin","albumRef":"Boards of Canada — Music Has the Right to Children","rating":"love",
                  "tags":["Electronic"]}""");
         JsonNode library = claude.callTool("get_library", """
                 {"person":"Robin","tag":"electronic"}""");
@@ -77,7 +77,7 @@ class McpEndpointTest {
                  "items":[{"albumRef":"Made Up — Never Released","reason":"Calm","source":"wildcard"}]}""");
 
         assertThat(added.path("isError").asBoolean()).isFalse();
-        assertThat(McpClient.text(library)).contains("Music Has the Right to Children", "\"rating\":5");
+        assertThat(McpClient.text(library)).contains("Music Has the Right to Children", "\"rating\":\"love\"");
         assertThat(saved.path("isError").asBoolean()).isTrue();
         assertThat(McpClient.text(saved)).contains("No pick could be kept", "Made Up — Never Released");
     }

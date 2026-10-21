@@ -2,19 +2,20 @@ package io.github.lemonjelly76.musicplayer.adapter.mcp;
 
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.CandidateView;
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.ListView;
-import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.PickView;
 import io.github.lemonjelly76.musicplayer.application.CandidateService;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
+import io.github.lemonjelly76.musicplayer.application.LibraryService;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService;
-import io.github.lemonjelly76.musicplayer.application.RecommendationService.Judged;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.Saved;
 import io.github.lemonjelly76.musicplayer.application.WishlistService;
+import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpTool.McpAnnotations;
@@ -27,7 +28,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.attempt;
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.json;
@@ -47,14 +47,16 @@ class RecommendationTools {
     private final CandidateService candidates;
     private final RecommendationService recommendations;
     private final WishlistService wishlist;
+    private final LibraryService library;
 
     RecommendationTools(PersonService people, CategoryService categories, CandidateService candidates,
-            RecommendationService recommendations, WishlistService wishlist) {
+            RecommendationService recommendations, WishlistService wishlist, LibraryService library) {
         this.people = people;
         this.categories = categories;
         this.candidates = candidates;
         this.recommendations = recommendations;
         this.wishlist = wishlist;
+        this.library = library;
     }
 
     @McpTool(name = "get_candidates",
@@ -96,7 +98,7 @@ class RecommendationTools {
             description = "Saves a list of picks for a person, optionally for one category, and syncs it to their "
                     + "streaming service as a playlist named 'AI Picks' or 'AI Picks — <Category>', replacing the "
                     + "previous one. Every pick is checked: albums that cannot be found or played on their service, "
-                    + "are already in their library, or were turned down are dropped and listed with the reason.",
+                    + "or that they have already rated, are dropped and listed with the reason.",
             annotations = @McpAnnotations(title = "Save recommendations", destructiveHint = false, openWorldHint = true))
     CallToolResult saveRecommendations(
             @McpToolParam(description = "Name or id from list_people") String person,
@@ -108,7 +110,7 @@ class RecommendationTools {
             Saved saved = recommendations.save(who, categories.findOptional(category),
                     (items == null ? List.<PickInput>of() : items).stream().map(PickInput::toRequest).toList());
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("list", ListView.from(saved.list(), categoryNames()));
+            result.put("list", ListView.from(saved.list(), categories.names(), library.byKey(who.id())));
             result.put("dropped", saved.dropped());
             result.put("sync", saved.sync());
             return json(result);
@@ -116,7 +118,8 @@ class RecommendationTools {
     }
 
     @McpTool(name = "get_recommendations",
-            description = "A person's latest lists, newest first, with every pick's id, reason and verdict.",
+            description = "A person's latest lists, newest first, with every pick's ref, reason and the person's "
+                    + "rating of it for the list's activity.",
             annotations = @McpAnnotations(title = "Recommendation lists", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getRecommendations(
@@ -130,27 +133,23 @@ class RecommendationTools {
             List<RecommendationList> lists = forCategory.isPresent()
                     ? recommendations.lists(who, forCategory, count)
                     : recommendations.history(who, count);
-            Map<String, String> names = categoryNames();
-            return json(lists.stream().map(list -> ListView.from(list, names)).toList());
+            Map<CategoryId, String> names = categories.names();
+            Map<AlbumKey, LibraryAlbum> rated = library.byKey(who.id());
+            return json(lists.stream().map(list -> ListView.from(list, names, rated)).toList());
         });
     }
 
-    @McpTool(name = "record_feedback",
-            description = "Records a person's verdict on a pick: liked (it also joins their library), not for me "
-                    + "(not offered again for that category), or already know (never offered again).",
-            annotations = @McpAnnotations(title = "Record feedback", idempotentHint = true, openWorldHint = false))
-    CallToolResult recordFeedback(
-            @McpToolParam(description = "The pick's id from get_recommendations") String recId,
-            @McpToolParam(description = "liked, not for me, or already know") String verdict,
-            @McpToolParam(description = "What they said about it", required = false) String comment) {
+    @McpTool(name = "sync_playlist",
+            description = "Syncs a person's latest list for an activity to their streaming service again, for a list "
+                    + "saved while the service was unavailable or before they connected it.",
+            annotations = @McpAnnotations(title = "Sync playlist", idempotentHint = true, openWorldHint = true))
+    CallToolResult syncPlaylist(
+            @McpToolParam(description = "Name or id from list_people") String person,
+            @McpToolParam(description = "Activity name; leave out for their general list", required = false)
+            String category) {
         return attempt(() -> {
-            Judged judged = recommendations.feedback(ToolInputs.recommendationId(recId),
-                    Verdict.parse(ToolInputs.text(verdict)), ToolInputs.text(comment));
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("list", judged.list().name());
-            result.put("pick", PickView.from(judged.pick()));
-            result.put("addedToLibrary", judged.addedToLibrary());
-            return json(result);
+            Saved saved = recommendations.resync(people.find(person), categories.findOptional(category));
+            return json(Map.of("list", saved.list().name(), "sync", saved.sync()));
         });
     }
 
@@ -161,9 +160,5 @@ class RecommendationTools {
             @McpToolParam(description = "A ref such as mbid:<id> or tidal:251380836, or 'Artist — Title'")
             String albumRef) {
         return attempt(() -> json(Map.of("result", wishlist.want(ToolInputs.text(albumRef)))));
-    }
-
-    private Map<String, String> categoryNames() {
-        return categories.all().stream().collect(Collectors.toMap(found -> found.id().toString(), Category::name));
     }
 }

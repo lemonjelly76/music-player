@@ -2,7 +2,6 @@ package io.github.lemonjelly76.musicplayer.adapter.mcp;
 
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,8 +15,13 @@ final class ToolInputs {
     private ToolInputs() {
     }
 
-    static Optional<Rating> rating(Integer value) {
-        return Optional.ofNullable(value).map(Rating::new);
+    /**
+     * A rating as the model writes it (love, ok, dislike or 1 to 3); "none" or nothing means no rating.
+     */
+    static Optional<Rating> rating(String text) {
+        return text == null || text.isBlank() || text.strip().equalsIgnoreCase("none")
+                ? Optional.empty()
+                : Optional.of(Rating.parse(text));
     }
 
     static int limit(Integer requested, int defaultLimit, int max) {
@@ -42,10 +46,6 @@ final class ToolInputs {
 
     static LibraryAlbumId libraryAlbumId(String text) {
         return new LibraryAlbumId(uuid(text, "library album id", "get_library"));
-    }
-
-    static RecommendationId recommendationId(String text) {
-        return new RecommendationId(uuid(text, "recommendation id", "get_recommendations"));
     }
 
     private static UUID uuid(String text, String name, String source) {

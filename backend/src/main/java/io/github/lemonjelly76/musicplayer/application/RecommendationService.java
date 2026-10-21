@@ -9,13 +9,10 @@ import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -24,27 +21,29 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Step 6 of the pipeline and the feedback loop: checks every pick the model makes against the catalogue and the
- * person's history, keeps the list, syncs it to their streaming service as a playlist, and records their verdicts.
+ * Step 6 of the pipeline: checks every pick the model makes against the catalogue and what the person has rated,
+ * keeps the list and syncs it to their streaming service as a playlist. What they think of a pick is a rating in
+ * their library (ADR-015).
  */
 public class RecommendationService {
+
+    private static final int HISTORY = 50;
 
     private final RecommendationRepository repository;
     private final AlbumResolver resolver;
     private final LibraryService library;
     private final MusicProviders providers;
-    private final PersonService people;
     private final Clock clock;
 
     public RecommendationService(RecommendationRepository repository, AlbumResolver resolver, LibraryService library,
-            MusicProviders providers, PersonService people, Clock clock) {
+            MusicProviders providers, Clock clock) {
         this.repository = repository;
         this.resolver = resolver;
         this.library = library;
         this.providers = providers;
-        this.people = people;
         this.clock = clock;
     }
 
@@ -53,13 +52,17 @@ public class RecommendationService {
             throw new IllegalArgumentException("A list needs at least one pick");
         }
         Optional<MusicProvider> service = providers.forPerson(person);
-        Set<AlbumKey> taken = new HashSet<>(library.keys(person.id()));
-        Set<AlbumKey> turnedDown = turnedDown(person, category.map(Category::id));
+        Optional<CategoryId> activity = category.map(Category::id);
+        Set<AlbumKey> known = library.entries(person.id()).stream()
+                .filter(entry -> entry.knownFor(activity))
+                .map(entry -> entry.album().key())
+                .collect(Collectors.toSet());
+        Set<AlbumKey> inList = new HashSet<>();
         List<Recommendation> picks = new ArrayList<>();
         List<Dropped> dropped = new ArrayList<>();
         for (PickRequest request : requests) {
             Optional<String> repeat = resolver.named(request.albumRef())
-                    .flatMap(named -> whyNotOffered(named.key(), taken, turnedDown));
+                    .flatMap(named -> whyNotOffered(named.key(), known, inList));
             if (repeat.isPresent()) {
                 dropped.add(new Dropped(request.albumRef(), repeat.get()));
                 continue;
@@ -70,11 +73,11 @@ public class RecommendationService {
                 continue;
             }
             AlbumRef album = resolution.album().get();
-            Optional<String> why = whyNotOffered(album.key(), taken, turnedDown);
+            Optional<String> why = whyNotOffered(album.key(), known, inList);
             if (why.isPresent()) {
                 dropped.add(new Dropped(request.albumRef(), why.get()));
             } else {
-                taken.add(album.key());
+                inList.add(album.key());
                 picks.add(Recommendation.create(album, request.reason(), request.source()));
             }
         }
@@ -84,6 +87,48 @@ public class RecommendationService {
         RecommendationList list = RecommendationList.create(person.id(), category, picks, clock.instant());
         repository.save(list);
         return sync(person, list, service, dropped);
+    }
+
+    /**
+     * Syncs the latest list for the category again, for one saved while the streaming service was unavailable.
+     */
+    public Saved resync(Person person, Optional<Category> category) {
+        RecommendationList latest = history(person, HISTORY).stream()
+                .filter(list -> list.category().equals(category.map(Category::id)))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("No " + RecommendationList.nameFor(category) + " list for "
+                        + person.name() + " yet"));
+        return sync(person, latest, providers.forPerson(person), List.of());
+    }
+
+    /**
+     * The list with covers looked up for picks that have none, at most the given number per call; the list is saved
+     * with whatever was found.
+     */
+    public RecommendationList withCovers(Person person, RecommendationList list, int maxLookups) {
+        Optional<MusicProvider> service = providers.forPerson(person);
+        if (service.isEmpty() || list.picks().stream().allMatch(pick -> pick.album().cover().isPresent())) {
+            return list;
+        }
+        List<Recommendation> picks = new ArrayList<>();
+        int lookups = 0;
+        try {
+            for (Recommendation pick : list.picks()) {
+                if (pick.album().cover().isEmpty() && lookups++ < maxLookups) {
+                    Optional<AlbumRef> found = AlbumResolver.onService(service.get(), pick.album());
+                    picks.add(found.map(album -> new Recommendation(pick.id(), pick.album().enrichedWith(album),
+                            pick.reason(), pick.source())).orElse(pick));
+                } else {
+                    picks.add(pick);
+                }
+            }
+        } catch (MusicProviderUnavailableException e) {
+            return list;
+        }
+        RecommendationList covered = new RecommendationList(list.id(), list.person(), list.category(), list.name(),
+                list.createdAt(), list.playlist(), picks);
+        repository.save(covered);
+        return covered;
     }
 
     public List<RecommendationList> lists(Person person, Optional<Category> category, int limit) {
@@ -98,36 +143,21 @@ public class RecommendationService {
     }
 
     /**
-     * Records the verdict on a pick; a liked pick joins the person's library, as any album they like does.
-     */
-    public Judged feedback(RecommendationId pickId, Verdict verdict, String comment) {
-        RecommendationList list = repository.findContaining(pickId)
-                .orElseThrow(() -> new NotFoundException("No recommendation with id " + pickId));
-        Recommendation pick = list.pick(pickId).orElseThrow();
-        Feedback feedback = new Feedback(verdict, comment, clock.instant());
-        repository.saveFeedback(pickId, feedback);
-        boolean addedToLibrary = false;
-        if (verdict == Verdict.LIKED) {
-            Person person = people.get(list.person());
-            addedToLibrary = !library.add(person, pick.album(), Optional.empty(), comment, List.of("ai-pick"))
-                    .alreadyInLibrary();
-        }
-        return new Judged(list, pick.withFeedback(feedback), addedToLibrary);
-    }
-
-    /**
      * Checked by name before any lookup too, so a repeat costs no catalogue call and gets the right reason.
      */
-    private static Optional<String> whyNotOffered(AlbumKey key, Set<AlbumKey> taken, Set<AlbumKey> turnedDown) {
-        if (turnedDown.contains(key)) {
-            return Optional.of("already turned down or already known");
+    private static Optional<String> whyNotOffered(AlbumKey key, Set<AlbumKey> known, Set<AlbumKey> inList) {
+        if (known.contains(key)) {
+            return Optional.of("already rated");
         }
-        if (taken.contains(key)) {
-            return Optional.of("already in the library or in this list");
+        if (inList.contains(key)) {
+            return Optional.of("already in this list");
         }
         return Optional.empty();
     }
 
+    /**
+     * Only picks the service carries can go in its playlist; the rest stay in the list for the app to show.
+     */
     private Saved sync(Person person, RecommendationList list, Optional<MusicProvider> service, List<Dropped> dropped) {
         if (service.isEmpty()) {
             return new Saved(list, dropped, "not synced: " + person.name() + " has no streaming service linked");
@@ -135,8 +165,11 @@ public class RecommendationService {
         MusicProvider provider = service.get();
         Optional<String> previous = previousPlaylist(person, list);
         List<String> albumIds = list.picks().stream()
-                .map(pick -> pick.album().ids().get(provider.name()).orElseThrow())
+                .flatMap(pick -> pick.album().ids().get(provider.name()).stream())
                 .toList();
+        if (albumIds.isEmpty()) {
+            return new Saved(list, dropped, "not synced: none of the picks are on " + provider.name().prefix());
+        }
         try {
             String playlistId = provider.replacePlaylist(person.id(), previous, list.name(),
                     "Picked for " + person.name() + " on " + LocalDate.now(clock), albumIds);
@@ -156,18 +189,6 @@ public class RecommendationService {
                 .findFirst();
     }
 
-    private Set<AlbumKey> turnedDown(Person person, Optional<CategoryId> category) {
-        Set<AlbumKey> keys = new HashSet<>();
-        for (RecommendationList list : history(person, 200)) {
-            for (Recommendation pick : list.picks()) {
-                if (pick.has(Verdict.ALREADY_KNOW) || (list.category().equals(category) && pick.has(Verdict.NOT_FOR_ME))) {
-                    keys.add(pick.album().key());
-                }
-            }
-        }
-        return keys;
-    }
-
     public record PickRequest(String albumRef, String reason, PickSource source) {
     }
 
@@ -180,8 +201,5 @@ public class RecommendationService {
     }
 
     public record Saved(RecommendationList list, List<Dropped> dropped, String sync) {
-    }
-
-    public record Judged(RecommendationList list, Recommendation pick, boolean addedToLibrary) {
     }
 }

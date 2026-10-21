@@ -53,9 +53,13 @@ class AlbumRefTest {
     }
 
     @Test
-    void ratingsRunFromOneToFive() {
-        assertThat(new Rating(5).value()).isEqualTo(5);
-        assertThatIllegalArgumentException().isThrownBy(() -> new Rating(0));
-        assertThatIllegalArgumentException().isThrownBy(() -> new Rating(6));
+    void ratingsRunFromDislikeToLove() {
+        assertThat(Rating.of(3)).isEqualTo(Rating.LOVE);
+        assertThat(Rating.parse(" Not for me ")).isEqualTo(Rating.DISLIKE);
+        assertThat(Rating.parse("ok")).isEqualTo(Rating.OK);
+        assertThat(Rating.OK.keeps()).isTrue();
+        assertThat(Rating.DISLIKE.keeps()).isFalse();
+        assertThatIllegalArgumentException().isThrownBy(() -> Rating.of(4));
+        assertThatIllegalArgumentException().isThrownBy(() -> Rating.parse("meh")).withMessageContaining("love, ok");
     }
 }

@@ -34,7 +34,7 @@ final class World {
     final AlbumResolver resolver = new AlbumResolver(providers, catalogue);
     final LibraryService library = new LibraryService(libraryRepository, resolver, providers, clock);
     final RecommendationService recommendations = new RecommendationService(recommendationRepository, resolver,
-            library, providers, people, clock);
+            library, providers, clock);
     final PlayService plays = new PlayService(playRepository, peopleRepository, recommendationRepository, List.of(),
             clock);
     final CandidateService candidates = new CandidateService(library, plays, recommendations, List.of(lastFm),

@@ -10,16 +10,20 @@ import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableEx
 import org.springframework.http.HttpMethod;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Spotify as the fallback service (ADR-006). It offers no recommendations to new apps, so it adds nothing to the
+ * Spotify as the fallback service (ADR-006). Newer apps are refused the older write endpoints
+ * ({@code /users/{id}/playlists}, {@code /playlists/{id}/tracks}, {@code /me/albums}), so playlists are created under
+ * {@code /me}, filled through {@code /items} and favourites saved through {@code /me/library}. It offers no recommendations to new apps, so it adds nothing to the
  * candidate pool; the model and the other sources do that.
  */
 class SpotifyMusicProvider implements MusicProvider {
@@ -104,9 +108,12 @@ class SpotifyMusicProvider implements MusicProvider {
         return albums;
     }
 
+    /**
+     * Spotify refuses the older {@code /me/albums} for newer apps; the general library endpoint takes any item.
+     */
     @Override
     public void addFavourite(PersonId person, String id) {
-        api.send(HttpMethod.PUT, api.url("/me/albums?ids=" + id), null, authorization.accessToken(person));
+        api.send(HttpMethod.PUT, api.url("/me/library?uris=spotify:album:" + id), null, authorization.accessToken(person));
     }
 
     @Override
@@ -114,9 +121,7 @@ class SpotifyMusicProvider implements MusicProvider {
             String description, List<String> albumIds) {
         String token = authorization.accessToken(person);
         previousPlaylistId.ifPresent(previous -> unfollow(previous, token));
-        String userId = authorization.userId(person).orElseThrow(() -> new MusicProviderUnavailableException(
-                "Spotify did not say who this person is; connect Spotify again from the app"));
-        String playlistId = api.send(HttpMethod.POST, api.url("/users/" + userId + "/playlists"),
+        String playlistId = api.send(HttpMethod.POST, api.url("/me/playlists"),
                 Map.of("name", name, "description", description, "public", false), token).path("id").asString();
         List<String> uris = new ArrayList<>();
         for (String albumId : albumIds) {
@@ -124,7 +129,7 @@ class SpotifyMusicProvider implements MusicProvider {
                     .forEach(track -> uris.add(track.path("uri").asString()));
         }
         for (int start = 0; start < uris.size(); start += TRACKS_PER_ADD) {
-            api.send(HttpMethod.POST, api.url("/playlists/" + playlistId + "/tracks"),
+            api.send(HttpMethod.POST, api.url("/playlists/" + playlistId + "/items"),
                     Map.of("uris", uris.subList(start, Math.min(uris.size(), start + TRACKS_PER_ADD))), token);
         }
         return playlistId;
@@ -133,6 +138,11 @@ class SpotifyMusicProvider implements MusicProvider {
     @Override
     public URI albumLink(String id) {
         return URI.create(properties.webUrl() + "/album/" + id);
+    }
+
+    @Override
+    public URI searchLink(String query) {
+        return URI.create(properties.webUrl() + "/search/" + UriUtils.encodePathSegment(query, StandardCharsets.UTF_8));
     }
 
     @Override

@@ -26,6 +26,10 @@ class MusicBrainzCatalogue implements AlbumCatalogue {
 
     private static final System.Logger LOG = System.getLogger(MusicBrainzCatalogue.class.getName());
     private static final long MIN_GAP_MILLIS = 1100;
+    /**
+     * The Cover Art Archive serves a release group's front cover by id; when it has none the app shows a placeholder.
+     */
+    private static final String COVER_ART_ARCHIVE = "https://coverartarchive.org/release-group/";
 
     private final MusicBrainzProperties properties;
     private final RestClient restClient;
@@ -70,7 +74,8 @@ class MusicBrainzCatalogue implements AlbumCatalogue {
         String date = group.path("first-release-date").asString("");
         Optional<Integer> year = date.length() >= 4 ? Optional.of(Integer.parseInt(date.substring(0, 4)))
                 : Optional.empty();
-        return Optional.of(new AlbumRef(artist.toString(), title, year, ProviderIds.musicBrainz(id)));
+        return Optional.of(new AlbumRef(artist.toString(), title, year, ProviderIds.musicBrainz(id),
+                Optional.of(COVER_ART_ARCHIVE + id + "/front-250")));
     }
 
     /**

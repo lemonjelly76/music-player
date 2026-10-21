@@ -8,6 +8,7 @@ import io.github.lemonjelly76.musicplayer.data.ApiClient
 import io.github.lemonjelly76.musicplayer.data.ApiException
 import io.github.lemonjelly76.musicplayer.data.Candidate
 import io.github.lemonjelly76.musicplayer.data.Category
+import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.PickList
@@ -15,7 +16,7 @@ import io.github.lemonjelly76.musicplayer.data.ServerSettings
 import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.SettingsStore
 import io.github.lemonjelly76.musicplayer.data.Tracking
-import io.github.lemonjelly76.musicplayer.data.Verdict
+import io.github.lemonjelly76.musicplayer.data.Rating
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -24,9 +25,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/** "All" is the person's general list, which the server files under no category. */
-const val GENERAL = "none"
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
 
@@ -92,9 +90,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadPerson(id)
     }
 
+    /** The activity both Picks and Library show. */
     fun chooseCategory(category: String) = load {
-        state.update { it.copy(category = category, list = null) }
-        loadList()
+        state.update { it.copy(category = category, list = null, library = emptyList()) }
+        coroutineScope {
+            launch { loadList() }
+            launch { state.value.personId?.let { reloadLibrary(it) } }
+        }
     }
 
     /**
@@ -116,21 +118,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         current.copy(people = current.people.map { if (it.id == id) change(it) else it })
     }
 
-    fun feedback(pickId: String, verdict: Verdict) = load {
-        val judged = api.feedback(pickId, verdict)
+    /**
+     * Rates any album for the chosen activity; null takes the rating away. Picks show it at once, and the library is
+     * reloaded because a rating can add or remove an album there.
+     */
+    fun rate(album: Album, rating: Rating?) = load { saveRating(album, rating) }
+
+    /** Loves a suggestion for the chosen activity, which puts it in the library there. */
+    fun love(album: Album) = load {
+        saveRating(album, Rating.LOVE)
+        state.update { it.copy(message = "${album.title} added to ${it.chosenCategory?.name ?: "General"}") }
+    }
+
+    private suspend fun saveRating(album: Album, rating: Rating?) {
+        val personId = state.value.personId ?: return
+        api.rate(personId, album.ref, state.value.category, rating)
         state.update { current ->
             current.copy(list = current.list?.let { list ->
-                list.copy(picks = list.picks.map { if (it.id == pickId) judged else it })
+                list.copy(picks = list.picks.map { if (it.album.ref == album.ref) it.copy(rating = rating) else it })
             })
         }
-        if (verdict == Verdict.LIKED) state.value.personId?.let { reloadLibrary(it) }
+        reloadLibrary(personId)
     }
 
     fun moreLikeThis(album: Album) {
         val personId = state.value.personId ?: return
         state.update { it.copy(moreLikeThis = MoreLikeThis(album, true, emptyList())) }
         load {
-            val candidates = api.moreLikeThis(personId, album.artist, album.title)
+            val candidates = api.moreLikeThis(personId, album.artist, album.title, state.value.category)
             // Closed or replaced while loading: leave it closed.
             state.update {
                 if (it.moreLikeThis?.seed == album) it.copy(moreLikeThis = MoreLikeThis(album, false, candidates)) else it
@@ -140,16 +155,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeMoreLikeThis() = state.update { it.copy(moreLikeThis = null) }
 
-    fun addToLibrary(album: Album) = load {
+    /** One switch for all of the person's plays, whatever the activity. */
+    fun setPlayCounting(enabled: Boolean) = load {
         val personId = state.value.personId ?: return@load
-        api.addToLibrary(personId, album.ref)
-        reloadLibrary(personId)
-        state.update { it.copy(message = "${album.title} added to the library") }
-    }
-
-    fun setTracking(categoryId: String?, enabled: Boolean?) = load {
-        val personId = state.value.personId ?: return@load
-        val tracking = api.setTracking(personId, categoryId, enabled)
+        val tracking = api.setTracking(personId, null, enabled)
         state.update { it.copy(tracking = tracking) }
     }
 
@@ -182,8 +191,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun reloadLibrary(personId: String) {
-        val library = api.library(personId)
-        state.update { if (it.personId == personId) it.copy(library = library) else it }
+        val category = state.value.category
+        val library = api.library(personId, category)
+        state.update { if (it.personId == personId && it.category == category) it.copy(library = library) else it }
     }
 
     /**

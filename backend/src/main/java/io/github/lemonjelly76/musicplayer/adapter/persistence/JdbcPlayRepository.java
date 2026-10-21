@@ -50,7 +50,7 @@ class JdbcPlayRepository implements PlayRepository {
     public List<AlbumPlays> albumTotals(PersonId person, Optional<CategoryId> category, Instant since) {
         return jdbc.sql("""
                         select distinct on (album_key) album_key, artist, title, year, tidal_id, spotify_id,
-                            musicbrainz_id,
+                            musicbrainz_id, cover_url,
                             count(*) over (partition by album_key) as plays,
                             max(played_at) over (partition by album_key) as last_played
                         from play

@@ -87,6 +87,20 @@ class ProviderAuthorizationTest {
     }
 
     @Test
+    void aRepeatedCallbackSaysWhoConnectedWithoutSigningInAgain() {
+        server.stubFor(post(urlPathEqualTo("/token")).willReturn(okJson("""
+                {"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}""")));
+        ProviderAuthorization authorization = authorization();
+        String state = UriComponentsBuilder.fromUri(authorization.connectUrl(CRAIG)).build().getQueryParams()
+                .getFirst("state");
+        authorization.complete("code-1", state);
+
+        assertThat(authorization.complete("code-1", state)).isEqualTo(CRAIG);
+
+        server.verify(1, postRequestedFor(urlPathEqualTo("/token")));
+    }
+
+    @Test
     void refusesAStateItDidNotIssueOrThatHasExpired() {
         ProviderAuthorization authorization = authorization();
         String state = UriComponentsBuilder.fromUri(authorization.connectUrl(CRAIG)).build().getQueryParams()

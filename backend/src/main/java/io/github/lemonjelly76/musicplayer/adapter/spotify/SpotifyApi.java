@@ -25,6 +25,7 @@ import java.util.Optional;
 class SpotifyApi {
 
     private static final int MAX_PAGES = 40;
+    static final int COVER_WIDTH = 250;
 
     private final SpotifyProperties properties;
     private final RestClient restClient;
@@ -58,7 +59,8 @@ class SpotifyApi {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new MusicProviderUnavailableException("Spotify has no such item", e);
             }
-            throw new MusicProviderUnavailableException("Spotify refused the request: " + e.getStatusCode(), e);
+            throw new MusicProviderUnavailableException("Spotify refused the request: " + e.getStatusCode()
+                    + reason(e.getResponseBodyAsString()), e);
         } catch (RestClientException | JacksonException e) {
             throw new MusicProviderUnavailableException("Could not reach Spotify", e);
         }
@@ -79,6 +81,18 @@ class SpotifyApi {
         return items;
     }
 
+    /**
+     * Spotify says why in {@code error.message}, such as "Insufficient client scope".
+     */
+    private String reason(String body) {
+        try {
+            String message = jsonMapper.readTree(body).path("error").path("message").asString("");
+            return message.isBlank() ? "" : " (" + message + ")";
+        } catch (JacksonException e) {
+            return "";
+        }
+    }
+
     static Optional<AlbumRef> album(JsonNode album) {
         List<String> artists = new ArrayList<>();
         album.path("artists").forEach(artist -> artists.add(artist.path("name").asString()));
@@ -90,6 +104,23 @@ class SpotifyApi {
         String releaseDate = album.path("release_date").asString("");
         Optional<Integer> year = releaseDate.length() >= 4 ? Optional.of(Integer.parseInt(releaseDate.substring(0, 4)))
                 : Optional.empty();
-        return Optional.of(new AlbumRef(String.join(", ", artists), title, year, ProviderIds.of(Provider.SPOTIFY, id)));
+        return Optional.of(new AlbumRef(String.join(", ", artists), title, year, ProviderIds.of(Provider.SPOTIFY, id),
+                cover(album.path("images"))));
+    }
+
+    /**
+     * Spotify lists each cover at 640, 300 and 64 pixels; the smallest at least 250 wide suits a phone card.
+     */
+    private static Optional<String> cover(JsonNode images) {
+        String best = null;
+        int bestWidth = Integer.MAX_VALUE;
+        for (JsonNode image : images) {
+            int width = image.path("width").asInt(0);
+            if (best == null || (width >= COVER_WIDTH && width < bestWidth)) {
+                best = image.path("url").asString(null);
+                bestWidth = width >= COVER_WIDTH ? width : bestWidth;
+            }
+        }
+        return Optional.ofNullable(best);
     }
 }

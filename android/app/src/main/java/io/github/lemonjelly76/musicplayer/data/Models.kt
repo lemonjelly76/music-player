@@ -13,6 +13,9 @@ data class Person(
 
 data class Category(val id: String, val name: String, val rules: String)
 
+/** Stands for General, the person's activity-free picks and ratings, which the server files under no category. */
+const val GENERAL = "none"
+
 /** A streaming service and whether the server is registered with it, so people can connect it. */
 data class Service(val name: String, val configured: Boolean) {
     val label: String get() = serviceLabel(name)
@@ -32,22 +35,37 @@ fun serviceOfLink(link: String): String = when {
     else -> "app"
 }
 
-/** An album as the server describes it; [link] opens it in the person's streaming app when it carries it. */
-data class Album(val ref: String, val artist: String, val title: String, val year: Int?, val link: String?)
+/**
+ * An album as the server describes it; [link] opens it in the person's streaming app when it carries it, and [cover]
+ * is its artwork when a catalogue had some.
+ */
+data class Album(
+    val ref: String,
+    val artist: String,
+    val title: String,
+    val year: Int?,
+    val link: String?,
+    val cover: String? = null,
+)
 
-enum class Verdict(val label: String) {
-    LIKED("Liked"),
-    NOT_FOR_ME("Not for me"),
-    ALREADY_KNOW("Know it"),
+/** How much a person likes an album for one activity, 1 to 3 on the server (ADR-015). */
+enum class Rating(val value: Int, val label: String) {
+    DISLIKE(1, "Not for me"),
+    OK(2, "OK"),
+    LOVE(3, "Love");
+
+    companion object {
+        fun of(value: Int): Rating? = entries.firstOrNull { it.value == value }
+    }
 }
 
+/** A pick with the person's [rating] of it for the list's activity, once they have given one. */
 data class Pick(
     val id: String,
     val album: Album,
     val reason: String,
     val wildcard: Boolean,
-    val verdict: Verdict?,
-    val comment: String?,
+    val rating: Rating?,
 )
 
 data class PickList(
@@ -59,10 +77,15 @@ data class PickList(
     val picks: List<Pick>,
 )
 
+/**
+ * An album in the person's library for one activity, with its [rating] there; [general] when that is the General
+ * rating standing in because the activity has none of its own.
+ */
 data class LibraryAlbum(
     val id: String,
     val album: Album,
-    val rating: Int?,
+    val rating: Rating?,
+    val general: Boolean,
     val notes: String,
     val tags: List<String>,
     val addedOn: String,
@@ -100,11 +123,7 @@ object Json {
         )
     }
 
-    fun pick(text: String): Pick = pick(JSONObject(text))
-
     fun library(text: String): List<LibraryAlbum> = array(text).map(::libraryAlbum)
-
-    fun libraryAlbum(text: String): LibraryAlbum = libraryAlbum(JSONObject(text))
 
     fun candidates(text: String): List<Candidate> = array(text).map {
         Candidate(
@@ -143,14 +162,14 @@ object Json {
         album = album(json.getJSONObject("album")),
         reason = json.optString("reason"),
         wildcard = json.optString("source") == "WILDCARD",
-        verdict = json.optStringOrNull("verdict")?.let { name -> Verdict.entries.firstOrNull { it.name == name } },
-        comment = json.optStringOrNull("comment"),
+        rating = json.optRating(),
     )
 
     private fun libraryAlbum(json: JSONObject) = LibraryAlbum(
         id = json.getString("id"),
         album = album(json.getJSONObject("album")),
-        rating = if (json.isNull("rating") || !json.has("rating")) null else json.getInt("rating"),
+        rating = json.optRating(),
+        general = json.optBoolean("general"),
         notes = json.optString("notes"),
         tags = json.optJSONArray("tags").strings(),
         addedOn = json.optString("addedOn"),
@@ -162,6 +181,7 @@ object Json {
         title = json.getString("title"),
         year = if (json.isNull("year") || !json.has("year")) null else json.getInt("year"),
         link = json.optStringOrNull("link"),
+        cover = json.optStringOrNull("cover"),
     )
 
     private fun array(text: String): List<JSONObject> = JSONArray(text).objects()
@@ -171,6 +191,9 @@ object Json {
 
     private fun JSONArray?.strings(): List<String> =
         if (this == null) emptyList() else (0 until length()).map { getString(it) }
+
+    private fun JSONObject.optRating(): Rating? =
+        if (isNull("rating") || !has("rating")) null else Rating.of(getInt("rating"))
 
     private fun JSONObject.optStringOrNull(name: String): String? =
         if (isNull(name) || !has(name)) null else getString(name)

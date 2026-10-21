@@ -4,13 +4,13 @@ import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.AlbumView;
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.CategoryView;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
-import io.github.lemonjelly76.musicplayer.application.RecommendationService;
+import io.github.lemonjelly76.musicplayer.application.LibraryService;
 import io.github.lemonjelly76.musicplayer.application.TasteService;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.taste.TasteProfile;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -19,11 +19,10 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.attempt;
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.json;
@@ -31,26 +30,25 @@ import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.json;
 @Component
 class TasteTools {
 
-    static final int FEEDBACK_LISTS = 20;
-    static final int MAX_FEEDBACK = 40;
+    static final int MAX_RATINGS = 40;
 
     private final PersonService people;
     private final TasteService taste;
     private final CategoryService categories;
-    private final RecommendationService recommendations;
+    private final LibraryService library;
 
     TasteTools(PersonService people, TasteService taste, CategoryService categories,
-            RecommendationService recommendations) {
+            LibraryService library) {
         this.people = people;
         this.taste = taste;
         this.categories = categories;
-        this.recommendations = recommendations;
+        this.library = library;
     }
 
     @McpTool(name = "get_taste_profile",
             description = "A person's taste profile: the summary you wrote last time, their 'never recommend' rules, "
-                    + "their recent verdicts on picks with comments, and, given a category, its rules. Read this "
-                    + "before choosing albums for them.",
+                    + "their most recent ratings (love, ok or dislike, per activity) with what they said, and, given "
+                    + "a category, its rules. Read this before choosing albums for them.",
             annotations = @McpAnnotations(title = "Taste profile", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getTasteProfile(
@@ -62,7 +60,7 @@ class TasteTools {
             TasteProfile profile = taste.profile(who.id());
             return json(new ProfileView(who.name(), profile.summary(), profile.neverRecommend(),
                     profile.updatedAt().orElse(null), forCategory.map(CategoryView::from).orElse(null),
-                    recentFeedback(who)));
+                    recentRatings(who)));
         });
     }
 
@@ -103,24 +101,24 @@ class TasteTools {
         return attempt(() -> json(CategoryView.from(categories.upsert(ToolInputs.text(name), ToolInputs.text(rules)))));
     }
 
-    private List<FeedbackView> recentFeedback(Person person) {
-        Map<CategoryId, String> names = categories.all().stream()
-                .collect(Collectors.toMap(Category::id, Category::name));
-        List<FeedbackView> feedback = new ArrayList<>();
-        for (RecommendationList list : recommendations.history(person, FEEDBACK_LISTS)) {
-            for (Recommendation pick : list.picks()) {
-                pick.feedback().ifPresent(given -> feedback.add(new FeedbackView(AlbumView.from(pick.album()),
-                        list.category().map(names::get).orElse(null), given.verdict().name(), given.comment(),
-                        given.at())));
-            }
+    private List<RatedView> recentRatings(Person person) {
+        Map<CategoryId, String> names = categories.names();
+        record Rated(LibraryAlbum entry, ActivityRating rating) {
         }
-        return feedback.stream().limit(MAX_FEEDBACK).toList();
+        return library.entries(person.id()).stream()
+                .flatMap(entry -> entry.ratings().stream().map(rating -> new Rated(entry, rating)))
+                .sorted(Comparator.comparing((Rated rated) -> rated.rating().ratedAt()).reversed())
+                .limit(MAX_RATINGS)
+                .map(rated -> new RatedView(AlbumView.from(rated.entry().album()),
+                        Views.activityName(rated.rating().category(), names), rated.rating().rating().word(),
+                        rated.rating().comment(), rated.rating().ratedAt()))
+                .toList();
     }
 
     record ProfileView(String person, String summary, List<String> neverRecommend, Instant updatedAt,
-                       CategoryView category, List<FeedbackView> recentFeedback) {
+                       CategoryView category, List<RatedView> recentRatings) {
     }
 
-    record FeedbackView(AlbumView album, String category, String verdict, String comment, Instant at) {
+    record RatedView(AlbumView album, String activity, String rating, String comment, Instant at) {
     }
 }

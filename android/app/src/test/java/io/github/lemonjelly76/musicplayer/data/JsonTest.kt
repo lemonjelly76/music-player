@@ -8,13 +8,13 @@ import kotlin.test.assertTrue
 class JsonTest {
 
     @Test
-    fun readsListsWithPicksVerdictsAndLinks() {
+    fun readsListsWithPicksRatingsAndLinks() {
         val lists = Json.lists("""
             [{"id":"l1","name":"AI Picks — Running","categoryId":"c1","createdAt":"2026-10-20T18:00:00Z",
               "playlistLink":"https://tidal.com/browse/playlist/p1",
-              "picks":[{"id":"p1","reason":"Driving beat","source":"WILDCARD","verdict":"NOT_FOR_ME","comment":"Slow",
+              "picks":[{"id":"p1","reason":"Driving beat","source":"WILDCARD","rating":1,
                 "album":{"ref":"tidal:9","artist":"Portishead","title":"Dummy","year":1994,
-                  "link":"https://tidal.com/browse/album/9"}},
+                  "link":"https://tidal.com/browse/album/9","cover":"https://resources.tidal.com/images/9.jpg"}},
                 {"id":"p2","reason":"Bright","source":"POOL",
                 "album":{"ref":"Air — Moon Safari","artist":"Air","title":"Moon Safari"}}]}]
         """.trimIndent())
@@ -23,12 +23,24 @@ class JsonTest {
         assertEquals("AI Picks — Running", list.name)
         assertEquals("https://tidal.com/browse/playlist/p1", list.playlistLink)
         val (first, second) = list.picks
-        assertEquals(Verdict.NOT_FOR_ME, first.verdict)
+        assertEquals(Rating.DISLIKE, first.rating)
         assertTrue(first.wildcard)
         assertEquals(1994, first.album.year)
-        assertNull(second.verdict)
+        assertNull(second.rating)
         assertNull(second.album.year)
         assertNull(second.album.link)
+        assertEquals("https://resources.tidal.com/images/9.jpg", first.album.cover)
+        assertNull(second.album.cover)
+    }
+
+    @Test
+    fun readsALibraryAlbumsRatingAndWhetherItIsTheGeneralOne() {
+        val entry = Json.library("""
+            [{"id":"a1","album":{"ref":"tidal:1","artist":"Joni Mitchell","title":"Blue"},"rating":3,"general":true}]
+        """.trimIndent()).single()
+
+        assertEquals(Rating.LOVE, entry.rating)
+        assertTrue(entry.general)
     }
 
     @Test
@@ -39,8 +51,16 @@ class JsonTest {
         """.trimIndent()).single()
 
         assertNull(entry.rating)
+        assertEquals(false, entry.general)
         assertEquals(listOf("folk"), entry.tags)
         assertEquals("", entry.notes)
+    }
+
+    @Test
+    fun ratingsGoBothWaysAsOneToThree() {
+        assertEquals(Rating.OK, Rating.of(2))
+        assertNull(Rating.of(7))
+        assertEquals(3, Rating.LOVE.value)
     }
 
     @Test

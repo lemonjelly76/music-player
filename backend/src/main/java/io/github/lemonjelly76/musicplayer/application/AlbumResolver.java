@@ -91,6 +91,15 @@ public class AlbumResolver {
                 .orElseGet(() -> Resolution.failed(album.label() + " is not on " + provider.name().prefix()));
     }
 
+    /**
+     * The service's own copy of an album: by its id when known, else by artist and title.
+     */
+    public static Optional<AlbumRef> onService(MusicProvider provider, AlbumRef album) {
+        return album.ids().get(provider.name())
+                .flatMap(provider::album)
+                .or(() -> provider.findAlbum(album.artist(), album.title()));
+    }
+
     public record Resolution(Optional<AlbumRef> album, String problem) {
 
         static Resolution found(AlbumRef album) {

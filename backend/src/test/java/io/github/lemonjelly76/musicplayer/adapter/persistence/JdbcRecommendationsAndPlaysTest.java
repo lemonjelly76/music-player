@@ -13,12 +13,10 @@ import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository.CategorisedPlay;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,19 +82,15 @@ class JdbcRecommendationsAndPlaysTest {
     }
 
     @Test
-    void savingASyncedListKeepsFeedbackAndFindsItByPlaylist() {
+    void savingASyncedListKeepsItsPicksAndFindsItByPlaylist() {
         RecommendationList saved = list(Optional.of(running), NOW, "A", "B");
         recommendations.save(saved);
-        Recommendation first = saved.picks().getFirst();
-        Feedback liked = new Feedback(Verdict.LIKED, "Great", NOW);
-        recommendations.saveFeedback(first.id(), liked);
 
         recommendations.save(saved.syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-1")));
 
         RecommendationList found = recommendations.findByPlaylist("pl-1").orElseThrow();
-        assertThat(found.picks().getFirst().feedback()).contains(liked);
+        assertThat(found.picks()).isEqualTo(saved.picks());
         assertThat(found.playlist()).contains(new SyncedPlaylist(Provider.TIDAL, "pl-1"));
-        assertThat(recommendations.findContaining(first.id())).contains(found);
         assertThat(recommendations.findByPlaylist("pl-2")).isEmpty();
     }
 

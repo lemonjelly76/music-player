@@ -31,7 +31,7 @@ class AlbumPicksPrompt {
         String text = """
                 Pick about 10 albums %1$s will love%2$s.
 
-                1. Read get_taste_profile (person %1$s%3$s) for their profile, rules, recent verdicts and the \
+                1. Read get_taste_profile (person %1$s%3$s) for their profile, rules, recent ratings and the \
                 category's rules, and get_play_stats for what they keep replaying (if it returns nothing, they \
                 have turned counting off; leave it at that).
                 2. Read get_candidates (person %1$s%3$s): the server's filtered, ranked pool.
@@ -41,7 +41,9 @@ class AlbumPicksPrompt {
                 4. Call save_recommendations (person %1$s%3$s) with a one-line reason for each pick, tied to \
                 something specific in their taste. Use the pool's refs; give wildcards as 'Artist — Title'.
                 5. Tell them the list, and anything dropped and why. Replace a dropped pick if you can.
-                6. If what they told you changes your picture of their taste, rewrite it with update_taste_profile."""
+                6. When they say what they think of a pick, record it with rate_album (love, ok or dislike) for \
+                that activity. If what they told you changes your picture of their taste, rewrite it with \
+                update_taste_profile."""
                 .formatted(person, scope, categoryArg);
         return new GetPromptResult(DESCRIPTION, List.of(new PromptMessage(Role.USER, new TextContent(text))));
     }

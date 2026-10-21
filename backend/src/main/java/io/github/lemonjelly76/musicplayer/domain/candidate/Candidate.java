@@ -11,8 +11,7 @@ import java.util.TreeSet;
 /**
  * An album in the pool, its score, and the signals behind the score so the model can weigh them itself.
  */
-public record Candidate(AlbumRef album, double score, SortedSet<String> sources, List<String> seeds,
-                        int bestSeedRating, int seedPlays) {
+public record Candidate(AlbumRef album, double score, SortedSet<String> sources, List<String> seeds, int seedPlays) {
 
     public Candidate {
         Objects.requireNonNull(album, "album");
@@ -21,6 +20,6 @@ public record Candidate(AlbumRef album, double score, SortedSet<String> sources,
     }
 
     public Candidate withAlbum(AlbumRef resolved) {
-        return new Candidate(resolved, score, sources, seeds, bestSeedRating, seedPlays);
+        return new Candidate(resolved, score, sources, seeds, seedPlays);
     }
 }

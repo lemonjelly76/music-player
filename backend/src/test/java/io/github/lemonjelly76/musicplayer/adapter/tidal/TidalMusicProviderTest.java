@@ -86,7 +86,7 @@ class TidalMusicProviderTest {
                 new AlbumRef("Joni Mitchell", "Hejira", Optional.of(1976), ProviderIds.of(Provider.TIDAL, "78")));
         tidal.verify(getRequestedFor(urlPathEqualTo("/v2/albums"))
                 .withQueryParam("filter[id]", havingExactly("77", "78"))
-                .withQueryParam("include", equalTo("artists"))
+                .withQueryParam("include", equalTo("artists,coverArt"))
                 .withQueryParam("countryCode", equalTo("GB"))
                 .withHeader("Authorization", equalTo("Bearer app-token")));
     }

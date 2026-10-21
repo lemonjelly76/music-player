@@ -15,6 +15,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -22,6 +23,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -37,6 +39,7 @@ import java.util.function.Supplier;
 class TidalMusicProvider implements MusicProvider {
 
     static final int BATCH = 20;
+    static final int COVER_WIDTH = 320;
     private static final int MAX_PAGES = 50;
     private static final MediaType JSON_API = MediaType.parseMediaType("application/vnd.api+json");
 
@@ -141,6 +144,11 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     @Override
+    public URI searchLink(String query) {
+        return URI.create(properties.webUrl() + "/search?q=" + UriUtils.encodeQueryParam(query, StandardCharsets.UTF_8));
+    }
+
+    @Override
     public URI playlistLink(String playlistId) {
         return URI.create(properties.webUrl() + "/playlist/" + playlistId);
     }
@@ -188,23 +196,44 @@ class TidalMusicProvider implements MusicProvider {
         }
         UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/albums")
                 .queryParam("countryCode", properties.countryCode())
-                .queryParam("include", "artists");
+                .queryParam("include", "artists,coverArt");
         ids.forEach(id -> uri.queryParam("filter[id]", id));
         JsonNode body = get(uri.encode().toUriString(), authorization.appToken());
         Map<String, String> artistNames = new HashMap<>();
+        Map<String, String> covers = new HashMap<>();
         for (JsonNode included : body.path("included")) {
-            if (included.path("type").asString().equals("artists")) {
+            String type = included.path("type").asString();
+            if (type.equals("artists")) {
                 artistNames.put(included.path("id").asString(), included.path("attributes").path("name").asString());
+            } else if (type.equals("artworks")) {
+                coverFile(included).ifPresent(url -> covers.put(included.path("id").asString(), url));
             }
         }
         Map<String, AlbumRef> byId = new LinkedHashMap<>();
         for (JsonNode album : body.path("data")) {
-            toAlbum(album, artistNames).ifPresent(found -> byId.put(album.path("id").asString(), found));
+            toAlbum(album, artistNames, covers).ifPresent(found -> byId.put(album.path("id").asString(), found));
         }
         return ids.stream().filter(byId::containsKey).map(byId::get).toList();
     }
 
-    private static Optional<AlbumRef> toAlbum(JsonNode album, Map<String, String> artistNames) {
+    /**
+     * Tidal offers each artwork in several sizes; the smallest at least 320 wide suits a phone card.
+     */
+    private static Optional<String> coverFile(JsonNode artwork) {
+        String best = null;
+        int bestWidth = Integer.MAX_VALUE;
+        for (JsonNode file : artwork.path("attributes").path("files")) {
+            int width = file.path("meta").path("width").asInt(0);
+            if (best == null || (width >= COVER_WIDTH && width < bestWidth)) {
+                best = file.path("href").asString(null);
+                bestWidth = width >= COVER_WIDTH ? width : bestWidth;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private static Optional<AlbumRef> toAlbum(JsonNode album, Map<String, String> artistNames,
+            Map<String, String> covers) {
         List<String> artists = new ArrayList<>();
         album.path("relationships").path("artists").path("data")
                 .forEach(artist -> Optional.ofNullable(artistNames.get(artist.path("id").asString())).ifPresent(artists::add));
@@ -215,8 +244,10 @@ class TidalMusicProvider implements MusicProvider {
         String releaseDate = album.path("attributes").path("releaseDate").asString("");
         Optional<Integer> year = releaseDate.length() >= 4 ? Optional.of(Integer.parseInt(releaseDate.substring(0, 4)))
                 : Optional.empty();
+        Optional<String> cover = Optional.ofNullable(covers.get(
+                album.path("relationships").path("coverArt").path("data").path(0).path("id").asString("")));
         return Optional.of(new AlbumRef(String.join(", ", artists), title, year,
-                ProviderIds.of(Provider.TIDAL, album.path("id").asString())));
+                ProviderIds.of(Provider.TIDAL, album.path("id").asString()), cover));
     }
 
     private static List<String> ids(JsonNode body) {

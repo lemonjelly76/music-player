@@ -18,7 +18,7 @@ class ApiException(message: String, val unauthorized: Boolean = false) : IOExcep
 
 /**
  * The server's REST API, signed in with the household login. The app only reads what the model wrote and records
- * feedback; it never talks to the model itself.
+ * ratings; it never talks to the model itself. [category] is always a category id, or [GENERAL].
  */
 class ApiClient(private val settings: ServerSettings) {
 
@@ -35,17 +35,21 @@ class ApiClient(private val settings: ServerSettings) {
     suspend fun lists(personId: String, category: String, limit: Int = 1): List<PickList> =
         Json.lists(get("/api/people/$personId/lists?category=${encode(category)}&limit=$limit"))
 
-    suspend fun feedback(pickId: String, verdict: Verdict, comment: String = ""): Pick =
-        Json.pick(send("POST", "/api/picks/$pickId/feedback",
-            JSONObject().put("verdict", verdict.name).put("comment", comment)))
+    /** What the person loves or rates OK for the activity, loved first. */
+    suspend fun library(personId: String, category: String): List<LibraryAlbum> =
+        Json.library(get("/api/people/$personId/library?category=${encode(category)}"))
 
-    suspend fun library(personId: String): List<LibraryAlbum> = Json.library(get("/api/people/$personId/library"))
+    /** Rates any album for the activity, adding it to the library when new; a null [rating] takes the rating away. */
+    suspend fun rate(personId: String, albumRef: String, category: String, rating: Rating?) {
+        send("POST", "/api/people/$personId/ratings", JSONObject()
+            .put("albumRef", albumRef)
+            .put("categoryId", category)
+            .put("rating", rating?.value ?: JSONObject.NULL))
+    }
 
-    suspend fun addToLibrary(personId: String, albumRef: String): LibraryAlbum =
-        Json.libraryAlbum(send("POST", "/api/people/$personId/library", JSONObject().put("albumRef", albumRef)))
-
-    suspend fun moreLikeThis(personId: String, artist: String, title: String): List<Candidate> =
-        Json.candidates(get("/api/people/$personId/more-like-this?artist=${encode(artist)}&title=${encode(title)}"))
+    suspend fun moreLikeThis(personId: String, artist: String, title: String, category: String): List<Candidate> =
+        Json.candidates(get("/api/people/$personId/more-like-this?artist=${encode(artist)}&title=${encode(title)}" +
+            "&category=${encode(category)}"))
 
     suspend fun tracking(personId: String): Tracking = Json.tracking(get("/api/people/$personId/play-tracking"))
 

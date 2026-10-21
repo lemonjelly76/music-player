@@ -82,15 +82,15 @@ Lists are written as real playlists in the person's streaming account, named pre
 | --- | --- | --- |
 | 1. Gather candidates | Server | `CandidateService`: up to 8 seeds (best rated, plus most played when counting is on), 10 suggestions per seed per source |
 | 2. Filter | Server | Drops what is in the library, recommended in the last 28 days, already known (any category) or turned down for this category; keeps only what the person's service carries, at most 3 lookups per album wanted |
-| 3. Pre-rank | Server | `CandidatePool`: 2 per agreeing source + 1 per seed + the best seed's rating + half the log2 of seed plays |
+| 3. Pre-rank | Server | `CandidatePool`: 2 per agreeing source + 1 per loved seed that leads to it + half the log2 of seed plays |
 | 4. Choose | Model | About 7 from `get_candidates` plus up to 3 wildcards |
 | 5. Explain and learn | Model | A reason per pick; `update_taste_profile` |
 | 6. Validate and deliver | Server | `save_recommendations` resolves every pick to a real album on the person's service, drops the rest with a reason and syncs the playlist |
 
 - **Album identity:** `AlbumKey` matches albums across catalogues by normalised artist and title, ignoring case, accents, a leading "The", "&" against "and", and edition suffixes such as "(Remastered 2019)" or "[Deluxe Edition]".
-- **Refs:** albums travel as `tidal:<id>`, `spotify:<id>`, `mbid:<release group id>` or `Artist — Title`. Names are checked against the library and past verdicts before any catalogue lookup.
+- **Refs:** albums travel as `tidal:<id>`, `spotify:<id>`, `mbid:<release group id>` or `Artist — Title`. Names are checked against the person's ratings before any catalogue lookup.
 - **More like this (R15):** steps 1 to 3 from one album, served to the app at once, with no model involved.
-- **Feedback:** liked picks join the library tagged `ai-pick`. "Not for me" is kept per category, so an album rejected for Running can still come up under Driving. "Already know" applies everywhere.
+- **Feedback:** what a person thinks of a pick is a rating on the album for the list's activity (ADR-015). Rating a pick adds it to the library; a dislike for Running does not stop it coming up under Driving.
 
 **Why:** this follows the spec's division of work, and the guardrail that no hallucinated album is ever saved.
 
@@ -130,11 +130,14 @@ Counting is on by default per person. Each category can override it either way, 
 
 ### ADR-013 The Android app — Accepted
 
-The app has three screens and a person switcher.
+The app looks and behaves like a streaming app: always dark, album artwork throughout, one green accent. Two tabs share a row of activity chips (General plus each category); the person switcher and a settings cog sit top right.
 
-- **Picks:** a tab per category plus "All". Each tab shows the latest list with reasons, a wildcard badge, feedback chips, "Open in Tidal/Spotify", "More like this" and "Play in Tidal/Spotify" for the whole playlist.
-- **Library:** ratings, notes and tags, with the same actions.
-- **Settings:** server address and login, connecting the streaming service, and the play-count switch for the person and per category (Default / On / Off).
+- **Picks:** the activity's latest list as a playlist page: a cover mosaic, a round play button that opens the playlist in Tidal or Spotify, then each album with its cover, Claude's reason, a wildcard badge and Not for me / OK / Love pills. A ⋮ menu opens the album or shows "More like this".
+- **Library:** the activity's loved and OK albums as a grid of covers, with notes, tags and the same actions; "from General" marks a rating that stands in for the activity's own.
+- **More like this:** a sheet of instant suggestions (ADR-007); the heart loves one for the activity.
+- **Settings:** opened from the cog as its own page with a back arrow. The streaming service and its connection, the play-count switch, and the server address and login.
+
+Covers come from the server: Spotify and Tidal artwork when the album is on the person's service, else the Cover Art Archive by MusicBrainz id. Albums without one show a coloured placeholder.
 
 It is signed with the debug key as a private APK. It refreshes when it comes back to the foreground, so returning from a sign-in or from listening shows the latest.
 
@@ -145,25 +148,41 @@ It is signed with the debug key as a private APK. It refreshes when it comes bac
 - **Own player and native Android Auto (R9 beyond the official apps):** only worth it with a Lidarr or local library.
 - **Google Home voice on Tidal (R8):** depends on the open question below; Spotify works today through the predictable playlist names.
 
+### ADR-015 One 1–3 rating per album per activity — Accepted
+
+**Context.** The POC had a 1–5 rating on library albums and separate verdicts on picks (liked, not for me, already know). Two scales for one question confused both people and the model, and neither said which activity an opinion was about: an album can be right for Dinner and wrong for Running.
+
+**Decision.** A person rates an album 1 (dislike), 2 (OK) or 3 (love), at most once per activity. No activity is General, which stands in for every activity without its own rating. The rating is the only opinion stored; picks carry none of their own.
+
+- **Library for an activity:** albums rated love or OK there, or in General when the activity has no rating of its own; loved first.
+- **Seeds:** loved albums for the activity (or in General), most played first.
+- **Not offered:** albums rated for the activity (or in General), and albums kept for any activity. An album disliked only for Dinner can still be suggested for Running.
+- **Favourites:** a newly loved album is saved to the person's streaming favourites.
+- **Removing:** taking away an album's last rating removes it from the library.
+
+**Migration.** `V2__rate_albums_per_activity.sql` turns each old rating into a General one (4–5 love, 3 OK, 1–2 dislike; unrated albums were added as liked, so love) and carries verdicts on picks over to the list's activity (liked love, already know OK, not for me dislike). It then drops the old columns. It also adds cover columns.
+
+**Consequences.** One API call rates anything the app shows (`POST /api/people/{id}/ratings`), and one MCP tool (`rate_album`) replaces `record_feedback`. Three choices are quick to give consistently; finer feelings belong in the comment.
+
 ## 5. MCP tools
 
 | Tool | Purpose |
 | --- | --- |
 | `list_people`, `add_person`, `set_person_service` | People, their service and connection, Last.fm user |
 | `search_catalogue` | Albums in the person's service (or the first configured), with refs |
-| `add_liked_album`, `update_album`, `remove_album`, `get_library`, `import_favourites` | The library (R1, R11) |
-| `get_taste_profile`, `update_taste_profile` | Profile, rules, recent verdicts and the category's rules |
+| `add_liked_album`, `rate_album`, `update_album`, `remove_album`, `get_library`, `import_favourites` | The library and ratings per activity (R1, R4, R11; ADR-015) |
+| `get_taste_profile`, `update_taste_profile` | Profile, rules, recent ratings and the category's rules |
 | `list_categories`, `upsert_category` | Shared categories and their rules (R6) |
 | `get_play_stats`, `set_play_tracking` | Play counts and the toggle (R14) |
 | `get_candidates`, `get_similar` | The ranked pool, and ad-hoc similar albums |
-| `save_recommendations`, `get_recommendations`, `record_feedback` | Lists, validation, playlist sync and verdicts (R3, R4) |
+| `save_recommendations`, `get_recommendations` | Lists with each pick's rating, validation and playlist sync (R3) |
 | `send_to_lidarr` | Wanted albums (R12) |
 
 ## 6. Requirements coverage
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R1 | Library with rating, notes, tags, date added | Built |
+| R1 | Library with rating, notes, tags, date added | Built; ratings per activity (ADR-015) |
 | R2 | MCP server to manage albums by conversation | Built |
 | R3 | AI recommendation lists per person with reasons | Built |
 | R4 | Feedback on picks improves the next batch | Built |

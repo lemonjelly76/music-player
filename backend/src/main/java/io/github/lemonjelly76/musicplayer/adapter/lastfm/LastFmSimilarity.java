@@ -7,6 +7,7 @@ import tools.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Last.fm knows similar artists, not similar albums, so a seed leads to the top albums of its artist's closest
@@ -41,6 +42,19 @@ class LastFmSimilarity implements SimilaritySource {
         return albums.stream().filter(album -> !album.sameAlbumAs(seed)).limit(limit).toList();
     }
 
+    /**
+     * Last.fm's largest image ("extralarge", 300 pixels); it leaves the text empty when it has none.
+     */
+    private static Optional<String> cover(JsonNode album) {
+        for (JsonNode image : album.path("image")) {
+            String url = image.path("#text").asString("");
+            if (image.path("size").asString("").equals("extralarge") && !url.isBlank()) {
+                return Optional.of(url);
+            }
+        }
+        return Optional.empty();
+    }
+
     private List<String> similarArtists(String artist) {
         List<String> names = new ArrayList<>();
         api.call("artist.getsimilar", Map.of("artist", artist, "limit", String.valueOf(SIMILAR_ARTISTS),
@@ -59,7 +73,8 @@ class LastFmSimilarity implements SimilaritySource {
                         String title = album.path("name").asString("").strip();
                         String albumArtist = album.path("artist").path("name").asString(artist);
                         if (!title.isEmpty() && !title.equals("(null)") && albums.size() < count) {
-                            albums.add(AlbumRef.of(albumArtist, title));
+                            AlbumRef found = AlbumRef.of(albumArtist, title);
+                            albums.add(cover(album).map(found::withCover).orElse(found));
                         }
                     }
                 });

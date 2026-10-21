@@ -6,6 +6,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
@@ -54,23 +55,28 @@ class JdbcPeopleAndLibraryTest {
     }
 
     @Test
-    void keepsLibraryAlbumsWithTheirIdsRatingAndTags() {
+    void keepsLibraryAlbumsWithTheirIdsCoverRatingsPerActivityAndTags() {
         Person craig = Person.create("Craig", Optional.empty());
         people.save(craig);
+        Category running = Category.create("Running", "");
+        categories.save(running);
+        Instant ratedAt = Instant.parse("2026-10-20T18:00:00Z");
         AlbumRef blue = new AlbumRef("Joni Mitchell", "Blue", Optional.of(1971),
-                new ProviderIds(Optional.of("t-1"), Optional.empty(), Optional.of("mb-1")));
-        LibraryAlbum rated = LibraryAlbum.create(craig.id(), blue, Optional.of(new Rating(5)), "Perfect",
-                List.of("folk", "70s"), LocalDate.of(2026, 10, 20));
-        LibraryAlbum unrated = LibraryAlbum.create(craig.id(), AlbumRef.of("Air", "Moon Safari"), Optional.empty(), "",
-                List.of(), LocalDate.of(2026, 10, 21));
+                new ProviderIds(Optional.of("t-1"), Optional.empty(), Optional.of("mb-1")),
+                Optional.of("https://covers.example/blue.jpg"));
+        LibraryAlbum blueEntry = LibraryAlbum.create(craig.id(), blue, ActivityRating.general(Rating.LOVE, ratedAt),
+                "Perfect", List.of("folk", "70s"), LocalDate.of(2026, 10, 20))
+                .rated(new ActivityRating(Optional.of(running.id()), Rating.DISLIKE, "Too slow", ratedAt.plusSeconds(1)));
+        LibraryAlbum moonSafari = LibraryAlbum.create(craig.id(), AlbumRef.of("Air", "Moon Safari"),
+                ActivityRating.general(Rating.OK, ratedAt), "", List.of(), LocalDate.of(2026, 10, 21));
 
-        library.save(rated);
-        library.save(unrated);
-        library.save(rated.withNotes("Still perfect"));
+        library.save(blueEntry);
+        library.save(moonSafari);
+        library.save(blueEntry.withNotes("Still perfect"));
 
-        assertThat(library.findByPerson(craig.id())).containsExactly(rated.withNotes("Still perfect"), unrated);
-        library.delete(unrated.id());
-        assertThat(library.findById(unrated.id())).isEmpty();
+        assertThat(library.findByPerson(craig.id())).containsExactly(blueEntry.withNotes("Still perfect"), moonSafari);
+        library.delete(moonSafari.id());
+        assertThat(library.findById(moonSafari.id())).isEmpty();
     }
 
     @Test

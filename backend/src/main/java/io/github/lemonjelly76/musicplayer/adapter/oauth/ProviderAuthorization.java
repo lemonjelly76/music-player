@@ -46,6 +46,7 @@ public class ProviderAuthorization {
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final SecureRandom random = new SecureRandom();
     private final Map<String, Pending> pending = new ConcurrentHashMap<>();
+    private final Map<String, Pending> completed = new ConcurrentHashMap<>();
     private volatile ProviderTokens appToken;
 
     /**
@@ -93,11 +94,17 @@ public class ProviderAuthorization {
     }
 
     /**
-     * Finishes signing in with the code the service sent back, and says who connected.
+     * Finishes signing in with the code the service sent back, and says who connected. Browsers sometimes load the
+     * callback twice (a reopened tab, a refresh); a repeat of a sign-in that already succeeded answers the same way
+     * without using the spent code again.
      */
     public PersonId complete(String code, String state) {
-        Pending started = state == null ? null : pending.remove(state);
         dropExpired();
+        Pending done = state == null ? null : completed.get(state);
+        if (done != null) {
+            return done.person();
+        }
+        Pending started = state == null ? null : pending.remove(state);
         if (started == null || expired(started.issuedAt())) {
             throw new IllegalArgumentException("This sign-in link has expired or was not started here; connect again");
         }
@@ -111,6 +118,7 @@ public class ProviderAuthorization {
                 tokens.userId().or(() -> userIdLookup.apply(tokens.accessToken())),
                 tokens.accessToken(), tokens.refreshToken(), tokens.expiresAt());
         store.save(started.person(), provider, identified);
+        completed.put(state, started);
         return started.person();
     }
 
@@ -202,6 +210,7 @@ public class ProviderAuthorization {
 
     private void dropExpired() {
         pending.values().removeIf(started -> expired(started.issuedAt()));
+        completed.values().removeIf(done -> expired(done.issuedAt()));
     }
 
     private boolean expired(Instant issuedAt) {

@@ -51,5 +51,10 @@ public interface MusicProvider {
      */
     URI albumLink(String id);
 
+    /**
+     * A link that opens the service's own search, for an album whose id on the service is not known.
+     */
+    URI searchLink(String query);
+
     URI playlistLink(String playlistId);
 }

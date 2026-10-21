@@ -22,9 +22,6 @@ import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
 import io.github.lemonjelly76.musicplayer.domain.port.TasteProfileRepository;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
 import io.github.lemonjelly76.musicplayer.domain.taste.TasteProfile;
@@ -210,25 +207,10 @@ final class FakePorts {
         }
 
         @Override
-        public Optional<RecommendationList> findContaining(RecommendationId pick) {
-            return saved.values().stream().filter(list -> list.pick(pick).isPresent()).findFirst();
-        }
-
-        @Override
         public Optional<RecommendationList> findByPlaylist(String playlistId) {
             return saved.values().stream()
                     .filter(list -> list.playlist().map(synced -> synced.playlistId().equals(playlistId)).orElse(false))
                     .findFirst();
-        }
-
-        @Override
-        public void saveFeedback(RecommendationId pickId, Feedback feedback) {
-            RecommendationList list = findContaining(pickId).orElseThrow();
-            List<Recommendation> picks = list.picks().stream()
-                    .map(pick -> pick.id().equals(pickId) ? pick.withFeedback(feedback) : pick)
-                    .toList();
-            saved.put(list.id(), new RecommendationList(list.id(), list.person(), list.category(), list.name(),
-                    list.createdAt(), list.playlist(), picks));
         }
     }
 
@@ -323,6 +305,11 @@ final class FakePorts {
         @Override
         public URI albumLink(String id) {
             return URI.create("https://" + name.prefix() + ".example/album/" + id);
+        }
+
+        @Override
+        public URI searchLink(String query) {
+            return URI.create("https://" + name.prefix() + ".example/search/" + query.replace(' ', '+'));
         }
 
         @Override

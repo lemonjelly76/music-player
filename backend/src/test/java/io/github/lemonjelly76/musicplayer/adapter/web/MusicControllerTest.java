@@ -7,18 +7,19 @@ import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.NotFoundException;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService;
-import io.github.lemonjelly76.musicplayer.application.RecommendationService.Judged;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
+import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Feedback;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,12 +34,14 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 
 @WebMvcTest(MusicController.class)
@@ -70,6 +73,8 @@ class MusicControllerTest {
     @BeforeEach
     void setUp() {
         given(people.get(CRAIG.id())).willReturn(CRAIG);
+        given(recommendations.withCovers(any(Person.class), any(RecommendationList.class), anyInt()))
+                .willAnswer(call -> call.getArgument(1));
         given(providers.link(any(Person.class), any(AlbumRef.class)))
                 .willAnswer(call -> ((AlbumRef) call.getArgument(1)).ids().tidal()
                         .map(id -> URI.create("https://tidal.com/browse/album/" + id)));
@@ -79,7 +84,7 @@ class MusicControllerTest {
     }
 
     @Test
-    void listsPicksWithReasonsVerdictsAndLinks() {
+    void listsPicksWithReasonsAndLinks() {
         Recommendation pick = Recommendation.create(DUMMY, "Moody trip-hop like your Massive Attack", PickSource.POOL);
         RecommendationList list = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick), NOW)
                 .syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-1"));
@@ -95,28 +100,45 @@ class MusicControllerTest {
     }
 
     @Test
-    void recordsFeedback() {
-        Recommendation pick = Recommendation.create(DUMMY, "Moody", PickSource.POOL);
-        RecommendationList list = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick), NOW);
-        given(recommendations.feedback(pick.id(), Verdict.NOT_FOR_ME, "Too slow")).willReturn(new Judged(list,
-                pick.withFeedback(new Feedback(Verdict.NOT_FOR_ME, "Too slow", NOW)), false));
+    void ratesAnAlbumForAnActivity() {
+        LibraryAlbum rated = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.LOVE, NOW), "",
+                List.of(), LocalDate.of(2026, 10, 20));
+        given(library.rate(CRAIG, "tidal:t-9", Optional.empty(), Optional.of(Rating.LOVE), "On repeat"))
+                .willReturn(Optional.of(rated));
 
-        assertThat(mvc.post().uri("/api/picks/{id}/feedback", pick.id())
+        assertThat(mvc.post().uri("/api/people/{id}/ratings", CRAIG.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"verdict":"not for me","comment":"Too slow"}"""))
+                        {"albumRef":"tidal:t-9","categoryId":"none","rating":3,"comment":"On repeat"}"""))
                 .hasStatusOk()
-                .bodyJson().extractingPath("$.verdict").isEqualTo("NOT_FOR_ME");
+                .bodyJson().isLenientlyEqualTo("""
+                        {"albumRef":"tidal:t-9","rating":3}""");
     }
 
     @Test
-    void anUnknownVerdictIsABadRequest() {
-        assertThat(mvc.post().uri("/api/picks/{id}/feedback", "6f1c2a5e-3b7d-4c8e-9a10-2b3c4d5e6f70")
+    void aRatingOutsideOneToThreeIsABadRequest() {
+        assertThat(mvc.post().uri("/api/people/{id}/ratings", CRAIG.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"verdict":"meh"}"""))
+                        {"albumRef":"tidal:t-9","rating":5}"""))
                 .hasStatus(HttpStatus.BAD_REQUEST)
-                .bodyJson().extractingPath("$.message").asString().contains("Unknown verdict");
+                .bodyJson().extractingPath("$.message").asString().contains("1 (dislike), 2 (ok) or 3 (love)");
+    }
+
+    @Test
+    void marksALibraryRatingFromGeneralOnlyWhereItStandsInForAnActivity() {
+        Category running = Category.create("Running", "");
+        LibraryAlbum loved = LibraryAlbum.create(CRAIG.id(), DUMMY, ActivityRating.general(Rating.LOVE, NOW), "",
+                List.of(), LocalDate.of(2026, 10, 20));
+        given(categories.find(running.id().toString())).willReturn(running);
+        given(library.libraryFor(any(), any(), any())).willReturn(List.of(loved));
+
+        assertThat(mvc.get().uri("/api/people/{id}/library?category=none", CRAIG.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"rating":3,"general":false}]""");
+        assertThat(mvc.get().uri("/api/people/{id}/library?category={c}", CRAIG.id(), running.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"rating":3,"general":true}]""");
     }
 
     @Test
@@ -129,8 +151,8 @@ class MusicControllerTest {
 
     @Test
     void showsMoreLikeThisWithoutAskingTheModel() {
-        given(candidates.moreLikeThis(CRAIG, AlbumRef.of("Massive Attack", "Mezzanine"), 10)).willReturn(List.of(
-                new Candidate(DUMMY, 10, new TreeSet<>(List.of("lastfm")), List.of("Massive Attack — Mezzanine"), 3, 0)));
+        given(candidates.moreLikeThis(CRAIG, AlbumRef.of("Massive Attack", "Mezzanine"), Optional.empty(), 10)).willReturn(List.of(
+                new Candidate(DUMMY, 10, new TreeSet<>(List.of("lastfm")), List.of("Massive Attack — Mezzanine"), 0)));
 
         assertThat(mvc.get().uri("/api/people/{id}/more-like-this?artist=Massive Attack&title=Mezzanine", CRAIG.id()))
                 .hasStatusOk()

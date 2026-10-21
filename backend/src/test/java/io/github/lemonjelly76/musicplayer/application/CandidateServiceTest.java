@@ -9,7 +9,6 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -33,29 +32,41 @@ class CandidateServiceTest {
 
     private Person craigWithOkComputer() {
         Person craig = world.withoutService("Craig");
-        world.library.add(craig, okComputer, Optional.of(new Rating(5)), "", List.of());
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
         world.lastFm.suggest(okComputer, mezzanine, dummy, maxinquaye);
         return craig;
     }
 
     @Test
-    void seedsFromTheBestRatedAlbumsAndTheMostPlayed() {
+    void seedsOnlyFromLovedAlbumsAtMostEight() {
         Person craig = world.withoutService("Craig");
+        world.library.add(craig, album("Blur", "13"), Optional.empty(), Rating.OK, "", List.of());
         for (int i = 0; i < 10; i++) {
-            world.library.add(craig, album("Artist " + i, "Album " + i), Optional.of(new Rating(i < 2 ? 5 : 3)), "",
-                    List.of());
+            world.library.add(craig, album("Artist " + i, "Album " + i), Optional.empty(), Rating.LOVE, "", List.of());
         }
 
         List<Seed> seeds = world.candidates.seeds(craig, Optional.empty());
 
         assertThat(seeds).hasSize(CandidateService.MAX_SEEDS);
-        assertThat(seeds.subList(0, 2)).extracting(seed -> seed.rating().orElseThrow().value()).containsOnly(5);
+        assertThat(seeds).extracting(seed -> seed.album().artist()).doesNotContain("Blur");
+    }
+
+    @Test
+    void anActivitySeedsFromWhatIsLovedThere() {
+        Person craig = world.withoutService("Craig");
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
+        world.library.add(craig, dummy, Optional.of(running), Rating.LOVE, "", List.of());
+        world.library.rate(craig, okComputer, Optional.of(running), Optional.of(Rating.DISLIKE), "");
+
+        assertThat(world.candidates.seeds(craig, Optional.of(running))).extracting(Seed::album).containsExactly(dummy);
+        assertThat(world.candidates.seeds(craig, Optional.of(driving))).extracting(Seed::album)
+                .containsExactly(okComputer);
     }
 
     @Test
     void offersSimilarAlbumsNotAlreadyInTheLibrary() {
         Person craig = craigWithOkComputer();
-        world.library.add(craig, dummy, Optional.empty(), "", List.of());
+        world.library.add(craig, dummy, Optional.empty(), Rating.OK, "", List.of());
 
         List<Candidate> pool = world.candidates.candidates(craig, Optional.empty(), 10);
 
@@ -76,12 +87,12 @@ class CandidateServiceTest {
     }
 
     @Test
-    void anAlbumTurnedDownForOneCategoryCanStillComeUpInAnother() {
+    void anAlbumDislikedForOneActivityCanStillComeUpInAnother() {
         Person craig = craigWithOkComputer();
         world.catalogue.know(mezzanine);
-        RecommendationList runningList = world.recommendations.save(craig, Optional.of(running), List.of(
-                new PickRequest("Massive Attack — Mezzanine", "Dark", PickSource.POOL))).list();
-        world.recommendations.feedback(runningList.picks().getFirst().id(), Verdict.NOT_FOR_ME, "too slow");
+        world.recommendations.save(craig, Optional.of(running), List.of(
+                new PickRequest("Massive Attack — Mezzanine", "Dark", PickSource.POOL)));
+        world.library.rate(craig, mezzanine, Optional.of(running), Optional.of(Rating.DISLIKE), "too slow");
         ageEverything();
 
         assertThat(world.candidates.candidates(craig, Optional.of(running), 10)).extracting(Candidate::album)
@@ -93,7 +104,7 @@ class CandidateServiceTest {
     @Test
     void keepsOnlyWhatThePersonsServiceCarriesWithItsId() {
         Person craig = world.tidalUser("Craig");
-        world.library.add(craig, okComputer, Optional.of(new Rating(5)), "", List.of());
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
         world.lastFm.suggest(okComputer, mezzanine, dummy, maxinquaye);
         world.tidal.carry("t-dummy", dummy);
         world.tidal.carry("t-tricky", maxinquaye);
@@ -108,7 +119,7 @@ class CandidateServiceTest {
     void addsTheServicesOwnSimilarAlbums() {
         Person craig = world.tidalUser("Craig");
         AlbumRef onTidal = world.tidal.carry("t-ok", okComputer);
-        world.library.add(craig, onTidal, Optional.of(new Rating(5)), "", List.of());
+        world.library.add(craig, onTidal, Optional.empty(), Rating.LOVE, "", List.of());
         AlbumRef kidA = world.tidal.carry("t-kida", album("Radiohead", "Kid A"));
         world.tidal.similar.put("t-ok", List.of(kidA));
 
@@ -122,7 +133,7 @@ class CandidateServiceTest {
         Person craig = world.withoutService("Craig");
         world.lastFm.suggest(mezzanine, okComputer, dummy);
 
-        assertThat(world.candidates.moreLikeThis(craig, mezzanine, 5)).extracting(Candidate::album)
+        assertThat(world.candidates.moreLikeThis(craig, mezzanine, Optional.empty(), 5)).extracting(Candidate::album)
                 .containsExactly(okComputer, dummy);
     }
 

@@ -46,8 +46,13 @@ public class MusicProviders {
                 .or(() -> List.of(Provider.values()).stream().flatMap(name -> find(name).stream()).findFirst());
     }
 
+    /**
+     * Opens the album in the person's service; when its id there is not known yet, opens a search for it instead.
+     */
     public Optional<URI> link(Person person, AlbumRef album) {
-        return forPerson(person).flatMap(provider -> album.ids().get(provider.name()).map(provider::albumLink));
+        return forPerson(person).map(provider -> album.ids().get(provider.name())
+                .map(provider::albumLink)
+                .orElseGet(() -> provider.searchLink(album.artist() + " " + album.title())));
     }
 
     public Optional<URI> link(SyncedPlaylist playlist) {

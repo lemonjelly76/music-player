@@ -1,9 +1,11 @@
 package io.github.lemonjelly76.musicplayer.adapter.mcp;
 
+import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
-import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
@@ -18,11 +20,18 @@ import java.util.Optional;
 import java.util.SortedSet;
 
 /**
- * What the tools return. Every album carries a {@code ref} the other tools accept back.
+ * What the tools return. Every album carries a {@code ref} the other tools accept back, and every activity is named,
+ * with General for ratings that are not for one activity.
  */
 final class Views {
 
+    static final String GENERAL = "General";
+
     private Views() {
+    }
+
+    static String activityName(Optional<CategoryId> category, Map<CategoryId, String> names) {
+        return category.map(id -> names.getOrDefault(id, "?")).orElse(GENERAL);
     }
 
     record PersonView(String id, String name, String service, Boolean connected, boolean playTracking,
@@ -49,43 +58,56 @@ final class Views {
         }
     }
 
-    record LibraryAlbumView(String id, AlbumView album, Integer rating, String notes, SortedSet<String> tags,
-                            LocalDate addedOn) {
+    record RatingView(String activity, String rating, String comment, Instant ratedAt) {
 
-        static LibraryAlbumView from(LibraryAlbum entry) {
+        static RatingView from(ActivityRating rating, Map<CategoryId, String> names) {
+            return new RatingView(activityName(rating.category(), names), rating.rating().word(), rating.comment(),
+                    rating.ratedAt());
+        }
+    }
+
+    record LibraryAlbumView(String id, AlbumView album, List<RatingView> ratings, String notes,
+                            SortedSet<String> tags, LocalDate addedOn) {
+
+        static LibraryAlbumView from(LibraryAlbum entry, Map<CategoryId, String> names) {
             return new LibraryAlbumView(entry.id().toString(), AlbumView.from(entry.album()),
-                    entry.rating().map(Rating::value).orElse(null), entry.notes(), entry.tags(), entry.addedOn());
+                    entry.ratings().stream().map(rating -> RatingView.from(rating, names)).toList(), entry.notes(),
+                    entry.tags(), entry.addedOn());
         }
     }
 
     record CandidateView(AlbumView album, double score, SortedSet<String> sources, List<String> seeds,
-                         int bestSeedRating, Integer seedPlays) {
+                         Integer seedPlays) {
 
         static CandidateView from(Candidate candidate) {
             return new CandidateView(AlbumView.from(candidate.album()), candidate.score(), candidate.sources(),
-                    candidate.seeds(), candidate.bestSeedRating(),
-                    candidate.seedPlays() == 0 ? null : candidate.seedPlays());
+                    candidate.seeds(), candidate.seedPlays() == 0 ? null : candidate.seedPlays());
         }
     }
 
-    record PickView(String id, AlbumView album, String reason, String source, String verdict, String comment) {
+    /**
+     * A pick with the person's rating of it for the list's activity, once they have given one.
+     */
+    record PickView(String id, AlbumView album, String reason, String source, String rating) {
 
-        static PickView from(Recommendation pick) {
+        static PickView from(Recommendation pick, Optional<CategoryId> activity, Map<AlbumKey, LibraryAlbum> library) {
+            String rating = Optional.ofNullable(library.get(pick.album().key()))
+                    .flatMap(entry -> entry.rating(activity))
+                    .map(found -> found.rating().word())
+                    .orElse(null);
             return new PickView(pick.id().toString(), AlbumView.from(pick.album()), pick.reason(),
-                    pick.source().name().toLowerCase(),
-                    pick.feedback().map(feedback -> feedback.verdict().name()).orElse(null),
-                    pick.feedback().map(feedback -> feedback.comment()).orElse(null));
+                    pick.source().name().toLowerCase(), rating);
         }
     }
 
-    record ListView(String id, String name, String category, Instant createdAt, String playlist,
+    record ListView(String id, String name, String activity, Instant createdAt, String playlist,
                     List<PickView> picks) {
 
-        static ListView from(RecommendationList list, Map<String, String> categoryNames) {
-            return new ListView(list.id().toString(), list.name(),
-                    list.category().map(id -> categoryNames.get(id.toString())).orElse(null), list.createdAt(),
+        static ListView from(RecommendationList list, Map<CategoryId, String> names,
+                Map<AlbumKey, LibraryAlbum> library) {
+            return new ListView(list.id().toString(), list.name(), activityName(list.category(), names), list.createdAt(),
                     list.playlist().map(synced -> synced.provider().prefix() + ":" + synced.playlistId()).orElse(null),
-                    list.picks().stream().map(PickView::from).toList());
+                    list.picks().stream().map(pick -> PickView.from(pick, list.category(), library)).toList());
         }
     }
 

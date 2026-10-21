@@ -11,6 +11,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
+import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -28,13 +29,17 @@ import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.jsonResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.ok;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.put;
+import static com.github.tomakehurst.wiremock.client.WireMock.putRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 class SpotifyAdapterTest {
 
@@ -83,20 +88,41 @@ class SpotifyAdapterTest {
     @Test
     void replacesThePlaylistByUnfollowingTheOldOneAndAddingTrackUris() {
         spotify.stubFor(delete(urlPathEqualTo("/v1/playlists/old/followers")).willReturn(ok()));
-        spotify.stubFor(post(urlPathEqualTo("/v1/users/craig-sp/playlists")).willReturn(okJson("""
+        spotify.stubFor(post(urlPathEqualTo("/v1/me/playlists")).willReturn(okJson("""
                 {"id":"new-playlist"}""")));
         spotify.stubFor(get(urlPathEqualTo("/v1/albums/sp-blue/tracks")).willReturn(okJson("""
                 {"items":[{"uri":"spotify:track:1"},{"uri":"spotify:track:2"}],"next":null}""")));
-        spotify.stubFor(post(urlPathEqualTo("/v1/playlists/new-playlist/tracks")).willReturn(okJson("{}")));
+        spotify.stubFor(post(urlPathEqualTo("/v1/playlists/new-playlist/items")).willReturn(okJson("{}")));
 
         String id = provider.replacePlaylist(CRAIG.id(), Optional.of("old"), "AI Picks", "For Craig", List.of("sp-blue"));
 
         assertThat(id).isEqualTo("new-playlist");
         spotify.verify(deleteRequestedFor(urlPathEqualTo("/v1/playlists/old/followers")));
-        spotify.verify(postRequestedFor(urlPathEqualTo("/v1/users/craig-sp/playlists")).withRequestBody(equalToJson("""
+        spotify.verify(postRequestedFor(urlPathEqualTo("/v1/me/playlists")).withRequestBody(equalToJson("""
                 {"name":"AI Picks","description":"For Craig","public":false}""")));
-        spotify.verify(postRequestedFor(urlPathEqualTo("/v1/playlists/new-playlist/tracks")).withRequestBody(equalToJson("""
+        spotify.verify(postRequestedFor(urlPathEqualTo("/v1/playlists/new-playlist/items")).withRequestBody(equalToJson("""
                 {"uris":["spotify:track:1","spotify:track:2"]}""")));
+    }
+
+    @Test
+    void savesAFavouriteToThePersonsLibrary() {
+        spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).willReturn(ok()));
+
+        provider.addFavourite(CRAIG.id(), "sp-blue");
+
+        spotify.verify(putRequestedFor(urlPathEqualTo("/v1/me/library"))
+                .withQueryParam("uris", equalTo("spotify:album:sp-blue"))
+                .withHeader("Authorization", equalTo("Bearer user-token")));
+    }
+
+    @Test
+    void saysWhatSpotifyRefusedAndWhy() {
+        spotify.stubFor(put(urlPathEqualTo("/v1/me/library")).willReturn(jsonResponse("""
+                {"error":{"status":403,"message":"Insufficient client scope"}}""", 403)));
+
+        assertThatExceptionOfType(MusicProviderUnavailableException.class)
+                .isThrownBy(() -> provider.addFavourite(CRAIG.id(), "sp-blue"))
+                .withMessageContaining("Insufficient client scope");
     }
 
     @Test

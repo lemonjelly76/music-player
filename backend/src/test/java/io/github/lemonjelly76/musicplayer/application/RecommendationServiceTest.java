@@ -1,17 +1,15 @@
 package io.github.lemonjelly76.musicplayer.application;
 
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.Dropped;
-import io.github.lemonjelly76.musicplayer.application.RecommendationService.Judged;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.PickRequest;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.Saved;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -67,43 +65,42 @@ class RecommendationServiceTest {
         Person craig = world.withoutService("Craig");
         AlbumRef mezzanine = world.catalogue.know(album("Massive Attack", "Mezzanine"));
         world.catalogue.know(album("Portishead", "Dummy"));
-        world.library.add(craig, mezzanine, Optional.empty(), "", List.of());
+        world.library.add(craig, mezzanine, Optional.empty(), Rating.LOVE, "", List.of());
 
         Saved saved = world.recommendations.save(craig, Optional.empty(), List.of(
                 pick("Massive Attack — Mezzanine"), pick("Portishead — Dummy"), pick("Portishead - Dummy")));
 
         assertThat(saved.list().picks()).hasSize(1);
-        assertThat(saved.dropped()).extracting(Dropped::why).containsExactly(
-                "already in the library or in this list", "already in the library or in this list");
+        assertThat(saved.dropped()).extracting(Dropped::why).containsExactly("already rated", "already in this list");
         assertThat(saved.sync()).isEqualTo("not synced: Craig has no streaming service linked");
     }
 
     @Test
     void dropsAnAlbumNamedFromTheLibraryWithoutLookingItUp() {
         Person craig = world.withoutService("Craig");
-        world.library.add(craig, album("Radiohead", "OK Computer"), Optional.empty(), "", List.of());
+        world.library.add(craig, album("Radiohead", "OK Computer"), Optional.empty(), Rating.LOVE, "", List.of());
         world.catalogue.know(album("Portishead", "Dummy"));
 
         Saved saved = world.recommendations.save(craig, Optional.empty(), List.of(
                 pick("Radiohead — OK Computer"), pick("Portishead — Dummy")));
 
         assertThat(saved.dropped()).containsExactly(
-                new Dropped("Radiohead — OK Computer", "already in the library or in this list"));
+                new Dropped("Radiohead — OK Computer", "already rated"));
     }
 
     @Test
-    void dropsAlbumsTheyAlreadyKnow() {
+    void dropsAlbumsDislikedForTheActivityButNotForAnother() {
         Person craig = world.withoutService("Craig");
         world.catalogue.know(album("Portishead", "Dummy"));
         world.catalogue.know(album("Air", "Moon Safari"));
-        RecommendationId dummy = world.recommendations.save(craig, Optional.empty(), List.of(pick("Portishead — Dummy")))
-                .list().picks().getFirst().id();
-        world.recommendations.feedback(dummy, Verdict.ALREADY_KNOW, "");
+        world.library.rate(craig, "Portishead — Dummy", Optional.of(running), Optional.of(Rating.DISLIKE), "");
 
-        Saved saved = world.recommendations.save(craig, Optional.of(running), List.of(
+        Saved forRunning = world.recommendations.save(craig, Optional.of(running), List.of(
                 pick("Portishead — Dummy"), pick("Air — Moon Safari")));
+        Saved forGeneral = world.recommendations.save(craig, Optional.empty(), List.of(pick("Portishead — Dummy")));
 
-        assertThat(saved.dropped()).extracting(Dropped::why).containsExactly("already turned down or already known");
+        assertThat(forRunning.dropped()).extracting(Dropped::why).containsExactly("already rated");
+        assertThat(forGeneral.dropped()).isEmpty();
     }
 
     @Test
@@ -125,28 +122,5 @@ class RecommendationServiceTest {
 
         assertThat(saved.sync()).isEqualTo("saved but not synced: tidal is not connected");
         assertThat(world.recommendations.lists(craig, Optional.empty(), 5)).hasSize(1);
-    }
-
-    @Test
-    void aLikedPickJoinsTheLibrary() {
-        Person craig = world.withoutService("Craig");
-        world.catalogue.know(album("Portishead", "Dummy"));
-        RecommendationId dummy = world.recommendations.save(craig, Optional.of(running), List.of(pick("Portishead — Dummy")))
-                .list().picks().getFirst().id();
-
-        Judged judged = world.recommendations.feedback(dummy, Verdict.LIKED, "Great on the long run");
-
-        assertThat(judged.addedToLibrary()).isTrue();
-        assertThat(judged.pick().feedback().orElseThrow().comment()).isEqualTo("Great on the long run");
-        assertThat(world.library.find(craig.id(), album("Portishead", "Dummy").key()).orElseThrow().tags())
-                .containsExactly("ai-pick");
-        assertThat(world.recommendations.lists(craig, Optional.of(running), 1).getFirst().picks().getFirst()
-                .has(Verdict.LIKED)).isTrue();
-    }
-
-    @Test
-    void feedbackOnAnUnknownPickIsNotFound() {
-        assertThatExceptionOfType(NotFoundException.class)
-                .isThrownBy(() -> world.recommendations.feedback(RecommendationId.random(), Verdict.LIKED, ""));
     }
 }

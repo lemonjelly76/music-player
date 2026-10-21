@@ -38,7 +38,8 @@ class MusicBrainzCatalogueTest {
                    "artist-credit":[{"name":"Simon","joinphrase":" & "},{"name":"Garfunkel"}]}]}""")));
 
         assertThat(catalogue.findAlbum("Simon & Garfunkel", "Bookends")).contains(new AlbumRef("Simon & Garfunkel",
-                "Bookends", Optional.of(1968), ProviderIds.musicBrainz("rg-1")));
+                "Bookends", Optional.of(1968), ProviderIds.musicBrainz("rg-1"),
+                Optional.of("https://coverartarchive.org/release-group/rg-1/front-250")));
         musicBrainz.verify(getRequestedFor(urlPathEqualTo("/ws/2/release-group"))
                 .withQueryParam("query", equalTo("releasegroup:\"Bookends\" AND artist:\"Simon & Garfunkel\""))
                 .withHeader("User-Agent", equalTo("music-player-test/1.0 ( test )")));

@@ -1,9 +1,11 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
-import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
@@ -13,6 +15,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.function.Function;
@@ -40,7 +43,7 @@ final class Responses {
         }
     }
 
-    record AlbumResponse(String ref, String artist, String title, Integer year, String link) {
+    record AlbumResponse(String ref, String artist, String title, Integer year, String link, String cover) {
 
         static AlbumResponse from(AlbumRef album, Function<AlbumRef, Optional<URI>> links) {
             String ref = album.ids().tidal().map(id -> "tidal:" + id)
@@ -48,16 +51,23 @@ final class Responses {
                     .or(() -> album.ids().musicBrainz().map(id -> "mbid:" + id))
                     .orElse(album.label());
             return new AlbumResponse(ref, album.artist(), album.title(), album.year().orElse(null),
-                    links.apply(album).map(URI::toString).orElse(null));
+                    links.apply(album).map(URI::toString).orElse(null), album.cover().orElse(null));
         }
     }
 
-    record PickResponse(String id, AlbumResponse album, String reason, String source, String verdict, String comment) {
+    /**
+     * A pick with the person's rating of it (1 to 3) for the list's activity, once they have given one.
+     */
+    record PickResponse(String id, AlbumResponse album, String reason, String source, Integer rating) {
 
-        static PickResponse from(Recommendation pick, Function<AlbumRef, Optional<URI>> links) {
+        static PickResponse from(Recommendation pick, Optional<CategoryId> activity,
+                Map<AlbumKey, LibraryAlbum> library, Function<AlbumRef, Optional<URI>> links) {
+            Integer rating = Optional.ofNullable(library.get(pick.album().key()))
+                    .flatMap(entry -> entry.rating(activity))
+                    .map(found -> found.rating().value())
+                    .orElse(null);
             return new PickResponse(pick.id().toString(), AlbumResponse.from(pick.album(), links), pick.reason(),
-                    pick.source().name(), pick.feedback().map(feedback -> feedback.verdict().name()).orElse(null),
-                    pick.feedback().map(feedback -> feedback.comment()).orElse(null));
+                    pick.source().name(), rating);
         }
     }
 
@@ -65,21 +75,32 @@ final class Responses {
                         List<PickResponse> picks) {
 
         static ListResponse from(RecommendationList list, Optional<URI> playlistLink,
-                Function<AlbumRef, Optional<URI>> links) {
+                Map<AlbumKey, LibraryAlbum> library, Function<AlbumRef, Optional<URI>> links) {
             return new ListResponse(list.id().toString(), list.name(),
                     list.category().map(Object::toString).orElse(null), list.createdAt(),
                     playlistLink.map(URI::toString).orElse(null),
-                    list.picks().stream().map(pick -> PickResponse.from(pick, links)).toList());
+                    list.picks().stream().map(pick -> PickResponse.from(pick, list.category(), library, links)).toList());
         }
     }
 
-    record LibraryAlbumResponse(String id, AlbumResponse album, Integer rating, String notes, SortedSet<String> tags,
-                                LocalDate addedOn) {
+    /**
+     * An album in the library for one activity, with its rating there; {@code general} when that rating is the
+     * General one standing in for the activity's own.
+     */
+    record LibraryAlbumResponse(String id, AlbumResponse album, Integer rating, boolean general, String notes,
+                                SortedSet<String> tags, LocalDate addedOn) {
 
-        static LibraryAlbumResponse from(LibraryAlbum entry, Function<AlbumRef, Optional<URI>> links) {
+        static LibraryAlbumResponse from(LibraryAlbum entry, Optional<CategoryId> activity,
+                Function<AlbumRef, Optional<URI>> links) {
+            Optional<ActivityRating> rating = entry.rating(activity);
             return new LibraryAlbumResponse(entry.id().toString(), AlbumResponse.from(entry.album(), links),
-                    entry.rating().map(Rating::value).orElse(null), entry.notes(), entry.tags(), entry.addedOn());
+                    rating.map(found -> found.rating().value()).orElse(null),
+                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false), entry.notes(),
+                    entry.tags(), entry.addedOn());
         }
+    }
+
+    record RatingResponse(String albumRef, Integer rating) {
     }
 
     record CandidateResponse(AlbumResponse album, double score, SortedSet<String> sources, List<String> seeds) {

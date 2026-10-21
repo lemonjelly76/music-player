@@ -1,0 +1,5 @@
+<resources>
+    <!-- The same as Theme.kt, so the splash and window match the app. -->
+    <color name="background">#FF121212</color>
+    <color name="accent">#FF1ED760</color>
+</resources>

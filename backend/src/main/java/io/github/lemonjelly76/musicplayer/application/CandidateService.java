@@ -2,20 +2,18 @@ package io.github.lemonjelly76.musicplayer.application;
 
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.candidate.CandidatePool;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Seed;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Suggestion;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
-import io.github.lemonjelly76.musicplayer.domain.library.LibraryFilter;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.Verdict;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -23,7 +21,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,22 +68,16 @@ public class CandidateService {
 
     public List<Candidate> candidates(Person person, Optional<Category> category, int limit) {
         List<Seed> seeds = seeds(person, category);
-        Set<AlbumKey> excluded = new HashSet<>(library.keys(person.id()));
-        excluded.addAll(alreadyOffered(person, category));
-        return playable(person, CandidatePool.rank(suggestions(person, seeds), excluded), limit);
+        return playable(person, CandidatePool.rank(suggestions(person, seeds), excluded(person, category)), limit);
     }
 
     /**
      * Candidates from one album alone, for the app's "More like this": instant, and no model involved.
      */
-    public List<Candidate> moreLikeThis(Person person, AlbumRef album, int limit) {
-        Seed seed = library.find(person.id(), album.key())
-                .map(entry -> new Seed(entry.album(), entry.rating(), 0))
-                .orElseGet(() -> Seed.of(album));
-        Set<AlbumKey> excluded = new HashSet<>(library.keys(person.id()));
-        excluded.addAll(alreadyOffered(person, Optional.empty()));
+    public List<Candidate> moreLikeThis(Person person, AlbumRef album, Optional<Category> category, int limit) {
+        Set<AlbumKey> excluded = excluded(person, category);
         excluded.add(album.key());
-        return playable(person, CandidatePool.rank(suggestions(person, List.of(seed)), excluded), limit);
+        return playable(person, CandidatePool.rank(suggestions(person, List.of(Seed.of(album))), excluded), limit);
     }
 
     /**
@@ -102,23 +93,36 @@ public class CandidateService {
     }
 
     /**
-     * The person's best-rated albums and, when counting is on, their most played, best first.
+     * The albums the person loves for the activity (or in General), most played first when counting is on.
      */
     List<Seed> seeds(Person person, Optional<Category> category) {
+        Optional<CategoryId> activity = category.map(Category::id);
         Map<AlbumKey, Integer> playCounts = plays.playsByAlbum(person, category, PLAY_WINDOW_DAYS);
-        Map<AlbumKey, Seed> seeds = new LinkedHashMap<>();
-        for (LibraryAlbum entry : library.list(person.id(), LibraryFilter.ALL)) {
-            AlbumKey key = entry.album().key();
-            seeds.put(key, new Seed(entry.album(), entry.rating(), playCounts.getOrDefault(key, 0)));
-        }
-        return seeds.values().stream()
-                .sorted(Comparator.comparingDouble(CandidateService::seedWeight).reversed())
+        return library.entries(person.id()).stream()
+                .filter(entry -> entry.rating(activity).map(found -> found.rating() == Rating.LOVE).orElse(false))
+                .sorted(Comparator.comparing((LibraryAlbum entry) -> playCounts.getOrDefault(entry.album().key(), 0))
+                        .reversed()
+                        .thenComparing(entry -> entry.rating(activity).orElseThrow().ratedAt(), Comparator.reverseOrder()))
                 .limit(MAX_SEEDS)
+                .map(entry -> new Seed(entry.album(), playCounts.getOrDefault(entry.album().key(), 0)))
                 .toList();
     }
 
-    private static double seedWeight(Seed seed) {
-        return seed.rating().map(rating -> rating.value()).orElse(3) + Math.log1p(seed.plays());
+    /**
+     * Albums already rated for the activity or kept for any, and anything picked in the last four weeks.
+     */
+    private Set<AlbumKey> excluded(Person person, Optional<Category> category) {
+        Optional<CategoryId> activity = category.map(Category::id);
+        Set<AlbumKey> excluded = new HashSet<>();
+        library.entries(person.id()).stream()
+                .filter(entry -> entry.knownFor(activity))
+                .forEach(entry -> excluded.add(entry.album().key()));
+        Instant recent = clock.instant().minus(RECENTLY_RECOMMENDED);
+        recommendations.history(person, HISTORY_LISTS).stream()
+                .filter(list -> list.createdAt().isAfter(recent))
+                .flatMap(list -> list.picks().stream())
+                .forEach(pick -> excluded.add(pick.album().key()));
+        return excluded;
     }
 
     private List<Suggestion> suggestions(Person person, List<Seed> seeds) {
@@ -145,25 +149,6 @@ public class CandidateService {
         } catch (MusicProviderUnavailableException e) {
             return List.of();
         }
-    }
-
-    /**
-     * Albums recommended in the last four weeks, ones the person already knows, and ones they turned down for this
-     * category (an album rejected for Running can still come up under Driving).
-     */
-    private Set<AlbumKey> alreadyOffered(Person person, Optional<Category> category) {
-        Instant recent = clock.instant().minus(RECENTLY_RECOMMENDED);
-        Set<AlbumKey> offered = new HashSet<>();
-        for (RecommendationList list : recommendations.history(person, HISTORY_LISTS)) {
-            boolean sameCategory = list.category().equals(category.map(Category::id));
-            for (Recommendation pick : list.picks()) {
-                if (list.createdAt().isAfter(recent) || pick.has(Verdict.ALREADY_KNOW)
-                        || (sameCategory && pick.has(Verdict.NOT_FOR_ME))) {
-                    offered.add(pick.album().key());
-                }
-            }
-        }
-        return offered;
     }
 
     private List<Candidate> playable(Person person, List<Candidate> ranked, int limit) {

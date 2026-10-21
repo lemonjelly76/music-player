@@ -34,22 +34,8 @@ class RecommendationTest {
     }
 
     @Test
-    void feedbackIsKeptOnThePick() {
-        Recommendation pick = Recommendation.create(AlbumRef.of("Talk Talk", "Spirit of Eden"), "Slow-building",
-                PickSource.WILDCARD);
-
-        Recommendation judged = pick.withFeedback(new Feedback(Verdict.NOT_FOR_ME, "too sparse", NOW));
-
-        assertThat(judged.has(Verdict.NOT_FOR_ME)).isTrue();
-        assertThat(pick.has(Verdict.NOT_FOR_ME)).isFalse();
-    }
-
-    @Test
-    void verdictsAndSourcesParseLoosely() {
-        assertThat(Verdict.parse("not for me")).isEqualTo(Verdict.NOT_FOR_ME);
-        assertThat(Verdict.parse("already-know")).isEqualTo(Verdict.ALREADY_KNOW);
+    void sourcesParseLoosely() {
         assertThat(PickSource.parse("Wildcard")).isEqualTo(PickSource.WILDCARD);
-        assertThatIllegalArgumentException().isThrownBy(() -> Verdict.parse("meh"))
-                .withMessageContaining("LIKED, NOT_FOR_ME, ALREADY_KNOW");
+        assertThatIllegalArgumentException().isThrownBy(() -> PickSource.parse("meh"));
     }
 }

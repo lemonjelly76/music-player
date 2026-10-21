@@ -60,8 +60,8 @@ class ApplicationConfiguration {
 
     @Bean
     RecommendationService recommendationService(RecommendationRepository recommendations, AlbumResolver resolver,
-            LibraryService library, MusicProviders providers, PersonService people, Clock clock) {
-        return new RecommendationService(recommendations, resolver, library, providers, people, clock);
+            LibraryService library, MusicProviders providers, Clock clock) {
+        return new RecommendationService(recommendations, resolver, library, providers, clock);
     }
 
     @Bean
