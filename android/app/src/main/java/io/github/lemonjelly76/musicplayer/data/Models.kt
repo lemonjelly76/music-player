@@ -93,9 +93,8 @@ data class LibraryAlbum(
 
 data class Candidate(val album: Album, val score: Double, val sources: List<String>, val seeds: List<String>)
 
-data class CategoryTracking(val categoryId: String, val name: String, val enabled: Boolean, val overridden: Boolean)
-
-data class Tracking(val enabled: Boolean, val categories: List<CategoryTracking>)
+/** Whether the person's plays are counted; per-activity settings are Claude's to manage, so the app ignores them. */
+data class Tracking(val enabled: Boolean)
 
 /** Reads the server's JSON. Missing optional fields read as null, so older servers still parse. */
 object Json {
@@ -134,16 +133,7 @@ object Json {
         )
     }
 
-    fun tracking(text: String): Tracking {
-        val json = JSONObject(text)
-        return Tracking(
-            enabled = json.getBoolean("enabled"),
-            categories = json.optJSONArray("categories").objects().map {
-                CategoryTracking(it.getString("categoryId"), it.getString("name"), it.getBoolean("enabled"),
-                    it.optBoolean("overridden"))
-            },
-        )
-    }
+    fun tracking(text: String): Tracking = Tracking(enabled = JSONObject(text).getBoolean("enabled"))
 
     fun connectUrl(text: String): String = JSONObject(text).getString("url")
 

@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Seed;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import static io.github.lemonjelly76.musicplayer.application.World.NOW;
 import static io.github.lemonjelly76.musicplayer.application.World.album;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 class CandidateServiceTest {
 
@@ -113,6 +115,32 @@ class CandidateServiceTest {
 
         assertThat(pool).extracting(candidate -> candidate.album().ids().tidal().orElseThrow())
                 .containsExactly("t-dummy");
+    }
+
+    @Test
+    void keepsWhatWasCheckedWhenTheServiceFailsPartWay() {
+        Person craig = world.tidalUser("Craig");
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
+        world.lastFm.suggest(okComputer, mezzanine, dummy, maxinquaye);
+        world.tidal.carry("t-mezz", mezzanine);
+        world.tidal.carry("t-dummy", dummy);
+        world.tidal.findCalls = 0;
+        world.tidal.findsBeforeFailing = 1;
+
+        assertThat(world.candidates.candidates(craig, Optional.empty(), 3)).extracting(Candidate::album)
+                .extracting(AlbumRef::title).containsExactly("Mezzanine");
+    }
+
+    @Test
+    void saysSoWhenTheServiceFailsBeforeAnythingIsChecked() {
+        Person craig = world.tidalUser("Craig");
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
+        world.lastFm.suggest(okComputer, mezzanine);
+        world.tidal.findCalls = 0;
+        world.tidal.findsBeforeFailing = 0;
+
+        assertThatExceptionOfType(MusicProviderUnavailableException.class)
+                .isThrownBy(() -> world.candidates.candidates(craig, Optional.empty(), 3));
     }
 
     @Test

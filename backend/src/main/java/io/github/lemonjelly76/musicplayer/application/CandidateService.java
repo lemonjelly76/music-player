@@ -33,6 +33,8 @@ import java.util.Set;
  */
 public class CandidateService {
 
+    private static final System.Logger LOG = System.getLogger(CandidateService.class.getName());
+
     /**
      * Stands in for the album when only an artist is given; sources that work by artist ignore it.
      */
@@ -169,8 +171,17 @@ public class CandidateService {
                 continue;
             }
             lookups++;
-            provider.findAlbum(album.artist(), album.title())
-                    .ifPresent(found -> kept.add(candidate.withAlbum(album.enrichedWith(found))));
+            try {
+                provider.findAlbum(album.artist(), album.title())
+                        .ifPresent(found -> kept.add(candidate.withAlbum(album.enrichedWith(found))));
+            } catch (MusicProviderUnavailableException e) {
+                if (kept.isEmpty()) {
+                    throw e;
+                }
+                LOG.log(System.Logger.Level.WARNING, "Kept " + kept.size() + " checked albums; "
+                        + provider.name().prefix() + " stopped answering", e);
+                break;
+            }
         }
         return kept;
     }

@@ -64,13 +64,12 @@ class JsonTest {
     }
 
     @Test
-    fun readsTrackingPerCategory() {
+    fun readsWhetherPlaysAreCountedIgnoringPerActivitySettings() {
         val tracking = Json.tracking("""
             {"enabled":true,"categories":[{"categoryId":"c1","name":"Focus","enabled":false,"overridden":true}]}
         """.trimIndent())
 
-        assertTrue(tracking.enabled)
-        assertEquals(CategoryTracking("c1", "Focus", enabled = false, overridden = true), tracking.categories.single())
+        assertEquals(Tracking(enabled = true), tracking)
     }
 
     @Test

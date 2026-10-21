@@ -53,10 +53,10 @@ class ApiClient(private val settings: ServerSettings) {
 
     suspend fun tracking(personId: String): Tracking = Json.tracking(get("/api/people/$personId/play-tracking"))
 
-    /** A null [enabled] makes a category follow the person's own setting again. */
-    suspend fun setTracking(personId: String, categoryId: String?, enabled: Boolean?): Tracking =
+    /** The person's own switch, which every activity without a setting of its own follows. */
+    suspend fun setPlayCounting(personId: String, enabled: Boolean): Tracking =
         Json.tracking(send("PUT", "/api/people/$personId/play-tracking",
-            JSONObject().put("categoryId", categoryId ?: JSONObject.NULL).put("enabled", enabled ?: JSONObject.NULL)))
+            JSONObject().put("categoryId", JSONObject.NULL).put("enabled", enabled)))
 
     suspend fun connectUrl(personId: String): String = Json.connectUrl(get("/api/people/$personId/connect"))
 

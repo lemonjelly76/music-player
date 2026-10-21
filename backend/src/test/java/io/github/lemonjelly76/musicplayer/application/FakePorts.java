@@ -228,6 +228,8 @@ final class FakePorts {
         final List<String> playlistCalls = new ArrayList<>();
         final List<String> deletedPlaylists = new ArrayList<>();
         int findCalls;
+        /** Searches after this many fail, as when the service goes down part way through. */
+        int findsBeforeFailing = Integer.MAX_VALUE;
         boolean failing;
         private int playlistNumber;
 
@@ -271,7 +273,9 @@ final class FakePorts {
 
         @Override
         public Optional<AlbumRef> findAlbum(String artist, String title) {
-            findCalls++;
+            if (findCalls++ >= findsBeforeFailing) {
+                throw new MusicProviderUnavailableException(name.prefix() + " stopped answering");
+            }
             AlbumKey key = AlbumKey.of(artist, title);
             return catalogue.values().stream().filter(album -> album.key().equals(key)).findFirst();
         }

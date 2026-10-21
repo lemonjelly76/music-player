@@ -158,7 +158,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** One switch for all of the person's plays, whatever the activity. */
     fun setPlayCounting(enabled: Boolean) = load {
         val personId = state.value.personId ?: return@load
-        val tracking = api.setTracking(personId, null, enabled)
+        val tracking = api.setPlayCounting(personId, enabled)
         state.update { it.copy(tracking = tracking) }
     }
 
