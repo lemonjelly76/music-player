@@ -4,12 +4,10 @@ import io.github.lemonjelly76.musicplayer.application.RecommendationService.Drop
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.PickRequest;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.Saved;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
-import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +15,6 @@ import java.util.Optional;
 
 import static io.github.lemonjelly76.musicplayer.application.World.album;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 class RecommendationServiceTest {
@@ -30,7 +27,7 @@ class RecommendationServiceTest {
     }
 
     @Test
-    void keepsPicksTheServiceCarriesAndSyncsThemAsAPlaylist() {
+    void keepsPicksTheServiceCarriesWithoutWritingAPlaylist() {
         Person craig = world.tidalUser("Craig");
         world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
         world.tidal.carry("t-2", album("Portishead", "Dummy"));
@@ -41,23 +38,8 @@ class RecommendationServiceTest {
         assertThat(saved.list().name()).isEqualTo("AI Picks — Running");
         assertThat(saved.list().picks()).extracting(found -> found.album().title()).containsExactly("Mezzanine", "Dummy");
         assertThat(saved.dropped()).containsExactly(new Dropped("Made Up — Never Was", "Made Up — Never Was is not on tidal"));
-        assertThat(saved.sync()).isEqualTo("synced to tidal as AI Picks — Running");
-        assertThat(saved.list().playlist()).contains(new SyncedPlaylist(Provider.TIDAL, "playlist-1"));
-        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running [t-1, t-2]");
-        assertThat(world.recommendationRepository.findById(saved.list().id()).orElseThrow().playlist()).isPresent();
-    }
-
-    @Test
-    void replacesTheCategorysPreviousPlaylist() {
-        Person craig = world.tidalUser("Craig");
-        world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
-        world.tidal.carry("t-2", album("Portishead", "Dummy"));
-        world.recommendations.save(craig, Optional.of(running), List.of(pick("tidal:t-1")));
-
-        Saved second = world.recommendations.save(craig, Optional.of(running), List.of(pick("tidal:t-2")));
-
-        assertThat(world.tidal.deletedPlaylists).containsExactly("playlist-1");
-        assertThat(second.list().playlist().orElseThrow().playlistId()).isEqualTo("playlist-2");
+        assertThat(saved.list().playlist()).isEmpty();
+        assertThat(world.tidal.playlistCalls).isEmpty();
     }
 
     @Test
@@ -72,7 +54,6 @@ class RecommendationServiceTest {
 
         assertThat(saved.list().picks()).hasSize(1);
         assertThat(saved.dropped()).extracting(Dropped::why).containsExactly("already rated", "already in this list");
-        assertThat(saved.sync()).isEqualTo("not synced: Craig has no streaming service linked");
     }
 
     @Test
@@ -110,17 +91,5 @@ class RecommendationServiceTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> world.recommendations.save(craig, Optional.empty(), List.of(pick("Made Up — Never Was"))))
                 .withMessageContaining("Made Up — Never Was");
-    }
-
-    @Test
-    void keepsTheListWhenTheServiceFails() {
-        Person craig = world.tidalUser("Craig");
-        world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
-        world.tidal.failing = true;
-
-        Saved saved = world.recommendations.save(craig, Optional.empty(), List.of(pick("tidal:t-1")));
-
-        assertThat(saved.sync()).isEqualTo("saved but not synced: tidal is not connected");
-        assertThat(world.recommendations.lists(craig, Optional.empty(), 5)).hasSize(1);
     }
 }

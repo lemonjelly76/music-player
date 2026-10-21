@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.adapter.spotify;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -111,6 +112,22 @@ class SpotifyApi {
     /**
      * Spotify lists each cover at 640, 300 and 64 pixels; the smallest at least 250 wide suits a phone card.
      */
+    /**
+     * A song with the album it is from, or empty when Spotify left out its id, name or artists.
+     */
+    static Optional<Track> track(JsonNode track) {
+        List<String> artists = new ArrayList<>();
+        track.path("artists").forEach(artist -> artists.add(artist.path("name").asString()));
+        String id = track.path("id").asString("");
+        String title = track.path("name").asString("");
+        if (artists.isEmpty() || id.isEmpty() || title.isBlank()) {
+            return Optional.empty();
+        }
+        JsonNode album = track.path("album");
+        return Optional.of(new Track(Provider.SPOTIFY, id, String.join(", ", artists), title,
+                album.path("name").asString(""), cover(album.path("images"))));
+    }
+
     private static Optional<String> cover(JsonNode images) {
         String best = null;
         int bestWidth = Integer.MAX_VALUE;

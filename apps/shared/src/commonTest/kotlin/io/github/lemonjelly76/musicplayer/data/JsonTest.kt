@@ -9,10 +9,9 @@ import kotlin.test.assertTrue
 class JsonTest {
 
     @Test
-    fun readsListsWithPicksRatingsAndLinks() {
+    fun readsAlbumsToTryWithRatingsAndLinks() {
         val lists = Json.lists("""
             [{"id":"l1","name":"AI Picks — Running","categoryId":"c1","createdAt":"2026-10-20T18:00:00Z",
-              "playlistLink":"https://tidal.com/browse/playlist/p1",
               "picks":[{"id":"p1","reason":"Driving beat","source":"WILDCARD","rating":1,
                 "album":{"ref":"tidal:9","artist":"Portishead","title":"Dummy","year":1994,
                   "link":"https://tidal.com/browse/album/9","cover":"https://resources.tidal.com/images/9.jpg"}},
@@ -22,7 +21,6 @@ class JsonTest {
 
         val list = lists.single()
         assertEquals("AI Picks — Running", list.name)
-        assertEquals("https://tidal.com/browse/playlist/p1", list.playlistLink)
         val (first, second) = list.picks
         assertEquals(Rating.DISLIKE, first.rating)
         assertTrue(first.wildcard)
@@ -32,6 +30,34 @@ class JsonTest {
         assertNull(second.album.link)
         assertEquals("https://resources.tidal.com/images/9.jpg", first.album.cover)
         assertNull(second.album.cover)
+    }
+
+    @Test
+    fun readsPlaylistsOfSongs() {
+        val playlists = Json.playlists("""
+            [{"id":"pl1","name":"AI Picks — Running","description":"Bright and fast","categoryId":"c1",
+              "createdAt":"2026-10-21T18:00:00Z","link":"https://open.spotify.com/playlist/9",
+              "tracks":[{"id":"t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
+                "cover":"https://i/300","link":"https://open.spotify.com/track/t1"}]},
+             {"id":"pl0","name":"AI Picks — Running","createdAt":"2026-10-20T18:00:00Z","link":null,
+              "tracks":[{"id":"t2","artist":"Air","title":"Kelly Watch the Stars","album":"Moon Safari"}]}]
+        """.trimIndent())
+
+        val (newest, older) = playlists
+        assertEquals("Bright and fast", newest.description)
+        assertEquals("https://open.spotify.com/playlist/9", newest.link)
+        assertEquals(Track("t1", "Air", "Sexy Boy", "Moon Safari", "https://i/300", "https://open.spotify.com/track/t1"),
+            newest.tracks.single())
+        assertNull(older.link)
+        assertEquals("", older.description)
+        assertNull(older.tracks.single().cover)
+    }
+
+    @Test
+    fun aPlaylistShowsItsSongsAlbumCoversOnceEach() {
+        val tracks = listOf("a", "a", "b").mapIndexed { n, cover -> Track("t$n", "Air", "Song $n", "Album $cover", cover, null) }
+
+        assertEquals(listOf("a", "b"), Playlist("p", "AI Picks", "", null, "", null, tracks).covers.map { it.cover })
     }
 
     @Test

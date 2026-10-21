@@ -19,7 +19,6 @@ import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,48 +78,21 @@ class MusicControllerTest {
         given(providers.link(any(Person.class), any(AlbumRef.class)))
                 .willAnswer(call -> ((AlbumRef) call.getArgument(1)).ids().tidal()
                         .map(id -> URI.create("https://tidal.com/browse/album/" + id)));
-        given(providers.link(any(SyncedPlaylist.class)))
-                .willAnswer(call -> Optional.of(URI.create("https://tidal.com/browse/playlist/"
-                        + ((SyncedPlaylist) call.getArgument(0)).playlistId())));
     }
 
     @Test
-    void listsPicksWithReasonsAndLinks() {
+    void listsAlbumsToTryWithReasonsAndLinks() {
         Recommendation pick = Recommendation.create(DUMMY, "Moody trip-hop like your Massive Attack", PickSource.POOL);
-        RecommendationList list = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick), NOW)
-                .syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-1"));
+        RecommendationList list = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick), NOW);
         given(recommendations.history(CRAIG, 5)).willReturn(List.of(list));
 
         assertThat(mvc.get().uri("/api/people/{id}/lists", CRAIG.id()))
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
-                        [{"name":"AI Picks","playlistLink":"https://tidal.com/browse/playlist/pl-1",
+                        [{"name":"AI Picks",
                           "picks":[{"id":"%s","reason":"Moody trip-hop like your Massive Attack","source":"POOL",
                             "album":{"ref":"tidal:t-9","artist":"Portishead","title":"Dummy","year":1994,
                               "link":"https://tidal.com/browse/album/t-9"}}]}]""".formatted(pick.id()));
-    }
-
-    @Test
-    void onlyTheNewestListForAnActivityStillHasItsPlaylist() {
-        Category running = Category.create("Running", "");
-        Recommendation pick = Recommendation.create(DUMMY, "Driving beat", PickSource.POOL);
-        RecommendationList newer = RecommendationList.create(CRAIG.id(), Optional.of(running), List.of(pick), NOW)
-                .syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-2"));
-        RecommendationList older = RecommendationList.create(CRAIG.id(), Optional.of(running), List.of(pick),
-                NOW.minusSeconds(86_400)).syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-1"));
-        RecommendationList general = RecommendationList.create(CRAIG.id(), Optional.empty(), List.of(pick),
-                NOW.minusSeconds(172_800)).syncedTo(new SyncedPlaylist(Provider.TIDAL, "pl-0"));
-        given(categories.find(running.id().toString())).willReturn(running);
-        given(recommendations.lists(CRAIG, Optional.of(running), 10)).willReturn(List.of(newer, older));
-        given(recommendations.history(CRAIG, 10)).willReturn(List.of(newer, older, general));
-
-        assertThat(mvc.get().uri("/api/people/{id}/lists?category={c}&limit=10", CRAIG.id(), running.id()))
-                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
-                        [{"playlistLink":"https://tidal.com/browse/playlist/pl-2"},{"playlistLink":null}]""");
-        assertThat(mvc.get().uri("/api/people/{id}/lists?limit=10", CRAIG.id()))
-                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
-                        [{"playlistLink":"https://tidal.com/browse/playlist/pl-2"},{"playlistLink":null},
-                         {"playlistLink":"https://tidal.com/browse/playlist/pl-0"}]""");
     }
 
     @Test

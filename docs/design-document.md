@@ -60,9 +60,16 @@ The person talks to Claude on their own Claude plan. Claude reads and writes the
 
 ### ADR-005 Hand-off playback: playlists in the person's own streaming account — Accepted
 
-Lists are written as real playlists in the person's streaming account, named predictably: `AI Picks` and `AI Picks — <Category>`. A new list for the same person and category replaces the previous playlist. The official Tidal or Spotify app plays them, which gives full-length playback, Android Auto, casting and (on Spotify) Google Home voice ("Hey Google, play AI Picks — Running on Spotify") for free. The apps link to albums and playlists rather than playing them.
+Claude makes two separate things, because a playlist is single songs and album picks are whole albums:
 
-- **Tidal:** playlists hold tracks, so an album is written as all its tracks in order (20 per request). The previous playlist is deleted.
+- **Albums to try** (`save_recommendations`): about 10 albums with a reason each. The app shows them to open one at a time and rate. They write no playlist.
+- **Playlists** (`save_playlist`): Claude names about 60 songs in play order, as artist and title. The server finds each on the person's service (`MusicProvider.findTrack`) and keeps the first 50 found, once each. It drops songs the service lacks and songs from albums turned down for the activity, giving the reason for each. It then writes them as a real playlist in the person's streaming account, named predictably: `AI Picks` and `AI Picks — <Category>`.
+
+A new playlist for the same person and activity replaces the previous one. That includes the one an album list wrote before this split, so the name in the account stays the same. The official Tidal or Spotify app plays them, which gives full-length playback, Android Auto, casting and (on Spotify) Google Home voice ("Hey Google, play AI Picks — Running on Spotify") for free. The apps link to albums, songs and playlists rather than playing them.
+
+**Matching a song** (`TrackMatch`) scores each search result and takes the best. The artist's own credit, or being first with guests, beats being one of many, as compilations credit everyone. The exact title beats an edition ("- Remastered 2009"), which beats another performance (live, demo, instrumental, remix). Spotify's results put compilations last, so a song comes from the artist's own album when it can.
+
+- **Tidal:** the previous playlist is deleted; songs are added 20 per request. A song's cover comes from its album.
 - **Spotify:** there is no playlist delete, so the previous one is unfollowed, which removes it from the library.
 
 **Why:** the 30-second preview limit rules out an in-app Tidal player.
@@ -85,7 +92,7 @@ Lists are written as real playlists in the person's streaming account, named pre
 | 3. Pre-rank | Server | `CandidatePool`: 2 per agreeing source + 1 per loved seed that leads to it + half the log2 of seed plays |
 | 4. Choose | Model | About 7 from `get_candidates` plus up to 3 wildcards |
 | 5. Explain and learn | Model | A reason per pick; `update_taste_profile` |
-| 6. Validate and deliver | Server | `save_recommendations` resolves every pick to a real album on the person's service, drops the rest with a reason and syncs the playlist |
+| 6. Validate and deliver | Server | `save_recommendations` resolves every pick to a real album on the person's service and drops the rest with a reason; the app shows them as albums to try |
 
 - **Album identity:** `AlbumKey` matches albums across catalogues by normalised artist and title, ignoring case, accents, a leading "The", "&" against "and", and edition suffixes such as "(Remastered 2019)" or "[Deluxe Edition]".
 - **Refs:** albums travel as `tidal:<id>`, `spotify:<id>`, `mbid:<release group id>` or `Artist — Title`. Names are checked against the person's ratings before any catalogue lookup.
@@ -135,12 +142,13 @@ The apps show people their own counts (`GET /people/{id}/plays?category=&days=`)
 The app looks and behaves like a streaming app: always dark, album artwork throughout, one green accent. The person switcher and a settings cog sit top right. Home, Search and Library share a row of activity chips (General plus each category), because the question the app answers is "what do I put on for this activity?"
 
 - **Home:** everything for the chosen activity on one page, as streaming apps lay out a home page, rather than separate tabs for albums and playlists, which would split one decision across two places.
-  - **Playlists:** the activity's pick lists as cards, newest first. Only the newest has a play button, as each new list replaces the playlist in the person's account (ADR-005); the server gives earlier lists no playlist link. A last card, "Get new picks", opens Claude with the request written out (`claude.ai/new?q=…`), as new picks come from a conversation (ADR-004).
+  - **Playlists:** the activity's song playlists as cards of their covers, newest first. Only the newest has a play button, as each new playlist replaces the last in the person's account (ADR-005); the server gives earlier ones no link. A last card, "Make a playlist", opens Claude with the request written out (`claude.ai/new?q=…`), as playlists come from a conversation (ADR-004).
   - **Your albums:** the activity's loved and OK albums as a shelf of covers, loved first, with "See all" opening Library.
   - **Sort for the activity:** a card, when there are any, for albums kept for other activities or in General but not rated for this one. It opens a page showing one album at a time, asking "Good for Chill?" with Not for me / OK / Love and Skip. Activities only differ once albums are rated for them, and one tap per album is the quickest way there. The albums are fixed when sorting starts, so ratings do not reshuffle the queue.
   - **On repeat:** the activity's most-played albums over the last four weeks, with play counts, when there are any (ADR-010).
-  - **New picks to try:** the newest list's albums with Claude's reasons and Not for me / OK / Love pills.
-- **Pick list:** a card opens its list as a playlist page: a cover mosaic, the name, a round play button on the newest, then each album with its reason and rating pills.
+  - **Albums to try:** the newest list's albums with Claude's reasons and Not for me / OK / Love pills, and "Get more" to ask Claude for another list. Earlier lists follow as a shelf of cards by date.
+- **Playlist page:** a playlist card opens it as streaming apps show one: a cover mosaic, the name and Claude's one-line description, a round play button on the newest, then every song numbered with its cover, artist and album. Tapping a song plays it in the streaming app.
+- **Earlier albums to try:** a card opens that list with each album's reason and rating pills.
 - **Search:** a tab, as in streaming apps, that searches the person's streaming catalogue as they type (`GET /search`, the catalogue `search_catalogue` uses). Each result has rating pills for the activity, so albums the person already knows join the library without going through Claude, and Claude has more to pick from.
 - **Library:** the activity's albums as a grid of covers, narrowed to Loved, OK, only those rated for the activity itself ("in General" marks a rating standing in), or Not for me. Not for me lists what was turned down for the activity (`GET /library/disliked`), so a mistaken dislike can be found and taken back. Each album's ⋮ menu opens it, shows "More like this", rates it for the activity or removes the activity's own rating.
 - **Your listening:** opened from the person menu, as streaming apps put it in the profile menu, or from On repeat. It shows the tracks and albums played over 4 weeks, 6 months or a year, then top artists (each shown with their most-played album's cover in a circle, as there are no artist photos) and ranked top albums. It follows the activity chips. An empty page says why: counting is off, Tidal shares no history, or nothing has been played from that activity's playlist yet.
@@ -202,7 +210,8 @@ Wide windows show the tabs as a rail down the side and the playlist header besid
 | `list_categories`, `upsert_category` | Shared categories and their rules (R6) |
 | `get_play_stats`, `set_play_tracking` | Play counts and the toggle (R14) |
 | `get_candidates`, `get_similar` | The ranked pool, and ad-hoc similar albums |
-| `save_recommendations`, `get_recommendations` | Lists with each pick's rating, validation and playlist sync (R3) |
+| `save_recommendations`, `get_recommendations` | Albums to try, with each pick's rating and validation (R3) |
+| `save_playlist`, `get_playlists`, `sync_playlist` | 50-song playlists written to the person's account (ADR-005) |
 | `send_to_lidarr` | Wanted albums (R12) |
 
 ## 6. Requirements coverage

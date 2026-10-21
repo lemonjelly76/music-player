@@ -6,6 +6,8 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
+import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import org.springframework.http.HttpMethod;
@@ -34,7 +36,7 @@ import java.util.function.Supplier;
 
 /**
  * Tidal through its JSON:API v2 (ADR-006). Catalogue reads use the app's own token; favourites and playlists use
- * the person's. Tidal playlists hold tracks, so an album is written as all of its tracks in order.
+ * the person's.
  */
 class TidalMusicProvider implements MusicProvider {
 
@@ -92,6 +94,18 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     @Override
+    public Optional<Track> findTrack(String artist, String title) {
+        String path = UriComponentsBuilder.fromPath("/searchResults/{query}/relationships/tracks")
+                .queryParam("countryCode", properties.countryCode())
+                .buildAndExpand(artist + " " + title)
+                .encode()
+                .toUriString();
+        List<FoundTrack> found = tracks(ids(get(path, authorization.appToken())).stream().limit(BATCH).toList());
+        return TrackMatch.best(found.stream().map(FoundTrack::track).toList(), artist, title)
+                .map(best -> withCover(best, found));
+    }
+
+    @Override
     public List<AlbumRef> similarAlbums(String id, int limit) {
         JsonNode body = get("/albums/" + id + "/relationships/similarAlbums?countryCode=" + properties.countryCode(),
                 authorization.appToken());
@@ -118,7 +132,7 @@ class TidalMusicProvider implements MusicProvider {
 
     @Override
     public String replacePlaylist(PersonId person, Optional<String> previousPlaylistId, String name,
-            String description, List<String> albumIds) {
+            String description, List<String> trackIds) {
         String token = authorization.accessToken(person);
         previousPlaylistId.ifPresent(previous -> deletePlaylist(previous, token));
         ObjectNode playlist = jsonMapper.createObjectNode();
@@ -126,14 +140,9 @@ class TidalMusicProvider implements MusicProvider {
         data.putObject("attributes").put("name", name).put("description", description).put("accessType", "PUBLIC");
         String playlistId = send(HttpMethod.POST, "/playlists?countryCode=" + properties.countryCode(), playlist, token)
                 .path("data").path("id").asString();
-        List<String> tracks = new ArrayList<>();
-        for (String albumId : albumIds) {
-            tracks.addAll(allIds("/albums/" + albumId + "/relationships/items?countryCode=" + properties.countryCode(),
-                    authorization.appToken()));
-        }
-        for (int start = 0; start < tracks.size(); start += BATCH) {
+        for (int start = 0; start < trackIds.size(); start += BATCH) {
             send(HttpMethod.POST, "/playlists/" + playlistId + "/relationships/items",
-                    resources("tracks", tracks.subList(start, Math.min(tracks.size(), start + BATCH))), token);
+                    resources("tracks", trackIds.subList(start, Math.min(trackIds.size(), start + BATCH))), token);
         }
         return playlistId;
     }
@@ -146,6 +155,11 @@ class TidalMusicProvider implements MusicProvider {
     @Override
     public URI searchLink(String query) {
         return URI.create(properties.webUrl() + "/search?q=" + UriUtils.encodeQueryParam(query, StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public URI trackLink(String id) {
+        return URI.create(properties.webUrl() + "/track/" + id);
     }
 
     @Override
@@ -214,6 +228,60 @@ class TidalMusicProvider implements MusicProvider {
             toAlbum(album, artistNames, covers).ifPresent(found -> byId.put(album.path("id").asString(), found));
         }
         return ids.stream().filter(byId::containsKey).map(byId::get).toList();
+    }
+
+    /**
+     * A song found by search, with the id of the album it is from so its cover can be looked up.
+     */
+    private record FoundTrack(Track track, String albumId) {
+    }
+
+    /**
+     * The songs with their artists' names and album titles, in the order asked for; covers are left to
+     * {@link #withCover}, as Tidal only gives them with the album.
+     */
+    private List<FoundTrack> tracks(List<String> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/tracks")
+                .queryParam("countryCode", properties.countryCode())
+                .queryParam("include", "artists,albums");
+        ids.forEach(id -> uri.queryParam("filter[id]", id));
+        JsonNode body = get(uri.encode().toUriString(), authorization.appToken());
+        Map<String, String> artistNames = new HashMap<>();
+        Map<String, String> albumTitles = new HashMap<>();
+        for (JsonNode included : body.path("included")) {
+            String type = included.path("type").asString();
+            JsonNode attributes = included.path("attributes");
+            if (type.equals("artists")) {
+                artistNames.put(included.path("id").asString(), attributes.path("name").asString());
+            } else if (type.equals("albums")) {
+                albumTitles.put(included.path("id").asString(), attributes.path("title").asString());
+            }
+        }
+        Map<String, FoundTrack> byId = new LinkedHashMap<>();
+        for (JsonNode track : body.path("data")) {
+            List<String> artists = new ArrayList<>();
+            track.path("relationships").path("artists").path("data").forEach(artist ->
+                    Optional.ofNullable(artistNames.get(artist.path("id").asString())).ifPresent(artists::add));
+            String title = track.path("attributes").path("title").asString("");
+            String albumId = track.path("relationships").path("albums").path("data").path(0).path("id").asString("");
+            if (!artists.isEmpty() && !title.isBlank()) {
+                String id = track.path("id").asString();
+                byId.put(id, new FoundTrack(new Track(Provider.TIDAL, id, String.join(", ", artists), title,
+                        albumTitles.getOrDefault(albumId, ""), Optional.empty()), albumId));
+            }
+        }
+        return ids.stream().filter(byId::containsKey).map(byId::get).toList();
+    }
+
+    private Track withCover(Track track, List<FoundTrack> found) {
+        Optional<String> cover = found.stream().filter(candidate -> candidate.track().equals(track)).findFirst()
+                .filter(candidate -> !candidate.albumId().isEmpty())
+                .flatMap(candidate -> album(candidate.albumId()))
+                .flatMap(AlbumRef::cover);
+        return new Track(track.provider(), track.id(), track.artist(), track.title(), track.album(), cover);
     }
 
     /**

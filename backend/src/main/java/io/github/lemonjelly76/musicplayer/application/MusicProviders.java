@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.application;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
@@ -62,6 +63,10 @@ public class MusicProviders {
         return forPerson(person).map(provider -> album.ids().get(provider.name())
                 .map(provider::albumLink)
                 .orElseGet(() -> provider.searchLink(album.artist() + " " + album.title())));
+    }
+
+    public Optional<URI> link(Track track) {
+        return find(track.provider()).map(provider -> provider.trackLink(track.id()));
     }
 
     public Optional<URI> link(SyncedPlaylist playlist) {

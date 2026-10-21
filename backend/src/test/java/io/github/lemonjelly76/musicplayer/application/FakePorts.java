@@ -9,6 +9,9 @@ import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
+import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
@@ -19,6 +22,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
 import io.github.lemonjelly76.musicplayer.domain.port.TasteProfileRepository;
@@ -214,6 +218,33 @@ final class FakePorts {
         }
     }
 
+    static final class Playlists implements PlaylistRepository {
+
+        final Map<String, Playlist> saved = new LinkedHashMap<>();
+
+        @Override
+        public void save(Playlist playlist) {
+            saved.put(playlist.id().toString(), playlist);
+        }
+
+        @Override
+        public List<Playlist> latest(PersonId person, Optional<CategoryId> activity, int limit) {
+            return saved.values().stream()
+                    .filter(playlist -> playlist.person().equals(person) && playlist.category().equals(activity))
+                    .sorted(Comparator.comparing(Playlist::createdAt).reversed())
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public Optional<Playlist> findBySynced(String providerPlaylistId) {
+            return saved.values().stream()
+                    .filter(playlist -> playlist.synced()
+                            .map(synced -> synced.playlistId().equals(providerPlaylistId)).orElse(false))
+                    .findFirst();
+        }
+    }
+
     /**
      * A streaming service holding a fixed catalogue; albums it carries get its id.
      */
@@ -221,6 +252,7 @@ final class FakePorts {
 
         final Provider name;
         final Map<String, AlbumRef> catalogue = new LinkedHashMap<>();
+        final List<Track> songs = new ArrayList<>();
         final Map<String, List<AlbumRef>> similar = new HashMap<>();
         final Set<PersonId> connectedPeople = new HashSet<>();
         final Map<PersonId, List<String>> favourites = new HashMap<>();
@@ -241,6 +273,12 @@ final class FakePorts {
             AlbumRef onService = album.withIds(album.ids().with(name, id));
             catalogue.put(id, onService);
             return onService;
+        }
+
+        Track carryTrack(String id, String artist, String title, String album) {
+            Track track = new Track(name, id, artist, title, album, Optional.empty());
+            songs.add(track);
+            return track;
         }
 
         @Override
@@ -281,6 +319,14 @@ final class FakePorts {
         }
 
         @Override
+        public Optional<Track> findTrack(String artist, String title) {
+            if (failing) {
+                throw new MusicProviderUnavailableException(name.prefix() + " stopped answering");
+            }
+            return TrackMatch.best(songs, artist, title);
+        }
+
+        @Override
         public List<AlbumRef> similarAlbums(String id, int limit) {
             return similar.getOrDefault(id, List.of());
         }
@@ -299,10 +345,10 @@ final class FakePorts {
 
         @Override
         public String replacePlaylist(PersonId person, Optional<String> previousPlaylistId, String name,
-                String description, List<String> albumIds) {
+                String description, List<String> trackIds) {
             requireConnected(person);
             previousPlaylistId.ifPresent(deletedPlaylists::add);
-            playlistCalls.add(name + " " + albumIds);
+            playlistCalls.add(name + " " + trackIds);
             return "playlist-" + ++playlistNumber;
         }
 
@@ -314,6 +360,11 @@ final class FakePorts {
         @Override
         public URI searchLink(String query) {
             return URI.create("https://" + name.prefix() + ".example/search/" + query.replace(' ', '+'));
+        }
+
+        @Override
+        public URI trackLink(String id) {
+            return URI.create("https://" + name.prefix() + ".example/track/" + id);
         }
 
         @Override

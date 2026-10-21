@@ -2,7 +2,9 @@ package io.github.lemonjelly76.musicplayer.ui
 
 import io.github.lemonjelly76.musicplayer.data.Album
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
+import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.Rating
+import io.github.lemonjelly76.musicplayer.data.Track
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -47,10 +49,22 @@ class HomeLogicTest {
     }
 
     @Test
-    fun asksClaudeForPicksForThePersonAndActivity() {
-        assertEquals("https://claude.ai/new?q=Give+Craig+10+new+album+picks+for+Running.",
+    fun asksClaudeForAlbumsOrAPlaylistForThePersonAndActivity() {
+        assertEquals("https://claude.ai/new?q=Give+Craig+10+new+albums+to+try+for+Running.",
             askClaudeForPicks("Craig", "Running"))
-        assertEquals("https://claude.ai/new?q=Give+Craig+10+new+album+picks.", askClaudeForPicks("Craig", null))
+        assertEquals("https://claude.ai/new?q=Give+Craig+10+new+albums+to+try.", askClaudeForPicks("Craig", null))
+        assertEquals("https://claude.ai/new?q=Make+Craig+a+50-song+playlist+for+Running.",
+            askClaudeForPlaylist("Craig", "Running"))
+    }
+
+    @Test
+    fun describesAPlaylistBySongsAndWhetherItWasReplaced() {
+        val songs = List(50) { Track("t$it", "Air", "Song $it", "Album", null, null) }
+        val playlist = Playlist("p", "AI Picks", "", null, "2026-10-21T18:00:00Z", "https://open.spotify.com/playlist/p", songs)
+
+        assertEquals("50 songs · 21 Oct 2026", playlistDetails(playlist))
+        assertEquals("1 song · 21 Oct 2026 · replaced since",
+            playlistDetails(playlist.copy(link = null, tracks = songs.take(1))))
     }
 
     @Test

@@ -13,6 +13,7 @@ import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.PickList
+import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.ServerSettings
 import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.SettingsStore
@@ -43,8 +44,10 @@ data class UiState(
     val category: String = GENERAL,
     /** Whether the server answered with the saved login, so its settings can fold away. */
     val serverConnected: Boolean = false,
-    /** The activity's pick lists, newest first; only the newest still has a playlist. */
+    /** The activity's lists of albums to try, newest first. */
     val lists: List<PickList> = emptyList(),
+    /** The activity's song playlists, newest first; only the newest is still in the person's account. */
+    val playlists: List<Playlist> = emptyList(),
     val library: List<LibraryAlbum> = emptyList(),
     /** What the person turned down for the activity, so a dislike can be taken back. */
     val disliked: List<LibraryAlbum> = emptyList(),
@@ -107,7 +110,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     fun choosePerson(id: String) = load {
         store.savePersonId(id)
         state.update {
-            it.copy(personId = id, lists = emptyList(), tracking = null, sorting = null).withoutActivityAlbums()
+            it.copy(personId = id, tracking = null, sorting = null).withoutActivityAlbums()
                 .withoutListening()
         }
         coroutineScope {
@@ -119,7 +122,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     /** The activity every tab shows and rates for. */
     fun chooseCategory(category: String) = load {
         state.update {
-            it.copy(category = category, lists = emptyList(), sorting = null).withoutActivityAlbums().withoutListening()
+            it.copy(category = category, sorting = null).withoutActivityAlbums().withoutListening()
         }
         coroutineScope {
             launch { loadLists() }
@@ -129,8 +132,8 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         }
     }
 
-    private fun UiState.withoutActivityAlbums() =
-        copy(library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
+    private fun UiState.withoutActivityAlbums() = copy(lists = emptyList(), playlists = emptyList(),
+        library = emptyList(), disliked = emptyList(), toSort = emptyList(), search = search.copy(results = null))
 
     private fun UiState.withoutListening() = copy(onRepeat = null, listening = listening?.copy(stats = null))
 
@@ -300,11 +303,17 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     /**
      * Answers can arrive after the person or category has changed again; only the latest choice's answer is kept.
      */
-    private suspend fun loadLists() {
-        val personId = state.value.personId ?: return
+    private suspend fun loadLists() = coroutineScope {
+        val personId = state.value.personId ?: return@coroutineScope
         val category = state.value.category
-        val lists = api.lists(personId, category, limit = LISTS_SHOWN)
-        state.update { if (it.personId == personId && it.category == category) it.copy(lists = lists) else it }
+        val lists = async { api.lists(personId, category, limit = LISTS_SHOWN) }
+        val playlists = async { api.playlists(personId, category, limit = LISTS_SHOWN) }
+        val answers = lists.await() to playlists.await()
+        state.update {
+            if (it.personId == personId && it.category == category) {
+                it.copy(lists = answers.first, playlists = answers.second)
+            } else it
+        }
     }
 
     /** The activity's library, what was turned down there and what is still to sort, which any rating can change. */

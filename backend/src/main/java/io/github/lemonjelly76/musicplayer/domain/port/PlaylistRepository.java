@@ -1,0 +1,23 @@
+package io.github.lemonjelly76.musicplayer.domain.port;
+
+import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface PlaylistRepository {
+
+    void save(Playlist playlist);
+
+    /**
+     * The activity's playlists, newest first; no activity means the person's General ones only.
+     */
+    List<Playlist> latest(PersonId person, Optional<CategoryId> activity, int limit);
+
+    /**
+     * The playlist written to the service under that id, so plays from it can be put down to its activity.
+     */
+    Optional<Playlist> findBySynced(String providerPlaylistId);
+}

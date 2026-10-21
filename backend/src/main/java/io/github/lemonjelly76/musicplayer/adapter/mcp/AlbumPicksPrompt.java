@@ -17,8 +17,8 @@ import java.util.List;
 @Component
 class AlbumPicksPrompt {
 
-    private static final String DESCRIPTION = "Picks about 10 albums for a person, optionally for one category, "
-            + "explains each, and syncs them to their streaming service as a playlist.";
+    private static final String DESCRIPTION = "Picks about 10 albums for a person to try, optionally for one "
+            + "category, and explains each.";
 
     @McpPrompt(name = "album_picks", title = "Album picks", description = DESCRIPTION)
     GetPromptResult albumPicks(
@@ -40,7 +40,7 @@ class AlbumPicksPrompt {
                 their 'never recommend' rules and the category's rules.
                 4. Call save_recommendations (person %1$s%3$s) with a one-line reason for each pick, tied to \
                 something specific in their taste. Use the pool's refs; give wildcards as 'Artist — Title'.
-                5. Tell them the list, and anything dropped and why. Replace a dropped pick if you can.
+                5. Tell them the list, and anything dropped and why. Replace a dropped pick if you can. The                 albums show in their app to open and rate; for songs to play straight through, the playlist prompt                 makes a playlist.
                 6. When they say what they think of a pick, record it with rate_album (love, ok or dislike) for \
                 that activity. If what they told you changes your picture of their taste, rewrite it with \
                 update_taste_profile."""

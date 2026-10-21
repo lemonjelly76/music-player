@@ -57,6 +57,14 @@ class ApiClientTest {
     }
 
     @Test
+    fun asksForTheActivitysPlaylists() = runTest {
+        client { json("[]") }.playlists("1", "c1", 5)
+
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/playlists?category=c1&limit=5",
+            requests.single().url.toString())
+    }
+
+    @Test
     fun asksForPlaysOverAPeriodForTheActivity() = runTest {
         client { json("""{"tracking":true,"days":182,"tracks":0,"albumCount":0}""") }.listening("1", "c1", 182)
 

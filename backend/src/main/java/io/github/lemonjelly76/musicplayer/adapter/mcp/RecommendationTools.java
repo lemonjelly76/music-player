@@ -95,10 +95,10 @@ class RecommendationTools {
     }
 
     @McpTool(name = "save_recommendations",
-            description = "Saves a list of picks for a person, optionally for one category, and syncs it to their "
-                    + "streaming service as a playlist named 'AI Picks' or 'AI Picks — <Category>', replacing the "
-                    + "previous one. Every pick is checked: albums that cannot be found or played on their service, "
-                    + "or that they have already rated, are dropped and listed with the reason.",
+            description = "Saves a list of albums to try for a person, optionally for one category, which the app "
+                    + "shows with your reasons for them to rate. It writes no playlist: for songs to play through, "
+                    + "use save_playlist. Every pick is checked: albums that cannot be found or played on their "
+                    + "service, or that they have already rated, are dropped and listed with the reason.",
             annotations = @McpAnnotations(title = "Save recommendations", destructiveHint = false, openWorldHint = true))
     CallToolResult saveRecommendations(
             @McpToolParam(description = "Name or id from list_people") String person,
@@ -112,7 +112,6 @@ class RecommendationTools {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("list", ListView.from(saved.list(), categories.names(), library.byKey(who.id())));
             result.put("dropped", saved.dropped());
-            result.put("sync", saved.sync());
             return json(result);
         });
     }
@@ -136,20 +135,6 @@ class RecommendationTools {
             Map<CategoryId, String> names = categories.names();
             Map<AlbumKey, LibraryAlbum> rated = library.byKey(who.id());
             return json(lists.stream().map(list -> ListView.from(list, names, rated)).toList());
-        });
-    }
-
-    @McpTool(name = "sync_playlist",
-            description = "Syncs a person's latest list for an activity to their streaming service again, for a list "
-                    + "saved while the service was unavailable or before they connected it.",
-            annotations = @McpAnnotations(title = "Sync playlist", idempotentHint = true, openWorldHint = true))
-    CallToolResult syncPlaylist(
-            @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Activity name; leave out for their general list", required = false)
-            String category) {
-        return attempt(() -> {
-            Saved saved = recommendations.resync(people.find(person), categories.findOptional(category));
-            return json(Map.of("list", saved.list().name(), "sync", saved.sync()));
         });
     }
 

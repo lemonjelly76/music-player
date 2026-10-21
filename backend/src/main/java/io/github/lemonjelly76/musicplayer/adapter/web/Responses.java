@@ -8,6 +8,8 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.ArtistPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.ListeningStats;
@@ -74,14 +76,15 @@ final class Responses {
         }
     }
 
-    record ListResponse(String id, String name, String categoryId, Instant createdAt, String playlistLink,
-                        List<PickResponse> picks) {
+    /**
+     * Albums to try; they are opened one by one, so the list has no playlist of its own.
+     */
+    record ListResponse(String id, String name, String categoryId, Instant createdAt, List<PickResponse> picks) {
 
-        static ListResponse from(RecommendationList list, Optional<URI> playlistLink,
-                Map<AlbumKey, LibraryAlbum> library, Function<AlbumRef, Optional<URI>> links) {
+        static ListResponse from(RecommendationList list, Map<AlbumKey, LibraryAlbum> library,
+                Function<AlbumRef, Optional<URI>> links) {
             return new ListResponse(list.id().toString(), list.name(),
                     list.category().map(Object::toString).orElse(null), list.createdAt(),
-                    playlistLink.map(URI::toString).orElse(null),
                     list.picks().stream().map(pick -> PickResponse.from(pick, list.category(), library, links)).toList());
         }
     }
@@ -125,6 +128,29 @@ final class Responses {
         static CandidateResponse from(Candidate candidate, Function<AlbumRef, Optional<URI>> links) {
             return new CandidateResponse(AlbumResponse.from(candidate.album(), links), candidate.score(),
                     candidate.sources(), candidate.seeds());
+        }
+    }
+
+    /**
+     * Songs to play straight through; only the newest for an activity has a {@code link}, as each new one replaces
+     * it in the person's account.
+     */
+    record PlaylistResponse(String id, String name, String description, String categoryId, Instant createdAt,
+                            String link, List<TrackResponse> tracks) {
+
+        static PlaylistResponse from(Playlist playlist, Optional<URI> link, Function<Track, Optional<URI>> links) {
+            return new PlaylistResponse(playlist.id().toString(), playlist.name(), playlist.description(),
+                    playlist.category().map(Object::toString).orElse(null), playlist.createdAt(),
+                    link.map(URI::toString).orElse(null),
+                    playlist.tracks().stream().map(track -> TrackResponse.from(track, links)).toList());
+        }
+    }
+
+    record TrackResponse(String id, String artist, String title, String album, String cover, String link) {
+
+        static TrackResponse from(Track track, Function<Track, Optional<URI>> links) {
+            return new TrackResponse(track.id(), track.artist(), track.title(), track.album(),
+                    track.cover().orElse(null), links.apply(track).map(URI::toString).orElse(null));
         }
     }
 

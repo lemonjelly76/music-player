@@ -8,6 +8,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
 import io.github.lemonjelly76.musicplayer.domain.port.TasteProfileRepository;
@@ -65,9 +66,15 @@ class ApplicationConfiguration {
     }
 
     @Bean
-    PlayService playService(PlayRepository plays, PersonRepository people, RecommendationRepository recommendations,
-            List<ListeningHistory> histories, Clock clock) {
-        return new PlayService(plays, people, recommendations, histories, clock);
+    PlaylistService playlistService(PlaylistRepository playlists, RecommendationRepository recommendations,
+            LibraryService library, MusicProviders providers, Clock clock) {
+        return new PlaylistService(playlists, recommendations, library, providers, clock);
+    }
+
+    @Bean
+    PlayService playService(PlayRepository plays, PersonRepository people, PlaylistRepository playlists,
+            RecommendationRepository recommendations, List<ListeningHistory> histories, Clock clock) {
+        return new PlayService(plays, people, playlists, recommendations, histories, clock);
     }
 
     @Bean

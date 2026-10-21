@@ -79,14 +79,48 @@ data class Pick(
     val rating: Rating?,
 )
 
+/** Albums Claude picked to try, with a reason for each; they are opened one by one, not played as a playlist. */
 data class PickList(
     val id: String,
     val name: String,
     val categoryId: String?,
     val createdAt: String,
-    val playlistLink: String?,
     val picks: List<Pick>,
 )
+
+/** A song in a playlist; [link] plays it in the person's streaming app. */
+data class Track(
+    val id: String,
+    val artist: String,
+    val title: String,
+    val album: String,
+    val cover: String?,
+    val link: String?,
+)
+
+/**
+ * Songs Claude picked to play straight through. Only the newest for an activity has a [link], as each new one
+ * replaces it in the person's account.
+ */
+data class Playlist(
+    val id: String,
+    val name: String,
+    val description: String,
+    val categoryId: String?,
+    val createdAt: String,
+    val link: String?,
+    val tracks: List<Track>,
+) {
+    /** One cover per album, as albums, for the covers a playlist is shown with. */
+    val covers: List<Album>
+        get() = tracks.filter { it.cover != null }.distinctBy { it.cover }
+            .map { Album(it.id, it.artist, it.album, null, null, it.cover) }
+
+    companion object {
+        /** How many songs Claude puts in a playlist. */
+        const val SIZE = 50
+    }
+}
 
 /**
  * An album in the person's library for one activity, with its [rating] there; [general] when that is the General
@@ -149,8 +183,22 @@ object Json {
             name = list.string("name"),
             categoryId = list.stringOrNull("categoryId"),
             createdAt = list.optString("createdAt"),
-            playlistLink = list.stringOrNull("playlistLink"),
             picks = list.objects("picks").map(::pick),
+        )
+    }
+
+    fun playlists(text: String): List<Playlist> = array(text).map { playlist ->
+        Playlist(
+            id = playlist.string("id"),
+            name = playlist.string("name"),
+            description = playlist.optString("description"),
+            categoryId = playlist.stringOrNull("categoryId"),
+            createdAt = playlist.optString("createdAt"),
+            link = playlist.stringOrNull("link"),
+            tracks = playlist.objects("tracks").map {
+                Track(it.string("id"), it.string("artist"), it.string("title"), it.optString("album"),
+                    it.stringOrNull("cover"), it.stringOrNull("link"))
+            },
         )
     }
 

@@ -46,7 +46,7 @@ class McpEndpointTest {
                 "update_album", "remove_album", "get_library", "get_taste_profile", "update_taste_profile",
                 "list_categories", "upsert_category", "get_play_stats", "set_play_tracking", "get_candidates",
                 "get_similar", "save_recommendations", "rate_album", "send_to_lidarr", "import_favourites",
-                "get_recommendations");
+                "get_recommendations", "save_playlist", "get_playlists", "sync_playlist");
     }
 
     @Test
@@ -57,6 +57,29 @@ class McpEndpointTest {
 
         assertThat(prompt.path("messages").path(0).path("content").path("text").asString())
                 .contains("get_candidates (person Craig, category Running)", "save_recommendations");
+    }
+
+    @Test
+    void offersThePlaylistPrompt() throws Exception {
+        JsonNode prompt = new McpClient(endpoint(), BASIC).initialize()
+                .request("prompts/get", """
+                        {"name":"playlist","arguments":{"person":"Craig","category":"Running"}}""");
+
+        assertThat(prompt.path("messages").path(0).path("content").path("text").asString())
+                .contains("50", "save_playlist (person Craig, category Running)");
+    }
+
+    @Test
+    void refusesAPlaylistForSomeoneWithNoServiceToFindSongsOn() throws Exception {
+        McpClient claude = new McpClient(endpoint(), BEARER).initialize();
+        claude.callTool("add_person", """
+                {"name":"Sam"}""");
+
+        JsonNode saved = claude.callTool("save_playlist", """
+                {"person":"Sam","description":"Warm up","tracks":[{"artist":"Air","title":"Sexy Boy"}]}""");
+
+        assertThat(saved.path("isError").asBoolean()).isTrue();
+        assertThat(McpClient.text(saved)).contains("Sam has no streaming service");
     }
 
     @Test

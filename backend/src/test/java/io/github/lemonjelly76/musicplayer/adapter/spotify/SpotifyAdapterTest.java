@@ -9,6 +9,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
@@ -86,15 +87,13 @@ class SpotifyAdapterTest {
     }
 
     @Test
-    void replacesThePlaylistByUnfollowingTheOldOneAndAddingTrackUris() {
+    void replacesThePlaylistByUnfollowingTheOldOneAndAddingTheSongs() {
         spotify.stubFor(delete(urlPathEqualTo("/v1/playlists/old/followers")).willReturn(ok()));
         spotify.stubFor(post(urlPathEqualTo("/v1/me/playlists")).willReturn(okJson("""
                 {"id":"new-playlist"}""")));
-        spotify.stubFor(get(urlPathEqualTo("/v1/albums/sp-blue/tracks")).willReturn(okJson("""
-                {"items":[{"uri":"spotify:track:1"},{"uri":"spotify:track:2"}],"next":null}""")));
         spotify.stubFor(post(urlPathEqualTo("/v1/playlists/new-playlist/items")).willReturn(okJson("{}")));
 
-        String id = provider.replacePlaylist(CRAIG.id(), Optional.of("old"), "AI Picks", "For Craig", List.of("sp-blue"));
+        String id = provider.replacePlaylist(CRAIG.id(), Optional.of("old"), "AI Picks", "For Craig", List.of("1", "2"));
 
         assertThat(id).isEqualTo("new-playlist");
         spotify.verify(deleteRequestedFor(urlPathEqualTo("/v1/playlists/old/followers")));
@@ -102,6 +101,26 @@ class SpotifyAdapterTest {
                 {"name":"AI Picks","description":"For Craig","public":false}""")));
         spotify.verify(postRequestedFor(urlPathEqualTo("/v1/playlists/new-playlist/items")).withRequestBody(equalToJson("""
                 {"uris":["spotify:track:1","spotify:track:2"]}""")));
+    }
+
+    @Test
+    void findsASongOnTheArtistsOwnAlbumRatherThanACompilation() {
+        spotify.stubFor(get(urlPathEqualTo("/v1/search")).willReturn(okJson("""
+                {"tracks":{"items":[
+                  {"id":"tr-5","name":"Sexy Boy","artists":[{"name":"Air"}],
+                   "album":{"name":"Pure Chillout","album_type":"compilation","images":[]}},
+                  {"id":"tr-9","name":"Sexy Boy - Remastered","artists":[{"name":"Air"}],
+                   "album":{"name":"Moon Safari","images":[{"url":"https://i/640","width":640},{"url":"https://i/300","width":300}]}},
+                  {"id":"tr-1","name":"Sexy Boy","artists":[{"name":"Air"}],
+                   "album":{"name":"Moon Safari","images":[{"url":"https://i/300","width":300}]}}]}}""")));
+
+        Optional<Track> found = provider.findTrack("Air", "Sexy Boy");
+
+        assertThat(found).contains(new Track(Provider.SPOTIFY, "tr-1", "Air", "Sexy Boy", "Moon Safari",
+                Optional.of("https://i/300")));
+        spotify.verify(getRequestedFor(urlPathEqualTo("/v1/search"))
+                .withQueryParam("type", equalTo("track"))
+                .withQueryParam("q", equalTo("track:Sexy Boy artist:Air")));
     }
 
     @Test

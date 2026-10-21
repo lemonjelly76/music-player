@@ -66,14 +66,17 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var settingsOpen by rememberSaveable { mutableStateOf(!ui.server.complete) }
-    // A pick list opened from Home's Playlists shelf; it closes by itself when the activity or person changes.
+    // A playlist or earlier album list opened from Home; it closes by itself when the activity or person changes.
     var openListId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
+    val openPlaylist = ui.playlists.firstOrNull { it.id == openPlaylistId }.takeIf { screen == Screen.HOME }
     val sorting = ui.sorting
     val listening = ui.listening
     val chooseScreen = { chosen: Screen ->
         screen = chosen
         openListId = null
+        openPlaylistId = null
         viewModel.stopSorting()
         viewModel.closeListening()
     }
@@ -99,11 +102,13 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
         onPauseOrDispose { }
     }
 
-    SystemBack(enabled = settingsOpen || sorting != null || listening != null || openList != null) {
+    SystemBack(enabled = settingsOpen || sorting != null || listening != null || openList != null ||
+        openPlaylist != null) {
         when {
             settingsOpen -> settingsOpen = false
             sorting != null -> viewModel.stopSorting()
             listening != null -> viewModel.closeListening()
+            openPlaylist != null -> openPlaylistId = null
             else -> openListId = null
         }
     }
@@ -144,9 +149,19 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                         },
                         colors = barColors,
                     )
+                } else if (openPlaylist != null) {
+                    TopAppBar(
+                        title = { },
+                        navigationIcon = {
+                            IconButton(onClick = { openPlaylistId = null }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        colors = barColors,
+                    )
                 } else if (openList != null) {
                     TopAppBar(
-                        title = { Text(openList.name, fontWeight = FontWeight.Bold) },
+                        title = { Text(shortDate(openList.createdAt), fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             IconButton(onClick = { openListId = null }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -183,6 +198,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                             ActivityChips(activities(ui), ui.category, viewModel::chooseCategory)
                             ListeningScreen(listening, ui, viewModel, open)
                         }
+                        openPlaylist != null -> PlaylistScreen(openPlaylist, ui.person?.name, open)
                         openList != null -> PickListScreen(openList, ui.person?.name, viewModel, open)
                         else -> Refreshable(ui.loading, viewModel::refresh) {
                             Column {
@@ -191,7 +207,8 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
                                 }
                                 when (screen) {
                                     Screen.HOME -> HomeScreen(ui, viewModel, open,
-                                        showList = { openListId = it }, seeLibrary = { screen = Screen.LIBRARY })
+                                        showList = { openListId = it }, showPlaylist = { openPlaylistId = it },
+                                        seeLibrary = { screen = Screen.LIBRARY })
                                     Screen.SEARCH -> SearchScreen(ui, viewModel, open)
                                     Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
                                 }

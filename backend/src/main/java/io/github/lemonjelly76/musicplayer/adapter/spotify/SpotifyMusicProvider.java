@@ -5,6 +5,8 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumMatch;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
+import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import org.springframework.http.HttpMethod;
@@ -16,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,17 +64,41 @@ class SpotifyMusicProvider implements MusicProvider {
 
     @Override
     public List<AlbumRef> searchAlbums(String query, int limit) {
+        List<AlbumRef> albums = new ArrayList<>();
+        search(query, "album", limit).path("albums").path("items")
+                .forEach(album -> SpotifyApi.album(album).ifPresent(albums::add));
+        return albums;
+    }
+
+    @Override
+    public Optional<Track> findTrack(String artist, String title) {
+        return TrackMatch.best(searchTracks("track:" + title + " artist:" + artist), artist, title)
+                .or(() -> TrackMatch.best(searchTracks(artist + " " + title), artist, title));
+    }
+
+    /**
+     * Songs from the artists' own albums and singles first, so a compilation's copy is only taken when it is the only
+     * one.
+     */
+    private List<Track> searchTracks(String query) {
+        List<JsonNode> items = new ArrayList<>();
+        search(query, "track", SEARCH_LIMIT).path("tracks").path("items").forEach(items::add);
+        return items.stream()
+                .sorted(Comparator.comparing(item -> item.path("album").path("album_type").asString("")
+                        .equals("compilation")))
+                .flatMap(item -> SpotifyApi.track(item).stream())
+                .toList();
+    }
+
+    private JsonNode search(String query, String type, int limit) {
         String url = UriComponentsBuilder.fromUriString(api.url("/search"))
                 .queryParam("q", query)
-                .queryParam("type", "album")
+                .queryParam("type", type)
                 .queryParam("market", properties.market())
                 .queryParam("limit", Math.min(limit, SEARCH_LIMIT))
                 .encode()
                 .toUriString();
-        List<AlbumRef> albums = new ArrayList<>();
-        api.get(url, authorization.appToken()).path("albums").path("items")
-                .forEach(album -> SpotifyApi.album(album).ifPresent(albums::add));
-        return albums;
+        return api.get(url, authorization.appToken());
     }
 
     @Override
@@ -118,16 +145,12 @@ class SpotifyMusicProvider implements MusicProvider {
 
     @Override
     public String replacePlaylist(PersonId person, Optional<String> previousPlaylistId, String name,
-            String description, List<String> albumIds) {
+            String description, List<String> trackIds) {
         String token = authorization.accessToken(person);
         previousPlaylistId.ifPresent(previous -> unfollow(previous, token));
         String playlistId = api.send(HttpMethod.POST, api.url("/me/playlists"),
                 Map.of("name", name, "description", description, "public", false), token).path("id").asString();
-        List<String> uris = new ArrayList<>();
-        for (String albumId : albumIds) {
-            api.allItems(api.url("/albums/" + albumId + "/tracks?limit=50"), authorization.appToken())
-                    .forEach(track -> uris.add(track.path("uri").asString()));
-        }
+        List<String> uris = trackIds.stream().map(id -> "spotify:track:" + id).toList();
         for (int start = 0; start < uris.size(); start += TRACKS_PER_ADD) {
             api.send(HttpMethod.POST, api.url("/playlists/" + playlistId + "/items"),
                     Map.of("uris", uris.subList(start, Math.min(uris.size(), start + TRACKS_PER_ADD))), token);
@@ -143,6 +166,11 @@ class SpotifyMusicProvider implements MusicProvider {
     @Override
     public URI searchLink(String query) {
         return URI.create(properties.webUrl() + "/search/" + UriUtils.encodePathSegment(query, StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public URI trackLink(String id) {
+        return URI.create(properties.webUrl() + "/track/" + id);
     }
 
     @Override

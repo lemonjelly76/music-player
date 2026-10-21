@@ -12,10 +12,8 @@ import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
-import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,13 +22,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Step 6 of the pipeline: checks every pick the model makes against the catalogue and what the person has rated,
- * keeps the list and syncs it to their streaming service as a playlist. What they think of a pick is a rating in
- * their library (ADR-015).
+ * Step 6 of the pipeline: checks every pick the model makes against the catalogue and what the person has rated, and
+ * keeps the list of albums to try. Albums are opened one at a time, so a list writes no playlist; song playlists are
+ * {@link PlaylistService}'s. What they think of a pick is a rating in their library (ADR-015).
  */
 public class RecommendationService {
-
-    private static final int HISTORY = 50;
 
     private final RecommendationRepository repository;
     private final AlbumResolver resolver;
@@ -86,19 +82,7 @@ public class RecommendationService {
         }
         RecommendationList list = RecommendationList.create(person.id(), category, picks, clock.instant());
         repository.save(list);
-        return sync(person, list, service, dropped);
-    }
-
-    /**
-     * Syncs the latest list for the category again, for one saved while the streaming service was unavailable.
-     */
-    public Saved resync(Person person, Optional<Category> category) {
-        RecommendationList latest = history(person, HISTORY).stream()
-                .filter(list -> list.category().equals(category.map(Category::id)))
-                .findFirst()
-                .orElseThrow(() -> new NotFoundException("No " + RecommendationList.nameFor(category) + " list for "
-                        + person.name() + " yet"));
-        return sync(person, latest, providers.forPerson(person), List.of());
+        return new Saved(list, dropped);
     }
 
     /**
@@ -155,40 +139,6 @@ public class RecommendationService {
         return Optional.empty();
     }
 
-    /**
-     * Only picks the service carries can go in its playlist; the rest stay in the list for the app to show.
-     */
-    private Saved sync(Person person, RecommendationList list, Optional<MusicProvider> service, List<Dropped> dropped) {
-        if (service.isEmpty()) {
-            return new Saved(list, dropped, "not synced: " + person.name() + " has no streaming service linked");
-        }
-        MusicProvider provider = service.get();
-        Optional<String> previous = previousPlaylist(person, list);
-        List<String> albumIds = list.picks().stream()
-                .flatMap(pick -> pick.album().ids().get(provider.name()).stream())
-                .toList();
-        if (albumIds.isEmpty()) {
-            return new Saved(list, dropped, "not synced: none of the picks are on " + provider.name().prefix());
-        }
-        try {
-            String playlistId = provider.replacePlaylist(person.id(), previous, list.name(),
-                    "Picked for " + person.name() + " on " + LocalDate.now(clock), albumIds);
-            RecommendationList synced = list.syncedTo(new SyncedPlaylist(provider.name(), playlistId));
-            repository.save(synced);
-            return new Saved(synced, dropped, "synced to " + provider.name().prefix() + " as " + list.name());
-        } catch (MusicProviderUnavailableException e) {
-            return new Saved(list, dropped, "saved but not synced: " + e.getMessage());
-        }
-    }
-
-    private Optional<String> previousPlaylist(Person person, RecommendationList list) {
-        return repository.findByPerson(person.id(), list.category(), 10).stream()
-                .filter(earlier -> !earlier.id().equals(list.id()) && earlier.name().equals(list.name()))
-                .flatMap(earlier -> earlier.playlist().stream())
-                .map(SyncedPlaylist::playlistId)
-                .findFirst();
-    }
-
     public record PickRequest(String albumRef, String reason, PickSource source) {
     }
 
@@ -200,6 +150,6 @@ public class RecommendationService {
         }
     }
 
-    public record Saved(RecommendationList list, List<Dropped> dropped, String sync) {
+    public record Saved(RecommendationList list, List<Dropped> dropped) {
     }
 }

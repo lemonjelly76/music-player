@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.domain.port;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 
 import java.net.URI;
 import java.util.List;
@@ -33,6 +34,11 @@ public interface MusicProvider {
      */
     Optional<AlbumRef> findAlbum(String artist, String title);
 
+    /**
+     * The service's own song for an artist and title, matched loosely, or empty when it does not carry it.
+     */
+    Optional<Track> findTrack(String artist, String title);
+
     List<AlbumRef> similarAlbums(String id, int limit);
 
     List<AlbumRef> favouriteAlbums(PersonId person);
@@ -40,11 +46,11 @@ public interface MusicProvider {
     void addFavourite(PersonId person, String id);
 
     /**
-     * Writes the albums, every track in order, to a playlist of that name in the person's account, replacing the
-     * previous one when its id is given, and returns the new playlist's id.
+     * Writes the tracks, in order, to a playlist of that name in the person's account, replacing the previous one
+     * when its id is given, and returns the new playlist's id.
      */
     String replacePlaylist(PersonId person, Optional<String> previousPlaylistId, String name, String description,
-            List<String> albumIds);
+            List<String> trackIds);
 
     /**
      * A link that opens the album in the service's own app.
@@ -55,6 +61,8 @@ public interface MusicProvider {
      * A link that opens the service's own search, for an album whose id on the service is not known.
      */
     URI searchLink(String query);
+
+    URI trackLink(String id);
 
     URI playlistLink(String playlistId);
 }

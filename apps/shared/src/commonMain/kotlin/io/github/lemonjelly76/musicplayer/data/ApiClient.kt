@@ -48,9 +48,13 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
 
     suspend fun categories(): List<Category> = Json.categories(get("api/categories"))
 
-    /** The person's latest lists; [category] is a category id, or "none" for their general list. */
+    /** The person's latest lists of albums to try; [category] is a category id, or "none" for their general list. */
     suspend fun lists(personId: String, category: String, limit: Int = 1): List<PickList> =
         Json.lists(get("api/people/$personId/lists", "category" to category, "limit" to limit.toString()))
+
+    /** The activity's song playlists, newest first. */
+    suspend fun playlists(personId: String, category: String, limit: Int): List<Playlist> =
+        Json.playlists(get("api/people/$personId/playlists", "category" to category, "limit" to limit.toString()))
 
     /** What the person loves or rates OK for the activity, loved first. */
     suspend fun library(personId: String, category: String): List<LibraryAlbum> =

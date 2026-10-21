@@ -9,6 +9,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -114,36 +115,54 @@ class TidalMusicProviderTest {
     }
 
     @Test
-    void replacesThePlaylistWithEveryTrackOfEachAlbum() {
+    void replacesThePlaylistWithTheSongsInBatches() {
         tidal.stubFor(delete(urlPathEqualTo("/v2/playlists/old")).willReturn(notFound()));
         tidal.stubFor(post(urlPathEqualTo("/v2/playlists")).willReturn(okJson("""
                 {"data":{"id":"new-playlist","type":"playlists"}}""")));
-        tidal.stubFor(get(urlPathEqualTo("/v2/albums/77/relationships/items"))
-                .withQueryParam("countryCode", equalTo("GB"))
-                .willReturn(okJson("""
-                        {"data":[{"id":"t1","type":"tracks"},{"id":"t2","type":"tracks"}],
-                         "links":{"next":"/v2/albums/77/relationships/items?page%5Bcursor%5D=c2&countryCode=GB"}}""")));
-        tidal.stubFor(get(urlPathEqualTo("/v2/albums/77/relationships/items"))
-                .withQueryParam("page[cursor]", equalTo("c2"))
-                .willReturn(okJson("""
-                        {"data":[{"id":"t3","type":"tracks"}],"links":{}}""")));
         tidal.stubFor(post(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items")).willReturn(okJson("{}")));
+        List<String> songs = java.util.stream.IntStream.rangeClosed(1, 21).mapToObj(n -> "t" + n).toList();
 
-        String id = provider.replacePlaylist(CRAIG, Optional.of("old"), "AI Picks", "Picked for Craig", List.of("77"));
+        String id = provider.replacePlaylist(CRAIG, Optional.of("old"), "AI Picks", "Picked for Craig", songs);
 
         assertThat(id).isEqualTo("new-playlist");
         tidal.verify(deleteRequestedFor(urlPathEqualTo("/v2/playlists/old")));
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists")).withRequestBody(equalToJson("""
                 {"data":{"type":"playlists","attributes":{"name":"AI Picks","description":"Picked for Craig",
                   "accessType":"PUBLIC"}}}""")));
+        tidal.verify(2, postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items")));
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items"))
                 .withRequestBody(equalToJson("""
-                        {"data":[{"id":"t1","type":"tracks"},{"id":"t2","type":"tracks"},{"id":"t3","type":"tracks"}]}""")));
+                        {"data":[{"id":"t21","type":"tracks"}]}""")));
+    }
+
+    @Test
+    void findsASongWithItsAlbum() {
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/Joni%20Mitchell%20River/relationships/tracks"))
+                .willReturn(okJson("""
+                        {"data":[{"id":"s2","type":"tracks"},{"id":"s1","type":"tracks"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/tracks")).willReturn(okJson("""
+                {"data":[
+                  {"id":"s2","type":"tracks","attributes":{"title":"River"},
+                   "relationships":{"artists":{"data":[{"id":"a9","type":"artists"}]},
+                                    "albums":{"data":[{"id":"90","type":"albums"}]}}},
+                  {"id":"s1","type":"tracks","attributes":{"title":"River"},
+                   "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]},
+                                    "albums":{"data":[{"id":"77","type":"albums"}]}}}],
+                 "included":[{"id":"a1","type":"artists","attributes":{"name":"Joni Mitchell"}},
+                             {"id":"a9","type":"artists","attributes":{"name":"Leon Bridges"}},
+                             {"id":"77","type":"albums","attributes":{"title":"Blue"}}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson(ALBUMS)));
+
+        assertThat(provider.findTrack("Joni Mitchell", "River")).contains(
+                new Track(Provider.TIDAL, "s1", "Joni Mitchell", "River", "Blue", Optional.empty()));
+        tidal.verify(getRequestedFor(urlPathEqualTo("/v2/tracks"))
+                .withQueryParam("include", equalTo("artists,albums")));
     }
 
     @Test
     void linksOpenTheAlbumAndPlaylistOnTidal() {
         assertThat(provider.albumLink("77")).isEqualTo(URI.create("https://tidal.com/browse/album/77"));
         assertThat(provider.playlistLink("p1")).isEqualTo(URI.create("https://tidal.com/browse/playlist/p1"));
+        assertThat(provider.trackLink("s1")).isEqualTo(URI.create("https://tidal.com/browse/track/s1"));
     }
 }

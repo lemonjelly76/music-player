@@ -3,6 +3,8 @@ package io.github.lemonjelly76.musicplayer.application;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
@@ -28,8 +30,8 @@ class PlayServiceTest {
     private final Category focus = world.categories.upsert("Focus", "Instrumental");
 
     private int collect(FakePorts.History... histories) {
-        return new PlayService(world.playRepository, world.peopleRepository, world.recommendationRepository,
-                List.of(histories), world.clock).collect();
+        return new PlayService(world.playRepository, world.peopleRepository, world.playlistRepository,
+                world.recommendationRepository, List.of(histories), world.clock).collect();
     }
 
     private Play play(String artist, String title, Duration ago, String playlist) {
@@ -37,9 +39,27 @@ class PlayServiceTest {
     }
 
     private void listOnPlaylist(Person person, Category category, String playlistId) {
+        world.playlistRepository.save(Playlist.create(person.id(), Optional.of(category), "",
+                List.of(new Track(Provider.SPOTIFY, "tr-1", "Daft Punk", "One More Time", "Discovery", Optional.empty())),
+                NOW).syncedTo(new SyncedPlaylist(Provider.SPOTIFY, playlistId)));
+    }
+
+    private void albumListOnPlaylist(Person person, Category category, String playlistId) {
         world.recommendationRepository.save(RecommendationList.create(person.id(), Optional.of(category),
                 List.of(Recommendation.create(album("Daft Punk", "Discovery"), "Fast", PickSource.POOL)), NOW)
                 .syncedTo(new SyncedPlaylist(Provider.SPOTIFY, playlistId)));
+    }
+
+    @Test
+    void playsFromAPlaylistWrittenFromAlbumsStillCountForItsActivity() {
+        Person craig = world.withoutService("Craig");
+        albumListOnPlaylist(craig, running, "old-playlist");
+        FakePorts.History spotify = new FakePorts.History("spotify", cursor -> new PlayBatch(List.of(
+                play("Daft Punk", "Discovery", Duration.ofHours(1), "old-playlist")), Optional.empty()));
+
+        collect(spotify);
+
+        assertThat(world.plays.stats(craig, Optional.of(running), 7).orElseThrow()).hasSize(1);
     }
 
     @Test

@@ -8,6 +8,7 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
@@ -108,6 +109,16 @@ final class Views {
             return new ListView(list.id().toString(), list.name(), activityName(list.category(), names), list.createdAt(),
                     list.playlist().map(synced -> synced.provider().prefix() + ":" + synced.playlistId()).orElse(null),
                     list.picks().stream().map(pick -> PickView.from(pick, list.category(), library)).toList());
+        }
+    }
+
+    record PlaylistView(String name, String activity, String description, Instant createdAt, boolean synced,
+                        List<String> songs) {
+
+        static PlaylistView from(Playlist playlist, String activity) {
+            return new PlaylistView(playlist.name(), activity, playlist.description(), playlist.createdAt(),
+                    playlist.synced().isPresent(),
+                    playlist.tracks().stream().map(track -> track.label() + " (" + track.album() + ")").toList());
         }
     }
 

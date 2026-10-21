@@ -31,12 +31,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -72,8 +70,8 @@ class MusicController {
     }
 
     /**
-     * The person's latest lists for the activity, with their rating of each pick there; no category gives every
-     * list.
+     * The person's latest lists of albums to try for the activity, with their rating of each pick there; no category
+     * gives every list.
      */
     @GetMapping("/people/{id}/lists")
     List<ListResponse> lists(@PathVariable String id, @RequestParam(required = false) String category,
@@ -89,20 +87,10 @@ class MusicController {
             lists = recommendations.lists(person, Optional.of(categories.find(category)), limit(limit));
         }
         Map<AlbumKey, LibraryAlbum> rated = library.byKey(person.id());
-        Set<Optional<CategoryId>> newestSeen = new HashSet<>();
         return lists.stream()
                 .map(list -> recommendations.withCovers(person, list, LOOKUPS_PER_VISIT))
-                .map(list -> ListResponse.from(list, livePlaylist(list, newestSeen), rated, links(person)))
+                .map(list -> ListResponse.from(list, rated, links(person)))
                 .toList();
-    }
-
-    /**
-     * Each new list replaces its activity's playlist, so only the newest list for an activity, the first one seen
-     * here, still has one to open.
-     */
-    private Optional<URI> livePlaylist(RecommendationList list, Set<Optional<CategoryId>> newestSeen) {
-        boolean newest = newestSeen.add(list.category());
-        return newest ? list.playlist().flatMap(providers::link) : Optional.empty();
     }
 
     /**
