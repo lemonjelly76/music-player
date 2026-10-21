@@ -8,7 +8,7 @@ Source: the "Music Discovery App — Investigation Spec" (Claude Docs, 20 Octobe
 
 ## 1. Purpose
 
-A personal album library that an AI model curates. People tell the model what they like; it stores that, finds new albums they would likely enjoy and builds themed playlists, all through an MCP server. A thin Android app sits on top. Streaming services such as Spotify recommend tracks by popularity and are poor at suggesting whole albums. Here the recommender is an LLM that sees the person's explicit taste profile, and the streaming service is only the catalogue and the player.
+A personal album library that an AI model curates. People tell the model what they like; it stores that, finds new albums they would likely enjoy and builds themed playlists, all through an MCP server. Thin Android and Windows apps sit on top. Streaming services such as Spotify recommend tracks by popularity and are poor at suggesting whole albums. Here the recommender is an LLM that sees the person's explicit taste profile, and the streaming service is only the catalogue and the player.
 
 ## 2. Engineering principles
 
@@ -51,7 +51,7 @@ ArchUnit keeps the domain free of Spring, Jakarta and Jackson, and keeps the app
 
 ### ADR-004 MCP first; the model is the recommender and the app never talks to it — Accepted
 
-The person talks to Claude on their own Claude plan. Claude reads and writes the library through MCP tools (section 5). The Android app reads the same database through a small REST API, so the phone and the model always see the same data. Recommendations run conversationally: nothing in the server calls an LLM.
+The person talks to Claude on their own Claude plan. Claude reads and writes the library through MCP tools (section 5). The Android and Windows apps read the same database through a small REST API, so the phone, the PC and the model always see the same data. Recommendations run conversationally: nothing in the server calls an LLM.
 
 - **Prompt:** `album_picks` (person, optional category) walks Claude through the pipeline in ADR-007.
 - **Instructions:** the server tells Claude it is the recommender, to use refs from the tools rather than invent ids, to record feedback and rewrite the taste profile, to respect "never recommend" and category rules, and never to ask anyone to turn play counting on.
@@ -60,7 +60,7 @@ The person talks to Claude on their own Claude plan. Claude reads and writes the
 
 ### ADR-005 Hand-off playback: playlists in the person's own streaming account — Accepted
 
-Lists are written as real playlists in the person's streaming account, named predictably: `AI Picks` and `AI Picks — <Category>`. A new list for the same person and category replaces the previous playlist. The official Tidal or Spotify app plays them, which gives full-length playback, Android Auto, casting and (on Spotify) Google Home voice ("Hey Google, play AI Picks — Running on Spotify") for free. The Android app links to albums and playlists rather than playing them.
+Lists are written as real playlists in the person's streaming account, named predictably: `AI Picks` and `AI Picks — <Category>`. A new list for the same person and category replaces the previous playlist. The official Tidal or Spotify app plays them, which gives full-length playback, Android Auto, casting and (on Spotify) Google Home voice ("Hey Google, play AI Picks — Running on Spotify") for free. The apps link to albums and playlists rather than playing them.
 
 - **Tidal:** playlists hold tracks, so an album is written as all its tracks in order (20 per request). The previous playlist is deleted.
 - **Spotify:** there is no playlist delete, so the previous one is unfollowed, which removes it from the library.
@@ -144,7 +144,6 @@ It is signed with the debug key as a private APK. It refreshes when it comes bac
 ### ADR-014 Out of the POC — Deferred
 
 - **Scheduled refresh (R7):** a weekly job calling an LLM API with the same tools. It needs an API key and a model choice (open question).
-- **Windows client (R10):** the server already serves any client.
 - **Own player and native Android Auto (R9 beyond the official apps):** only worth it with a Lidarr or local library.
 - **Google Home voice on Tidal (R8):** depends on the open question below; Spotify works today through the predictable playlist names.
 
@@ -163,6 +162,22 @@ It is signed with the debug key as a private APK. It refreshes when it comes bac
 **Migration.** `V2__rate_albums_per_activity.sql` turns each old rating into a General one (4–5 love, 3 OK, 1–2 dislike; unrated albums were added as liked, so love) and carries verdicts on picks over to the list's activity (liked love, already know OK, not for me dislike). It then drops the old columns. It also adds cover columns.
 
 **Consequences.** One API call rates anything the app shows (`POST /api/people/{id}/ratings`), and one MCP tool (`rate_album`) replaces `record_feedback`. Three choices are quick to give consistently; finer feelings belong in the comment.
+
+### ADR-016 One Compose codebase for Android and Windows — Accepted
+
+**Context.** R10 asks for a Windows client. The Android app is Kotlin and Compose, and almost none of it is Android-specific: the screens, the view model and the API client only need HTTP, JSON and a place to keep the login.
+
+**Decision.** The apps live in `apps/` as one Kotlin Multiplatform build with Compose Multiplatform:
+
+- **`shared`:** everything both apps show: the API client (Ktor), JSON reading (kotlinx.serialization), the view model and every screen. It builds for Android and for the desktop JVM.
+- **`android`:** the activity, the launcher icon and splash, and the login in app-private preferences.
+- **`desktop`:** the window, opening links in the default browser or streaming app, and the login in Java's per-user preferences (the user's own registry hive on Windows).
+
+Wide windows show the tabs as a rail down the side and the playlist header beside its covers, as desktop streaming apps do; Settings keeps to a readable column. The desktop has no back gesture, so Settings closes with its back arrow. Both apps refresh when they come back to the front, so returning from a sign-in shows the connection.
+
+**Packaging.** `apps/desktop/package-windows.sh` builds the Windows app on Linux: Gradle collects the jars with Skia's Windows libraries (`-Pwindows`), then a Windows JDK's `jlink` and `jpackage`, run under wine, make a folder with `AI Picks.exe` and its own Java runtime, zipped. It needs no installer toolkit, and no Java on the PC. An MSI (`./gradlew :desktop:packageMsi`) needs a Windows machine with WiX.
+
+**Consequences.** One change to a screen reaches both apps, and the phone and PC look the same. The apps carry only the icons they use (`AppIcons`, copied from Material's extended set) rather than all of Material's, which keeps the APK at about 13 MB. The PC needs Tailscale to reach the server, as the phone does.
 
 ## 5. MCP tools
 
@@ -191,7 +206,7 @@ It is signed with the debug key as a private APK. It refreshes when it comes bac
 | R7 | Scheduled refresh | Deferred (ADR-014) |
 | R8 | Google Home voice | Spotify: by playlist name; Tidal: open question |
 | R9 | Android Auto | Through the official apps |
-| R10 | Windows client | Deferred |
+| R10 | Windows client | Built (ADR-016) |
 | R11 | Import favourites | Built (`import_favourites`) |
 | R12 | Push picks to Lidarr | Built |
 | R13 | Up to 5 people | Built |

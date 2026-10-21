@@ -2,8 +2,8 @@
 
 An album library that an AI model curates for a household of up to five people. Tell Claude what you like. It keeps
 your library and taste profile, picks albums with a reason for each, and saves them as `AI Picks` playlists in your
-own Tidal or Spotify account, where the official app plays them. A thin Android app shows the picks, takes your
-verdicts and offers "More like this".
+own Tidal or Spotify account, where the official app plays them. Thin Android and Windows apps show the picks,
+take your ratings and offer "More like this".
 
 Design and decisions: [docs/design-document.md](docs/design-document.md).
 
@@ -12,7 +12,7 @@ Design and decisions: [docs/design-document.md](docs/design-document.md).
 | Path | What |
 | --- | --- |
 | `backend/` | Spring Boot MCP server and REST API, PostgreSQL |
-| `android/` | Kotlin + Compose app, built as a private APK |
+| `apps/` | Kotlin + Compose Multiplatform: `shared` screens, the `android` APK and the `desktop` Windows app |
 | `docs/` | Design document |
 | `compose.yaml` | Database and server for the home server |
 
@@ -66,15 +66,27 @@ running."
 ## Install the app
 
 ```
-cd android
-JAVA_HOME=<a JDK 17 or 21> ./gradlew assembleRelease
-adb install app/build/outputs/apk/release/app-release.apk
+cd apps
+JAVA_HOME=<a JDK 21> ./gradlew :android:assembleRelease
+adb install android/build/outputs/apk/release/android-release.apk
 ```
 
-Open Settings, enter the server address (the Tailscale Serve URL, `https://<pc>.<tailnet>.ts.net:8444`), username and password, and choose who you are from
+### Windows
+
+Build on Linux with wine and an unzipped Windows JDK 21 (adoptium.net):
+
+```
+cd apps
+JAVA_HOME=<a JDK 21> desktop/package-windows.sh <path to the Windows JDK>
+```
+
+Unzip `desktop/build/windows/AI-Picks-windows.zip` on the PC and run `AI Picks\AI Picks.exe`; it brings its own Java.
+The PC needs Tailscale to reach the server. `./gradlew :desktop:run` runs it on Linux.
+
+Then open Settings, enter the server address (the Tailscale Serve URL, `https://<pc>.<tailnet>.ts.net:8444`), username and password, and choose who you are from
 the person menu.
 
 ## Develop
 
 - Backend tests: `cd backend && ./mvnw test`. Docker must be running for the PostgreSQL Testcontainer.
-- App tests: `cd android && ./gradlew testDebugUnitTest`.
+- App tests: `cd apps && ./gradlew :shared:desktopTest :desktop:test`.

@@ -1,0 +1,228 @@
+package io.github.lemonjelly76.musicplayer.ui
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.lemonjelly76.musicplayer.data.ActivityKind
+import io.github.lemonjelly76.musicplayer.data.GENERAL
+import io.github.lemonjelly76.musicplayer.data.Person
+
+private enum class Screen(val label: String, val icon: ImageVector, val chosenIcon: ImageVector) {
+    PICKS("Picks", AppIcons.AutoAwesomeOutlined, AppIcons.AutoAwesome),
+    LIBRARY("Library", AppIcons.LibraryMusicOutlined, AppIcons.LibraryMusic),
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    var screen by rememberSaveable { mutableStateOf(Screen.PICKS) }
+    var settingsOpen by rememberSaveable { mutableStateOf(!ui.server.complete) }
+    val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(ui.pendingLink) {
+        ui.pendingLink?.let {
+            open(it)
+            viewModel.linkOpened()
+        }
+    }
+
+    LaunchedEffect(ui.message) {
+        ui.message?.let {
+            snackbar.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
+    // Back from signing in to a streaming service, or from listening: show the latest.
+    LifecycleResumeEffect(Unit) {
+        if (viewModel.ui.value.server.complete) viewModel.refresh()
+        onPauseOrDispose { }
+    }
+
+    SystemBack(enabled = settingsOpen) { settingsOpen = false }
+
+    val barColors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+    // Phones get tabs along the bottom; wider windows, such as the desktop app, a rail down the side.
+    BoxWithConstraints {
+        val wide = maxWidth >= 600.dp
+        Scaffold(
+            topBar = {
+                if (settingsOpen) {
+                    TopAppBar(
+                        title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = { settingsOpen = false }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        colors = barColors,
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text(screen.label, fontWeight = FontWeight.Bold) },
+                        actions = {
+                            PersonSwitcher(ui.people, ui.person, viewModel::choosePerson)
+                            IconButton(onClick = { settingsOpen = true }) {
+                                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                            }
+                        },
+                        colors = barColors,
+                    )
+                }
+            },
+            bottomBar = {
+                if (!settingsOpen && !wide) BottomTabs(screen) { screen = it }
+            },
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
+            Row(Modifier.padding(padding).fillMaxSize()) {
+                if (!settingsOpen && wide) SideTabs(screen) { screen = it }
+                Column(Modifier.fillMaxSize()) {
+                    if (ui.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (settingsOpen) {
+                        SettingsScreen(ui, viewModel)
+                    } else {
+                        if (ui.people.isNotEmpty() && ui.categories.isNotEmpty()) {
+                            ActivityChips(activities(ui), ui.category, viewModel::chooseCategory)
+                        }
+                        when (screen) {
+                            Screen.PICKS -> PicksScreen(ui, viewModel, open)
+                            Screen.LIBRARY -> LibraryScreen(ui, viewModel, open)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
+}
+
+@Composable
+private fun BottomTabs(screen: Screen, choose: (Screen) -> Unit) {
+    NavigationBar(containerColor = Color.Black.copy(alpha = 0.9f)) {
+        Screen.entries.forEach { entry ->
+            val chosen = screen == entry
+            NavigationBarItem(
+                selected = chosen,
+                onClick = { choose(entry) },
+                icon = { Icon(if (chosen) entry.chosenIcon else entry.icon, contentDescription = null) },
+                label = { Text(entry.label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color.White,
+                    selectedTextColor = Color.White,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = Color.Transparent,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SideTabs(screen: Screen, choose: (Screen) -> Unit) {
+    NavigationRail(containerColor = MaterialTheme.colorScheme.background) {
+        Screen.entries.forEach { entry ->
+            val chosen = screen == entry
+            NavigationRailItem(
+                selected = chosen,
+                onClick = { choose(entry) },
+                icon = { Icon(if (chosen) entry.chosenIcon else entry.icon, contentDescription = null) },
+                label = { Text(entry.label) },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = Color.White,
+                    selectedTextColor = Color.White,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = Color.Transparent,
+                ),
+            )
+        }
+    }
+}
+
+/** General, then each of the person's categories, such as Running. */
+private fun activities(ui: UiState): List<Activity> =
+    listOf(Activity(GENERAL, "General", activityIcon(ActivityKind.GENERAL))) +
+        ui.categories.map { Activity(it.id, it.name, activityIcon(ActivityKind.of(it.name))) }
+
+private fun activityIcon(kind: ActivityKind): ImageVector = when (kind) {
+    ActivityKind.GENERAL -> AppIcons.LibraryMusic
+    ActivityKind.RUNNING -> AppIcons.DirectionsRun
+    ActivityKind.WORKOUT -> AppIcons.FitnessCenter
+    ActivityKind.CHILL -> AppIcons.SelfImprovement
+    ActivityKind.DINNER -> AppIcons.DinnerDining
+    ActivityKind.DRIVING -> AppIcons.DirectionsCar
+    ActivityKind.FOCUS -> AppIcons.Psychology
+    ActivityKind.PARTY -> AppIcons.Celebration
+    ActivityKind.SLEEP -> AppIcons.Bedtime
+    ActivityKind.OTHER -> AppIcons.MusicNote
+}
+
+/** Whose music: the current person's initial in a circle, opening a list of everyone in the household. */
+@Composable
+private fun PersonSwitcher(people: List<Person>, current: Person?, choose: (String) -> Unit) {
+    if (people.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Initial(current?.name ?: "?", 32.dp)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            people.forEach { person ->
+                DropdownMenuItem(
+                    text = { Text(person.name) },
+                    leadingIcon = { Initial(person.name, 28.dp) },
+                    trailingIcon = if (person.id == current?.id) ({ Icon(Icons.Filled.Check, null) }) else null,
+                    onClick = {
+                        expanded = false
+                        choose(person.id)
+                    },
+                )
+            }
+        }
+    }
+}
