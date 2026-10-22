@@ -32,10 +32,12 @@ fun main() = application {
     }
 }
 
-/** Tidal and Spotify links open in their desktop apps when installed, else in the browser. */
+private val appLinks = AppLinks()
+
+/** Spotify links open in its desktop app when installed, everything else in the browser. */
 private fun open(url: String) {
     try {
-        Desktop.getDesktop().browse(URI(url))
+        Desktop.getDesktop().browse(URI(appLinks.forThisComputer(url)))
     } catch (e: Exception) {
         JOptionPane.showMessageDialog(null, "Nothing on this computer can open $url", "AI Picks", JOptionPane.WARNING_MESSAGE)
     }

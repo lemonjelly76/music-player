@@ -204,7 +204,7 @@ The app shows it on General's Home as "Popular this week": a "Top 50 songs" card
 
 - **`shared`:** everything both apps show: the API client (Ktor), JSON reading (kotlinx.serialization), the view model and every screen. It builds for Android and for the desktop JVM.
 - **`android`:** the activity, the launcher icon and splash, and the login in app-private preferences.
-- **`desktop`:** the window, opening links in the default browser or streaming app, and the login in Java's per-user preferences (the user's own registry hive on Windows).
+- **`desktop`:** the window, opening links in the browser, or Spotify links as `spotify:` links in its Windows app when installed (the web player otherwise), and the login in Java's per-user preferences (the user's own registry hive on Windows).
 
 Wide windows show the tabs as a rail down the side and the playlist header beside its covers, as desktop streaming apps do; Settings keeps to a readable column. The desktop has no back gesture, so Settings closes with its back arrow. Both apps refresh when they come back to the front, so returning from a sign-in shows the connection.
 
