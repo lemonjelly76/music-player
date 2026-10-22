@@ -34,11 +34,24 @@ fun main() = application {
 
 private val appLinks = AppLinks()
 
-/** Spotify links open in its desktop app when installed, everything else in the browser. */
+/**
+ * Spotify links open in its desktop app when installed, everything else in the browser. Java's browse hands any link
+ * to the browser, so app links go to Windows' own handler for their scheme instead, falling back to the web page.
+ */
 private fun open(url: String) {
+    val link = appLinks.forThisComputer(url)
     try {
-        Desktop.getDesktop().browse(URI(appLinks.forThisComputer(url)))
+        if (link == url || !openInApp(link)) {
+            Desktop.getDesktop().browse(URI(url))
+        }
     } catch (e: Exception) {
         JOptionPane.showMessageDialog(null, "Nothing on this computer can open $url", "AI Picks", JOptionPane.WARNING_MESSAGE)
     }
+}
+
+private fun openInApp(link: String): Boolean = try {
+    ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", link).start()
+    true
+} catch (e: Exception) {
+    false
 }
