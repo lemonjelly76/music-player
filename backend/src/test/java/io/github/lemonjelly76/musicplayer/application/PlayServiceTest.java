@@ -4,6 +4,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistCopy;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
@@ -31,7 +32,7 @@ class PlayServiceTest {
 
     private int collect(FakePorts.History... histories) {
         return new PlayService(world.playRepository, world.peopleRepository, world.playlistRepository,
-                world.recommendationRepository, List.of(histories), world.clock).collect();
+                world.recommendationRepository, world.copyRepository, List.of(histories), world.clock).collect();
     }
 
     private Play play(String artist, String title, Duration ago, String playlist) {
@@ -56,6 +57,19 @@ class PlayServiceTest {
         albumListOnPlaylist(craig, running, "old-playlist");
         FakePorts.History spotify = new FakePorts.History("spotify", cursor -> new PlayBatch(List.of(
                 play("Daft Punk", "Discovery", Duration.ofHours(1), "old-playlist")), Optional.empty()));
+
+        collect(spotify);
+
+        assertThat(world.plays.stats(craig, Optional.of(running), 7).orElseThrow()).hasSize(1);
+    }
+
+    @Test
+    void playsFromAnActivitysCopyOnAnotherServiceCountForTheActivity() {
+        Person craig = world.tidalUser("Craig");
+        world.copyRepository.save(PlaylistCopy.wanted(craig.id(), Optional.of(running.id()), Provider.SPOTIFY)
+                .writtenAs("copy-playlist"));
+        FakePorts.History spotify = new FakePorts.History("spotify", cursor -> new PlayBatch(List.of(
+                play("Daft Punk", "Discovery", Duration.ofHours(1), "copy-playlist")), Optional.empty()));
 
         collect(spotify);
 

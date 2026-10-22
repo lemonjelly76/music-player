@@ -211,8 +211,13 @@ class SpotifyAdapterTest {
     }
 
     @Test
-    void onlyCoversConnectedSpotifyUsers() {
+    void coversEveryoneWhoConnectedSpotifyWhateverTheirMainService() {
+        Person sam = Person.create("Sam", Optional.of(Provider.TIDAL));
+        store.save(sam.id(), Provider.SPOTIFY, new ProviderTokens(Optional.of("sam-sp"), "sam-token",
+                Optional.empty(), NOW.plusSeconds(3600)));
+
         assertThat(history.covers(CRAIG)).isTrue();
-        assertThat(history.covers(Person.create("Sam", Optional.of(Provider.TIDAL)))).isFalse();
+        assertThat(history.covers(sam)).isTrue();
+        assertThat(history.covers(Person.create("Robin", Optional.of(Provider.TIDAL)))).isFalse();
     }
 }

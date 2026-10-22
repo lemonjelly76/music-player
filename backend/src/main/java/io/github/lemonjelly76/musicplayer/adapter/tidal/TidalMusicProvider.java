@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.adapter.tidal;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.ProviderAuthorization;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumMatch;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
@@ -27,11 +28,13 @@ import tools.jackson.databind.node.ObjectNode;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -296,7 +299,8 @@ class TidalMusicProvider implements MusicProvider {
             if (!artists.isEmpty() && !title.isBlank()) {
                 String id = track.path("id").asString();
                 byId.put(id, new FoundTrack(new Track(Provider.TIDAL, id, String.join(", ", artists), title,
-                        albumTitles.getOrDefault(albumId, ""), Optional.empty()), albumId));
+                        albumTitles.getOrDefault(albumId, ""), Optional.empty(),
+                        formats(track.path("attributes"))), albumId));
             }
         }
         return ids.stream().filter(byId::containsKey).map(byId::get).toList();
@@ -310,7 +314,7 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     private static Track withCover(Track track, Optional<String> cover) {
-        return new Track(track.provider(), track.id(), track.artist(), track.title(), track.album(), cover);
+        return track.withCover(cover);
     }
 
     /**
@@ -344,7 +348,25 @@ class TidalMusicProvider implements MusicProvider {
         Optional<String> cover = Optional.ofNullable(covers.get(
                 album.path("relationships").path("coverArt").path("data").path(0).path("id").asString("")));
         return Optional.of(new AlbumRef(String.join(", ", artists), title, year,
-                ProviderIds.of(Provider.TIDAL, album.path("id").asString()), cover));
+                ProviderIds.of(Provider.TIDAL, album.path("id").asString()), cover, formats(album.path("attributes"))));
+    }
+
+    /**
+     * Tidal tags each album and song with what it can be played in; tags for formats the app does not show are left
+     * out.
+     */
+    private static Set<AudioFormat> formats(JsonNode attributes) {
+        Set<AudioFormat> formats = EnumSet.noneOf(AudioFormat.class);
+        for (JsonNode tag : attributes.path("mediaTags")) {
+            switch (tag.asString("")) {
+                case "LOSSLESS" -> formats.add(AudioFormat.LOSSLESS);
+                case "HIRES_LOSSLESS" -> formats.add(AudioFormat.HI_RES);
+                case "DOLBY_ATMOS" -> formats.add(AudioFormat.DOLBY_ATMOS);
+                default -> {
+                }
+            }
+        }
+        return formats;
     }
 
     private static List<String> ids(JsonNode body) {

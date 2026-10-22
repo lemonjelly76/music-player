@@ -1,17 +1,22 @@
 package io.github.lemonjelly76.musicplayer.domain.playlist;
 
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormats;
 import io.github.lemonjelly76.musicplayer.domain.album.Names;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * A song on one streaming service, with the album it is from; several artists are named together, comma separated.
+ * {@code formats} are the qualities beyond the ordinary it can be played in, when the service said.
  */
-public record Track(Provider provider, String id, String artist, String title, String album, Optional<String> cover) {
+public record Track(Provider provider, String id, String artist, String title, String album, Optional<String> cover,
+                    Set<AudioFormat> formats) {
 
     private static final Pattern DASH_EDITION = Pattern.compile(
             "\\s+[-–]\\s+[^-–]*\\b(remaster|remastered|radio edit|single version|album version|mono|stereo)\\b.*$",
@@ -24,6 +29,15 @@ public record Track(Provider provider, String id, String artist, String title, S
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(album, "album");
         Objects.requireNonNull(cover, "cover");
+        formats = AudioFormats.copyOf(formats);
+    }
+
+    public Track(Provider provider, String id, String artist, String title, String album, Optional<String> cover) {
+        this(provider, id, artist, title, album, cover, Set.of());
+    }
+
+    public Track withCover(Optional<String> newCover) {
+        return new Track(provider, id, artist, title, album, newCover, formats);
     }
 
     /**

@@ -60,11 +60,12 @@ class JdbcSongRepository implements SongRepository {
         Track track = song.track();
         jdbc.sql("""
                         insert into library_song (id, person_id, provider, track_id, artist, title, album, cover_url,
-                            added_on)
-                        values (:id, :person, :provider, :trackId, :artist, :title, :album, :cover, :addedOn)
+                            formats, added_on)
+                        values (:id, :person, :provider, :trackId, :artist, :title, :album, :cover, :formats,
+                            :addedOn)
                         on conflict (id) do update set provider = excluded.provider, track_id = excluded.track_id,
                             artist = excluded.artist, title = excluded.title, album = excluded.album,
-                            cover_url = excluded.cover_url""")
+                            cover_url = excluded.cover_url, formats = coalesce(excluded.formats, library_song.formats)""")
                 .param("id", song.id().value())
                 .param("person", song.person().value())
                 .param("provider", track.provider().name())
@@ -73,6 +74,7 @@ class JdbcSongRepository implements SongRepository {
                 .param("title", track.title())
                 .param("album", track.album())
                 .param("cover", track.cover().orElse(null))
+                .param("formats", Columns.formats(track.formats()))
                 .param("addedOn", song.addedOn())
                 .update();
         jdbc.sql("delete from song_rating where library_song_id = :id").param("id", song.id().value()).update();
@@ -100,7 +102,7 @@ class JdbcSongRepository implements SongRepository {
                 new PersonId(row.getObject("person_id", UUID.class)),
                 new Track(Provider.valueOf(row.getString("provider")), row.getString("track_id"),
                         row.getString("artist"), row.getString("title"), row.getString("album"),
-                        Optional.ofNullable(row.getString("cover_url"))),
+                        Optional.ofNullable(row.getString("cover_url")), Columns.formats(row)),
                 List.of(),
                 row.getDate("added_on").toLocalDate());
     }

@@ -15,6 +15,7 @@ import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.Playlist
+import io.github.lemonjelly76.musicplayer.data.PlaylistCopy
 import io.github.lemonjelly76.musicplayer.data.ServerSettings
 import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.SettingsStore
@@ -84,6 +85,8 @@ data class UiState(
     /** The listening page, while it is open. */
     val listening: ListeningPage? = null,
     val tracking: Tracking? = null,
+    /** Where each of the person's activities has its newest playlist copied. */
+    val copies: List<PlaylistCopy> = emptyList(),
     val moreLikeThis: MoreLikeThis? = null,
     val loading: Boolean = false,
     val message: String? = null,
@@ -94,6 +97,8 @@ data class UiState(
     val chosenCategory: Category? get() = categories.firstOrNull { it.id == category }
     val activityName: String get() = chosenCategory?.name ?: "General"
     val latest: PickList? get() = lists.firstOrNull()
+    /** The chosen activity's copy, when its playlists are copied to another service. */
+    val copy: PlaylistCopy? get() = copies.firstOrNull { (it.categoryId ?: GENERAL) == category }
 }
 
 /** What both apps show and do; [http] is closed with the view model. */
@@ -134,7 +139,8 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     fun choosePerson(id: String) = load {
         store.savePersonId(id)
         state.update {
-            it.copy(personId = id, tracking = null, sorting = null, charts = null).withoutActivityAlbums()
+            it.copy(personId = id, tracking = null, copies = emptyList(), sorting = null, charts = null)
+                .withoutActivityAlbums()
                 .withoutListening()
         }
         coroutineScope {
@@ -355,10 +361,25 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     }
 
     /** Asks for the sign-in page for the person's streaming service, which the screen then opens. */
-    fun connect() = load {
+    /** Opens the sign-in page for the person's own service, or for [service] to connect a second one. */
+    fun connect(service: String? = null) = load {
         val personId = state.value.personId ?: return@load
-        val link = api.connectUrl(personId)
+        val link = api.connectUrl(personId, service)
         state.update { it.copy(pendingLink = link) }
+    }
+
+    /** Copies the activity's newest playlist to [service] from now on, or stops when it is null. */
+    fun copyPlaylists(service: String?) = load {
+        val personId = state.value.personId ?: return@load
+        val status = api.copyPlaylists(personId, state.value.category.takeUnless { it == GENERAL }, service)
+        loadCopies(personId)
+        state.update { it.copy(message = status.replaceFirstChar { first -> first.uppercase() }) }
+    }
+
+    /** Only the playlist page needs these, so a server without copies still shows everything else. */
+    private suspend fun loadCopies(personId: String) {
+        val copies = runCatching { api.playlistCopies(personId) }.getOrDefault(emptyList())
+        state.update { if (it.personId == personId) it.copy(copies = copies) else it }
     }
 
     fun linkOpened() = state.update { it.copy(pendingLink = null) }
@@ -368,6 +389,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     private suspend fun loadPerson(id: String) {
         val tracking = api.tracking(id)
         state.update { if (it.personId == id) it.copy(tracking = tracking) else it }
+        loadCopies(id)
         reloadLibrary(id)
         loadLists()
         loadListening()

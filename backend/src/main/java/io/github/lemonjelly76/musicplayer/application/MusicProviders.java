@@ -76,6 +76,41 @@ public class MusicProviders {
         return find(track.provider()).map(provider -> provider.trackLink(track.id()));
     }
 
+    /**
+     * The services other than their own that the person has connected, as for copying playlists there.
+     */
+    public List<Provider> alsoConnected(Person person) {
+        return configured().stream()
+                .filter(provider -> person.provider().filter(provider.name()::equals).isEmpty())
+                .filter(provider -> provider.connected(person.id()))
+                .map(MusicProvider::name)
+                .toList();
+    }
+
+    /**
+     * The album on each service other than the person's own, for those who use more than one: by its id there when
+     * known, else as a search, which costs that service no requests.
+     */
+    public List<ServiceLink> elsewhere(Person person, AlbumRef album) {
+        return configured().stream()
+                .filter(provider -> person.provider().filter(provider.name()::equals).isEmpty())
+                .map(provider -> new ServiceLink(provider.name(), album.ids().get(provider.name())
+                        .map(provider::albumLink)
+                        .orElseGet(() -> provider.searchLink(album.artist() + " " + album.title()))))
+                .toList();
+    }
+
+    /**
+     * The song on each service other than the one it was found on, as a search.
+     */
+    public List<ServiceLink> elsewhere(Track track) {
+        return configured().stream()
+                .filter(provider -> provider.name() != track.provider())
+                .map(provider -> new ServiceLink(provider.name(),
+                        provider.searchLink(track.artist() + " " + track.title())))
+                .toList();
+    }
+
     public Optional<URI> link(SyncedPlaylist playlist) {
         return find(playlist.provider()).map(provider -> provider.playlistLink(playlist.playlistId()));
     }

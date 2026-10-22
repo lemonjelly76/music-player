@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.IntegrationTestConfiguration;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -62,7 +64,8 @@ class JdbcRecommendationsAndPlaysTest {
     private RecommendationList list(Optional<Category> category, Instant at, String... titles) {
         List<Recommendation> picks = Arrays.stream(titles)
                 .map(title -> Recommendation.create(new AlbumRef("Artist", title, Optional.of(1999),
-                        ProviderIds.of(Provider.TIDAL, "t-" + title)), "Because " + title, PickSource.POOL))
+                        ProviderIds.of(Provider.TIDAL, "t-" + title), Optional.empty(), Set.of(AudioFormat.DOLBY_ATMOS)),
+                        "Because " + title, PickSource.POOL))
                 .toList();
         return RecommendationList.create(craig.id(), category, picks, at);
     }

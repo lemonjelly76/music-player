@@ -5,6 +5,7 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistCopy;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
@@ -13,6 +14,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository.CategorisedPlay;
+import io.github.lemonjelly76.musicplayer.domain.port.PlaylistCopyRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
@@ -36,15 +38,18 @@ public class PlayService {
     private final PersonRepository people;
     private final PlaylistRepository playlists;
     private final RecommendationRepository lists;
+    private final PlaylistCopyRepository copies;
     private final List<ListeningHistory> histories;
     private final Clock clock;
 
     public PlayService(PlayRepository plays, PersonRepository people, PlaylistRepository playlists,
-            RecommendationRepository lists, List<ListeningHistory> histories, Clock clock) {
+            RecommendationRepository lists, PlaylistCopyRepository copies, List<ListeningHistory> histories,
+            Clock clock) {
         this.plays = plays;
         this.people = people;
         this.playlists = playlists;
         this.lists = lists;
+        this.copies = copies;
         this.histories = List.copyOf(histories);
         this.clock = clock;
     }
@@ -126,8 +131,8 @@ public class PlayService {
     }
 
     /**
-     * The activity of the playlist the play came from; playlists written from album lists, before playlists held
-     * songs, still count until they are replaced.
+     * The activity of the playlist the play came from, or of the activity's copy it came from; playlists written
+     * from album lists, before playlists held songs, still count until they are replaced.
      */
     private Optional<CategoryId> categoryOf(Play play) {
         if (play.playlistId().isEmpty()) {
@@ -135,8 +140,12 @@ public class PlayService {
         }
         String playlistId = play.playlistId().get();
         Optional<Playlist> playlist = playlists.findBySynced(playlistId);
-        return playlist.isPresent()
-                ? playlist.get().category()
+        if (playlist.isPresent()) {
+            return playlist.get().category();
+        }
+        Optional<PlaylistCopy> copy = copies.findByPlaylist(playlistId);
+        return copy.isPresent()
+                ? copy.get().category()
                 : lists.findByPlaylist(playlistId).flatMap(RecommendationList::category);
     }
 }

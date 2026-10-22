@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.domain.album;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -27,6 +28,18 @@ class AlbumRefTest {
         assertThat(merged.year()).contains(1971);
         assertThat(merged.ids()).isEqualTo(new ProviderIds(Optional.of("t-1"), Optional.empty(), Optional.of("mb-1")));
         assertThat(merged.sameAlbumAs(fromTidal)).isTrue();
+    }
+
+    @Test
+    void takesTheFormatsAServiceOffersItInWhenItKnowsNone() {
+        AlbumRef named = AlbumRef.of("Pink Floyd", "The Dark Side of the Moon");
+        AlbumRef fromTidal = new AlbumRef("Pink Floyd", "The Dark Side of the Moon", Optional.of(1973),
+                ProviderIds.of(Provider.TIDAL, "t-2"), Optional.empty(),
+                Set.of(AudioFormat.HI_RES, AudioFormat.DOLBY_ATMOS));
+
+        assertThat(named.formats()).isEmpty();
+        assertThat(named.enrichedWith(fromTidal).formats()).containsExactly(AudioFormat.HI_RES, AudioFormat.DOLBY_ATMOS);
+        assertThat(fromTidal.withCover("https://c").formats()).hasSize(2);
     }
 
     @Test

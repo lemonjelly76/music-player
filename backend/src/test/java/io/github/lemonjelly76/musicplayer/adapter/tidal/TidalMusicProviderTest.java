@@ -6,6 +6,7 @@ import io.github.lemonjelly76.musicplayer.adapter.oauth.OAuthProperties;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.ProviderAuthorization;
 import io.github.lemonjelly76.musicplayer.adapter.oauth.ProviderTokens;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
@@ -221,6 +222,25 @@ class TidalMusicProviderTest {
                 new Track(Provider.TIDAL, "s1", "Joni Mitchell", "River", "Blue", Optional.empty()));
         tidal.verify(getRequestedFor(urlPathEqualTo("/v2/tracks"))
                 .withQueryParam("include", equalTo("artists,albums")));
+    }
+
+    @Test
+    void readsTheFormatsTidalOffersEachAlbumAndSongIn() {
+        tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson("""
+                {"data":[{"id":"77","type":"albums","attributes":{"title":"Blue",
+                   "mediaTags":["LOSSLESS","HIRES_LOSSLESS","DOLBY_ATMOS","SONY_360RA"]},
+                   "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]}}}],
+                 "included":[{"id":"a1","type":"artists","attributes":{"name":"Joni Mitchell"}}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults")).willReturn(okJson(searchResults("tracks", "s1"))));
+        tidal.stubFor(get(urlPathEqualTo("/v2/tracks")).willReturn(okJson("""
+                {"data":[{"id":"s1","type":"tracks","attributes":{"title":"River","mediaTags":["LOSSLESS"]},
+                   "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]}}}],
+                 "included":[{"id":"a1","type":"artists","attributes":{"name":"Joni Mitchell"}}]}""")));
+
+        assertThat(provider.album("77").orElseThrow().formats())
+                .containsExactly(AudioFormat.LOSSLESS, AudioFormat.HI_RES, AudioFormat.DOLBY_ATMOS);
+        assertThat(provider.searchTracks("river", 1)).singleElement()
+                .satisfies(song -> assertThat(song.formats()).containsExactly(AudioFormat.LOSSLESS));
     }
 
     @Test

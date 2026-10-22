@@ -73,7 +73,8 @@ class JdbcLibraryRepository implements LibraryRepository {
                         on conflict (id) do update set album_key = excluded.album_key, artist = excluded.artist,
                             title = excluded.title, year = excluded.year, tidal_id = excluded.tidal_id,
                             spotify_id = excluded.spotify_id, musicbrainz_id = excluded.musicbrainz_id,
-                            cover_url = excluded.cover_url, notes = excluded.notes, tags = excluded.tags"""
+                            cover_url = excluded.cover_url, formats = coalesce(excluded.formats, library_album.formats),
+                            notes = excluded.notes, tags = excluded.tags"""
                         .formatted(AlbumColumns.NAMES, AlbumColumns.PARAMS)), entry.album())
                 .param("id", entry.id().value())
                 .param("person", entry.person().value())

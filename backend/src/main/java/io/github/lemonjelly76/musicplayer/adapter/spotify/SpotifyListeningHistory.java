@@ -1,7 +1,6 @@
 package io.github.lemonjelly76.musicplayer.adapter.spotify;
 
 import io.github.lemonjelly76.musicplayer.adapter.oauth.ProviderAuthorization;
-import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
@@ -34,10 +33,12 @@ class SpotifyListeningHistory implements ListeningHistory {
         return "spotify";
     }
 
+    /**
+     * Anyone who connected Spotify, even with another main service, as they may play an activity's copy there.
+     */
     @Override
     public boolean covers(Person person) {
-        return person.provider().equals(Optional.of(Provider.SPOTIFY)) && authorization.registered()
-                && authorization.connected(person.id());
+        return authorization.registered() && authorization.connected(person.id());
     }
 
     /**

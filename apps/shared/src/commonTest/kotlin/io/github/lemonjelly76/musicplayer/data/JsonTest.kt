@@ -33,6 +33,38 @@ class JsonTest {
     }
 
     @Test
+    fun readsWhatQualityAlbumsAndSongsComeInAndWhereElseTheyOpen() {
+        val found = Json.found("""
+            [{"album":{"ref":"tidal:9","artist":"Air","title":"Moon Safari","formats":["LOSSLESS","HI_RES","DOLBY_ATMOS"],
+              "elsewhere":[{"service":"spotify","link":"https://open.spotify.com/search/Air%20Moon%20Safari"}]}}]
+        """.trimIndent()).single().album
+        val song = Json.songs("""
+            [{"id":"t1","artist":"Air","title":"Sexy Boy","formats":["LOSSLESS"],"elsewhere":[]}]
+        """.trimIndent()).single()
+
+        assertEquals(listOf("Hi-Res", "Atmos"), found.qualities)
+        assertEquals(listOf(ServiceLink("spotify", "https://open.spotify.com/search/Air%20Moon%20Safari")),
+            found.elsewhere)
+        assertEquals("Open in Spotify", found.elsewhere.single().label)
+        assertEquals(emptyList(), song.qualities)
+    }
+
+    @Test
+    fun readsTheOtherServicesAPersonConnectedAndWhereTheirPlaylistsAreCopied() {
+        val person = Json.people("""
+            [{"id":"1","name":"Craig","service":"tidal","connected":true,"alsoConnected":["spotify"]}]
+        """.trimIndent()).single()
+        val copies = Json.copies("""
+            [{"categoryId":"c1","service":"spotify","link":"https://open.spotify.com/playlist/9"},
+             {"categoryId":null,"service":"spotify","link":null}]
+        """.trimIndent())
+
+        assertEquals(listOf("spotify"), person.alsoConnected)
+        assertEquals(listOf(PlaylistCopy("c1", "spotify", "https://open.spotify.com/playlist/9"),
+            PlaylistCopy(null, "spotify", null)), copies)
+    }
+
+    @Test
     fun readsPlaylistsOfSongs() {
         val playlists = Json.playlists("""
             [{"id":"pl1","name":"AI Picks — Running","description":"Bright and fast","categoryId":"c1",

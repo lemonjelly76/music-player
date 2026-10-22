@@ -11,6 +11,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.LookupCache;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.PlaylistCopyRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SongRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
@@ -85,14 +86,21 @@ class ApplicationConfiguration {
 
     @Bean
     PlaylistService playlistService(PlaylistRepository playlists, RecommendationRepository recommendations,
-            LibraryService library, SongService songs, MusicProviders providers, Clock clock) {
-        return new PlaylistService(playlists, recommendations, library, songs, providers, clock);
+            LibraryService library, SongService songs, MusicProviders providers, PlaylistCopies copies, Clock clock) {
+        return new PlaylistService(playlists, recommendations, library, songs, providers, copies, clock);
+    }
+
+    @Bean
+    PlaylistCopies playlistCopies(PlaylistCopyRepository copies, PlaylistRepository playlists,
+            MusicProviders providers) {
+        return new PlaylistCopies(copies, playlists, providers);
     }
 
     @Bean
     PlayService playService(PlayRepository plays, PersonRepository people, PlaylistRepository playlists,
-            RecommendationRepository recommendations, List<ListeningHistory> histories, Clock clock) {
-        return new PlayService(plays, people, playlists, recommendations, histories, clock);
+            RecommendationRepository recommendations, PlaylistCopyRepository copies, List<ListeningHistory> histories,
+            Clock clock) {
+        return new PlayService(plays, people, playlists, recommendations, copies, histories, clock);
     }
 
     @Bean

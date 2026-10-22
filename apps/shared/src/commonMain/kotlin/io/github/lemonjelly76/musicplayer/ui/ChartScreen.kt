@@ -121,7 +121,7 @@ private fun TopSongsCard(charts: Charts, show: () -> Unit, open: (String) -> Uni
 private fun ChartAlbumTile(entry: ChartAlbum, viewModel: MainViewModel, open: (String) -> Unit) {
     val found = entry.album
     val album = found.album
-    val actions = albumActions(album, viewModel, open) + Rating.entries
+    val actions = albumActions(album, viewModel, open) + elsewhereActions(album, open) + Rating.entries
         .reversed().filter { it != found.rating }
         .map { rating -> AlbumAction(rating.label) { viewModel.rate(album, rating) } }
     Column(Modifier.width(140.dp).clickable(enabled = album.link != null) { album.link?.let(open) },
@@ -139,6 +139,7 @@ private fun ChartAlbumTile(entry: ChartAlbum, viewModel: MainViewModel, open: (S
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(album.artist, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                QualityBadges(album)
                 found.rating?.let { RatingLabel(it, general = false) }
             }
             ActionsMenu(actions)

@@ -3,15 +3,19 @@ package io.github.lemonjelly76.musicplayer.adapter.web;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
+import io.github.lemonjelly76.musicplayer.application.PlaylistCopies;
 import io.github.lemonjelly76.musicplayer.application.PlaylistService;
+import io.github.lemonjelly76.musicplayer.application.ServiceLink;
 import io.github.lemonjelly76.musicplayer.application.SongService;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistCopy;
 import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
@@ -32,10 +36,12 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @WebMvcTest(PlaylistController.class)
 @Import({SecurityConfiguration.class, ApiErrors.class})
@@ -61,6 +67,8 @@ class PlaylistControllerTest {
     private MusicProviders providers;
     @MockitoBean
     private SongService songs;
+    @MockitoBean
+    private PlaylistCopies copies;
 
     @BeforeEach
     void setUp() {
@@ -119,6 +127,51 @@ class PlaylistControllerTest {
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
                         [{"slot":null, "link":null}]""");
+    }
+
+    @Test
+    void showsTheFormatsEachSongCanBePlayedInAndWhereElseItOpens() {
+        Track atmos = new Track(Provider.TIDAL, "tr-9", "Air", "La femme d'argent", "Moon Safari", Optional.empty(),
+                Set.of(AudioFormat.DOLBY_ATMOS));
+        given(songs.bySong(CRAIG.id())).willReturn(Map.of());
+        given(providers.elsewhere(atmos)).willReturn(List.of(
+                new ServiceLink(Provider.SPOTIFY, URI.create("https://open.spotify.com/search/Air"))));
+        given(playlists.latest(CRAIG, Optional.of(RUNNING.id()), 5)).willReturn(List.of(
+                Playlist.create(CRAIG.id(), Optional.of(RUNNING), "", List.of(atmos), NOW)));
+
+        assertThat(mvc.get().uri("/api/people/{id}/playlists?category={c}", CRAIG.id(), RUNNING.id()))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        [{"tracks":[{"ref":"tidal:tr-9","formats":["DOLBY_ATMOS"],
+                          "elsewhere":[{"service":"spotify","link":"https://open.spotify.com/search/Air"}]}]}]""");
+    }
+
+    @Test
+    void listsWhereEachActivitysPlaylistsAreCopied() {
+        given(copies.of(CRAIG)).willReturn(List.of(PlaylistCopy.wanted(CRAIG.id(), Optional.of(RUNNING.id()),
+                Provider.TIDAL).writtenAs("tidal-copy")));
+        given(providers.link(new SyncedPlaylist(Provider.TIDAL, "tidal-copy")))
+                .willReturn(Optional.of(URI.create("https://tidal.com/browse/playlist/tidal-copy")));
+
+        assertThat(mvc.get().uri("/api/people/{id}/playlist-copies", CRAIG.id()))
+                .hasStatusOk()
+                .bodyJson().isEqualTo("""
+                        [{"categoryId":"%s","service":"tidal","link":"https://tidal.com/browse/playlist/tidal-copy"}]"""
+                        .formatted(RUNNING.id()));
+    }
+
+    @Test
+    void startsAndStopsCopyingAnActivitysPlaylists() {
+        given(copies.keep(CRAIG, Optional.of(RUNNING), Provider.TIDAL)).willReturn("copied to tidal");
+
+        assertThat(mvc.put().uri("/api/people/{id}/playlist-copy?category={c}", CRAIG.id(), RUNNING.id())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"service\":\"tidal\"}"))
+                .hasStatusOk().bodyJson().isEqualTo("""
+                        {"status":"copied to tidal"}""");
+        assertThat(mvc.put().uri("/api/people/{id}/playlist-copy?category={c}", CRAIG.id(), RUNNING.id())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"service\":null}"))
+                .hasStatusOk();
+        then(copies).should().stop(CRAIG, Optional.of(RUNNING));
     }
 
     @Test

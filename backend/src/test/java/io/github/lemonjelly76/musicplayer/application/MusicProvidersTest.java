@@ -1,11 +1,16 @@
 package io.github.lemonjelly76.musicplayer.application;
 
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
+import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 
 import static io.github.lemonjelly76.musicplayer.application.World.album;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +29,32 @@ class MusicProvidersTest {
 
         assertThat(world.providers.search(craig, "talk talk", 8))
                 .extracting(AlbumRef::title).containsExactly("Spirit of Eden", "Laughing Stock");
+    }
+
+    @Test
+    void opensAnAlbumOnTheOtherServicesByIdWhenKnownElseBySearch() {
+        FakePorts.FakeProvider spotify = new FakePorts.FakeProvider(Provider.SPOTIFY);
+        MusicProviders both = new MusicProviders(List.of(world.tidal, spotify));
+        Person craig = world.tidalUser("Craig");
+        AlbumRef known = new AlbumRef("Air", "Moon Safari", Optional.empty(),
+                new ProviderIds(Optional.of("t1"), Optional.of("s1"), Optional.empty()));
+
+        assertThat(both.elsewhere(craig, known))
+                .containsExactly(new ServiceLink(Provider.SPOTIFY, URI.create("https://spotify.example/album/s1")));
+        assertThat(both.elsewhere(craig, album("Air", "Talkie Walkie")))
+                .containsExactly(new ServiceLink(Provider.SPOTIFY, URI.create("https://spotify.example/search/Air+Talkie+Walkie")));
+        assertThat(both.elsewhere(world.withoutService("Robin"), known)).extracting(ServiceLink::service)
+                .containsExactly(Provider.TIDAL, Provider.SPOTIFY);
+    }
+
+    @Test
+    void opensASongOnTheServicesOtherThanItsOwnBySearch() {
+        FakePorts.FakeProvider spotify = new FakePorts.FakeProvider(Provider.SPOTIFY);
+        MusicProviders both = new MusicProviders(List.of(world.tidal, spotify));
+        Track song = new Track(Provider.TIDAL, "tr-1", "Air", "Sexy Boy", "Moon Safari", Optional.empty());
+
+        assertThat(both.elsewhere(song))
+                .containsExactly(new ServiceLink(Provider.SPOTIFY, URI.create("https://spotify.example/search/Air+Sexy+Boy")));
     }
 
     @Test

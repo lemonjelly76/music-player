@@ -43,15 +43,17 @@ public class PlaylistService {
     private final LibraryService library;
     private final SongService songs;
     private final MusicProviders providers;
+    private final PlaylistCopies copies;
     private final Clock clock;
 
     public PlaylistService(PlaylistRepository repository, RecommendationRepository albumLists, LibraryService library,
-            SongService songs, MusicProviders providers, Clock clock) {
+            SongService songs, MusicProviders providers, PlaylistCopies copies, Clock clock) {
         this.repository = repository;
         this.albumLists = albumLists;
         this.library = library;
         this.songs = songs;
         this.providers = providers;
+        this.copies = copies;
         this.clock = clock;
     }
 
@@ -156,6 +158,7 @@ public class PlaylistService {
             people.add(playlist.person());
         }
         people.forEach(person -> renameMisnamed(person, Optional.of(category.id())));
+        copies.renamed(category);
     }
 
     private Playlist swap(Person person, Playlist chosen, int number, Optional<Playlist> there) {
@@ -236,8 +239,9 @@ public class PlaylistService {
             replaced.ifPresent(old -> repository.save(old.outOfAccount()));
             repository.save(written);
             renameMisnamed(person.id(), playlist.category());
-            return new Saved(written, dropped, "synced to " + service.name().prefix() + " as "
-                    + written.nameInSlot(number));
+            String synced = "synced to " + service.name().prefix() + " as " + written.nameInSlot(number);
+            return new Saved(written, dropped, copies.copy(person, written).map(copied -> synced + "; " + copied)
+                    .orElse(synced));
         } catch (MusicProviderUnavailableException e) {
             return new Saved(playlist, dropped, "saved but not synced: " + e.getMessage());
         }

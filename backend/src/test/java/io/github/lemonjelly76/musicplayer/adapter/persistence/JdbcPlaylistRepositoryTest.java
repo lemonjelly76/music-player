@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.IntegrationTestConfiguration;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,7 +54,7 @@ class JdbcPlaylistRepositoryTest {
     private Playlist playlist(Optional<Category> category, Instant at, String... titles) {
         List<Track> tracks = Arrays.stream(titles)
                 .map(title -> new Track(Provider.SPOTIFY, "sp-" + title, "Artist", title, "Album",
-                        Optional.of("https://covers/" + title)))
+                        Optional.of("https://covers/" + title), Set.of(AudioFormat.DOLBY_ATMOS)))
                 .toList();
         return Playlist.create(craig.id(), category, "For " + titles.length, tracks, at);
     }

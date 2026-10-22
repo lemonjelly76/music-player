@@ -30,12 +30,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * The app's picks, library, ratings and "More like this". The app never talks to the model; it reads what the model
@@ -182,8 +180,8 @@ class MusicController {
         return ActivityParameter.resolve(categories, category);
     }
 
-    private Function<AlbumRef, Optional<URI>> links(Person person) {
-        return album -> providers.link(person, album);
+    private Links links(Person person) {
+        return Links.forPerson(person, providers);
     }
 
     private static int limit(int requested) {

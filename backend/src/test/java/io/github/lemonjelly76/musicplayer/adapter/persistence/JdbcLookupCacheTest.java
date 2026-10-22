@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.IntegrationTestConfiguration;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,7 +33,7 @@ class JdbcLookupCacheTest {
     @Test
     void remembersEachServicesSongs() {
         Lookup<Track> found = new Lookup<>(Optional.of(new Track(Provider.SPOTIFY, "t1", "Tate McRae", "Sports car",
-                "So Close To What", Optional.of("https://i/1"))), NOW);
+                "So Close To What", Optional.of("https://i/1"), Set.of(AudioFormat.LOSSLESS))), NOW);
         cache.saveTrack(Provider.SPOTIFY, "tate mcrae|sports car", new Lookup<>(Optional.empty(), NOW.minusSeconds(60)));
         cache.saveTrack(Provider.SPOTIFY, "tate mcrae|sports car", found);
         cache.saveTrack(Provider.SPOTIFY, "made up|never was", new Lookup<>(Optional.empty(), NOW));
@@ -45,7 +47,8 @@ class JdbcLookupCacheTest {
     @Test
     void remembersEachServicesAlbums() {
         Lookup<AlbumRef> found = new Lookup<>(Optional.of(new AlbumRef("Fontaines D.C.", "Romance", Optional.of(2024),
-                ProviderIds.of(Provider.TIDAL, "a1"), Optional.of("https://i/a1"))), NOW);
+                ProviderIds.of(Provider.TIDAL, "a1"), Optional.of("https://i/a1"),
+                Set.of(AudioFormat.HI_RES, AudioFormat.DOLBY_ATMOS))), NOW);
         cache.saveAlbum(Provider.TIDAL, "fontaines d c|romance", found);
         cache.saveAlbum(Provider.TIDAL, "local band|demo tape", new Lookup<>(Optional.empty(), NOW));
 

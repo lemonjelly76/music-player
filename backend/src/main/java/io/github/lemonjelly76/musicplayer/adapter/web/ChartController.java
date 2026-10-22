@@ -45,8 +45,7 @@ class ChartController {
         Person person = people.get(PersonId.of(id));
         ChartPlaylist playlist = charts.playlistFor(person);
         return ChartResponse.from(charts.chartFor(person), playlist, playlist.synced().flatMap(providers::link),
-                songs.bySong(person.id()), library.byKey(person.id()), providers::link,
-                album -> providers.link(person, album));
+                songs.bySong(person.id()), library.byKey(person.id()), Links.forPerson(person, providers));
     }
 
     @PutMapping("/people/{id}/chart-playlist")

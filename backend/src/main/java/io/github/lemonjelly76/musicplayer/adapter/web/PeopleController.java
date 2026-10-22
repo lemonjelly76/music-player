@@ -56,8 +56,7 @@ class PeopleController {
     @GetMapping("/people")
     List<PersonResponse> people() {
         return people.all().stream()
-                .map(person -> PersonResponse.from(person, providers.forPerson(person)
-                        .map(provider -> provider.connected(person.id())).orElse(false)))
+                .map(this::response)
                 .toList();
     }
 
@@ -77,8 +76,12 @@ class PeopleController {
         Optional<Provider> service = Optional.ofNullable(request.service()).filter(text -> !text.isBlank())
                 .map(Provider::parse);
         Person changed = people.update(person.withProvider(service));
-        return PersonResponse.from(changed, providers.forPerson(changed)
-                .map(provider -> provider.connected(changed.id())).orElse(false));
+        return response(changed);
+    }
+
+    private PersonResponse response(Person person) {
+        return PersonResponse.from(person, providers.forPerson(person)
+                .map(provider -> provider.connected(person.id())).orElse(false), providers.alsoConnected(person));
     }
 
     @GetMapping("/categories")

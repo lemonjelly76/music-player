@@ -72,6 +72,8 @@ Each person keeps up to three playlists per activity in their account, as slots 
 - **Tidal:** the previous playlist is deleted; songs are added 20 per request. A song's cover comes from its album.
 - **Spotify:** there is no playlist delete, so the previous one is unfollowed, which removes it from the library.
 
+**Copies on a second service** (`PlaylistCopies`, table `playlist_copy`): someone who uses both services can have an activity's newest playlist kept on the other one as well, as "AI Picks — Running" with no number, so a voice assistant can be asked for it by name. Listening on Tidal for its quality while saying "Hey Google, play AI Picks — Running on Spotify" is the case in mind. The copy is written when the activity's playlist is saved and when the copy is turned on; each song is found again on that service and left out when it is not there. A copy that fails never stops the playlist being saved and synced. Turned on from a playlist's page (`PUT /people/{id}/playlist-copy?category=`), after connecting the second service (`GET /people/{id}/connect?service=`). Spotify's play history is read for anyone who connected Spotify, so plays from the copy count for its activity.
+
 **Why:** the 30-second preview limit rules out an in-app Tidal player.
 
 ### ADR-006 `MusicProvider` port; Tidal preferred, Spotify as a drop-in — Accepted
@@ -80,6 +82,10 @@ Each person keeps up to three playlists per activity in their account, as slots 
 
 - **Tidal:** JSON:API v2 at `openapi.tidal.com/v2`, with the app's client-credentials token for catalogue reads and the person's token for collections and playlists. Search is `GET /searchResults?filter[query]=…&include=albums|tracks`, whose single result lists the ids found; favourite albums are `/userCollectionAlbums/me/relationships/items` (both changed in Tidal's API after the adapter was first written).
 - **Spotify:** Web API v1, with search capped at 10 results.
+
+**Quality:** only Tidal says what a recording comes in (`mediaTags`); albums and songs keep it as `formats` (`LOSSLESS`, `HI_RES`, `DOLBY_ATMOS`), and the apps badge Hi-Res and Atmos, not Lossless, which nearly everything on Tidal is. Spotify's API gives no quality, so there is no choosing a service per song by quality.
+
+**Elsewhere links:** each album and song also carries `elsewhere`, a link on each other registered service: by id when known, else a search link, which costs that service no requests. The apps put them in the ⋯ menu as "Open in Spotify".
 
 **Risk:** both adapters follow the public API documentation and are tested against recorded-shape stubs, not live accounts. The spec's first POC step, an evening's spike per API, still needs doing before relying on them; see section 7.
 
@@ -156,7 +162,7 @@ The app looks and behaves like a streaming app: always dark, album artwork throu
 - **More like this:** a sheet of instant suggestions (ADR-007); the heart loves one for the activity.
 - **Settings:** opened from the cog as its own page with a back arrow. The streaming service and its connection, the play-count switch, and the server address and login.
 
-Tapping any album opens it in Tidal or Spotify. Pulling Home, Search or Library down fetches what Claude has written since.
+Tapping any album opens it in Tidal or Spotify; its ⋯ menu also opens it on the other service, and Hi-Res and Atmos badges show what it comes in. Pulling Home, Search or Library down fetches what Claude has written since.
 
 Covers come from the server: Spotify and Tidal artwork when the album is on the person's service, else the Cover Art Archive by MusicBrainz id. Albums without one show a coloured placeholder.
 

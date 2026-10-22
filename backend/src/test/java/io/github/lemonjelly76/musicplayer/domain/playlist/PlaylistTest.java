@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.domain.playlist;
 
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +44,14 @@ class PlaylistTest {
         assertThat(written.inAccountOn(Provider.SPOTIFY)).isTrue();
         assertThat(written.inAccountOn(Provider.TIDAL)).isFalse();
         assertThat(written.outOfAccount().inAccountOn(Provider.SPOTIFY)).isFalse();
+    }
+
+    @Test
+    void aSongKeepsItsFormatsWhenItGetsACover() {
+        Track song = new Track(Provider.TIDAL, "1", "Air", "La femme d'argent", "Moon Safari", Optional.empty(),
+                Set.of(AudioFormat.DOLBY_ATMOS));
+
+        assertThat(song.withCover(Optional.of("https://c")).formats()).containsExactly(AudioFormat.DOLBY_ATMOS);
     }
 
     @Test

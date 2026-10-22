@@ -113,7 +113,7 @@ fun AlbumTile(
     val actions = listOfNotNull(
         link?.let { AlbumAction("Open in ${serviceOfLink(it)}") { open(it) } },
         AlbumAction("More like this") { viewModel.moreLikeThis(album) },
-    ) + ratings
+    ) + elsewhereActions(album, open) + ratings
     Column(modifier.clickable(enabled = link != null) { link?.let(open) }) {
         AlbumArt(album, Modifier.fillMaxWidth())
         Row(verticalAlignment = Alignment.Top) {
@@ -122,6 +122,7 @@ fun AlbumTile(
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(album.artist, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                QualityBadges(album)
                 entry.rating?.let { RatingLabel(it, entry.general) }
                 val notes = listOf(entry.notes, entry.tags.joinToString(" · ")).filter { details && it.isNotBlank() }
                 if (notes.isNotEmpty()) {

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.HtmlUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Connects a person's own streaming account (ADR-008). The app asks for the sign-in link and opens it in the browser;
@@ -33,19 +34,26 @@ class ConnectController {
         this.authorizations = authorizations;
     }
 
+    /**
+     * Signs the person in to their own service, or to the one named, as when they copy playlists to a second.
+     */
     @GetMapping("/api/people/{id}/connect")
-    ConnectResponse connect(@PathVariable String id) {
+    ConnectResponse connect(@PathVariable String id, @RequestParam(required = false) String service) {
         Person person = people.get(PersonId.of(id));
-        Provider service = person.provider().orElseThrow(() -> new IllegalArgumentException(
+        Provider chosen = named(service).or(person::provider).orElseThrow(() -> new IllegalArgumentException(
                 person.name() + " has no streaming service set; choose tidal or spotify first"));
-        return new ConnectResponse(service.prefix(), authorization(service).connectUrl(person.id()).toString());
+        return new ConnectResponse(chosen.prefix(), authorization(chosen).connectUrl(person.id()).toString());
     }
 
     @DeleteMapping("/api/people/{id}/connect")
-    ResponseEntity<Void> disconnect(@PathVariable String id) {
+    ResponseEntity<Void> disconnect(@PathVariable String id, @RequestParam(required = false) String service) {
         Person person = people.get(PersonId.of(id));
-        person.provider().ifPresent(service -> authorization(service).disconnect(person.id()));
+        named(service).or(person::provider).ifPresent(chosen -> authorization(chosen).disconnect(person.id()));
         return ResponseEntity.noContent().build();
+    }
+
+    private static Optional<Provider> named(String service) {
+        return Optional.ofNullable(service).filter(text -> !text.isBlank()).map(Provider::parse);
     }
 
     @GetMapping(value = "/api/connect/{service}/callback", produces = MediaType.TEXT_HTML_VALUE)

@@ -20,7 +20,29 @@ data class Person(
     val service: String?,
     val connected: Boolean,
     val playTracking: Boolean,
+    /** Services other than their own they connected too, as to copy playlists there. */
+    val alsoConnected: List<String> = emptyList(),
 )
+
+/** Where an album or song opens on a service other than the person's own. */
+data class ServiceLink(val service: String, val link: String) {
+    val label: String get() = "Open in ${serviceLabel(service)}"
+}
+
+/** Where an activity's newest playlist is copied ([categoryId] null is General); [link] once it is there. */
+data class PlaylistCopy(val categoryId: String?, val service: String, val link: String?)
+
+/**
+ * The badges for the qualities beyond the ordinary something comes in. Lossless is left out, as nearly everything on
+ * Tidal is.
+ */
+fun qualityBadges(formats: List<String>): List<String> = formats.mapNotNull {
+    when (it) {
+        "HI_RES" -> "Hi-Res"
+        "DOLBY_ATMOS" -> "Atmos"
+        else -> null
+    }
+}
 
 data class Category(val id: String, val name: String, val rules: String)
 
@@ -57,7 +79,12 @@ data class Album(
     val year: Int?,
     val link: String?,
     val cover: String? = null,
-)
+    /** Qualities beyond the ordinary it comes in, as the server names them: LOSSLESS, HI_RES, DOLBY_ATMOS. */
+    val formats: List<String> = emptyList(),
+    val elsewhere: List<ServiceLink> = emptyList(),
+) {
+    val qualities: List<String> get() = qualityBadges(formats)
+}
 
 /** How much a person likes an album for one activity, 1 to 3 on the server (ADR-015). */
 enum class Rating(val value: Int, val label: String) {
@@ -102,7 +129,11 @@ data class Track(
     val ref: String = id,
     val rating: Rating? = null,
     val general: Boolean = false,
-)
+    val formats: List<String> = emptyList(),
+    val elsewhere: List<ServiceLink> = emptyList(),
+) {
+    val qualities: List<String> get() = qualityBadges(formats)
+}
 
 /**
  * Songs Claude picked to play straight through. Only the newest for an activity has a [link], as each new one
@@ -279,6 +310,12 @@ object Json {
 
     fun connectUrl(text: String): String = obj(text).string("url")
 
+    fun copies(text: String): List<PlaylistCopy> = array(text).map {
+        PlaylistCopy(it.stringOrNull("categoryId"), it.string("service"), it.stringOrNull("link"))
+    }
+
+    fun status(text: String): String = obj(text).optString("status")
+
     fun errorMessage(text: String): String? = runCatching { obj(text).stringOrNull("message") }.getOrNull()
 
     private fun person(json: JsonObject) = Person(
@@ -287,13 +324,14 @@ object Json {
         service = json.stringOrNull("service"),
         connected = json.boolean("connected"),
         playTracking = json.boolean("playTracking", true),
+        alsoConnected = json.strings("alsoConnected"),
     )
 
     private fun track(json: JsonObject): Track {
         val id = json.string("id")
         return Track(id, json.string("artist"), json.string("title"), json.optString("album"),
             json.stringOrNull("cover"), json.stringOrNull("link"), json.stringOrNull("ref") ?: id, json.rating(),
-            json.boolean("general"))
+            json.boolean("general"), json.strings("formats"), json.links())
     }
 
     private fun pick(json: JsonObject) = Pick(
@@ -321,6 +359,8 @@ object Json {
         year = json.primitive("year")?.intOrNull,
         link = json.stringOrNull("link"),
         cover = json.stringOrNull("cover"),
+        formats = json.strings("formats"),
+        elsewhere = json.links(),
     )
 
     private fun obj(text: String): JsonObject = parse(text).jsonObject
@@ -350,6 +390,9 @@ object Json {
 
     private fun JsonObject.strings(name: String): List<String> =
         (get(name) as? JsonArray)?.map { it.jsonPrimitive.content }.orEmpty()
+
+    private fun JsonObject.links(): List<ServiceLink> =
+        objects("elsewhere").map { ServiceLink(it.string("service"), it.string("link")) }
 
     private fun JsonObject.rating(): Rating? = primitive("rating")?.intOrNull?.let(Rating::of)
 }

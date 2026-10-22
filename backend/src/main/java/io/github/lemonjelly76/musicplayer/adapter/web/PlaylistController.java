@@ -1,16 +1,21 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.adapter.web.Requests.PlaylistSlotRequest;
+import io.github.lemonjelly76.musicplayer.adapter.web.Requests.ServiceRequest;
+import io.github.lemonjelly76.musicplayer.adapter.web.Responses.CopyResponse;
 import io.github.lemonjelly76.musicplayer.adapter.web.Responses.PlaylistResponse;
+import io.github.lemonjelly76.musicplayer.adapter.web.Responses.StatusResponse;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
+import io.github.lemonjelly76.musicplayer.application.PlaylistCopies;
 import io.github.lemonjelly76.musicplayer.application.PlaylistService;
 import io.github.lemonjelly76.musicplayer.application.SongService;
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
-import io.github.lemonjelly76.musicplayer.adapter.web.Requests.PlaylistSlotRequest;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The song playlists Claude made, for the app to show and play.
@@ -38,14 +44,16 @@ class PlaylistController {
     private final PlaylistService playlists;
     private final MusicProviders providers;
     private final SongService songs;
+    private final PlaylistCopies copies;
 
     PlaylistController(PersonService people, CategoryService categories, PlaylistService playlists,
-            MusicProviders providers, SongService songs) {
+            MusicProviders providers, SongService songs, PlaylistCopies copies) {
         this.people = people;
         this.categories = categories;
         this.playlists = playlists;
         this.providers = providers;
         this.songs = songs;
+        this.copies = copies;
     }
 
     /**
@@ -62,7 +70,8 @@ class PlaylistController {
                 ActivityParameter.resolve(categories, category).map(Category::id), limit);
         Map<String, LibrarySong> rated = songs.bySong(person.id());
         return found.stream()
-                .map(playlist -> PlaylistResponse.from(asSeenBy(person, playlist), providers::link, rated, providers::link))
+                .map(playlist -> PlaylistResponse.from(asSeenBy(person, playlist), providers::link, rated,
+                        Links.forPerson(person, providers)))
                 .toList();
     }
 
@@ -84,6 +93,28 @@ class PlaylistController {
         }
         Person person = people.get(PersonId.of(id));
         Playlist placed = playlists.putInSlot(person, PlaylistId.of(playlistId), request.slot());
-        return PlaylistResponse.from(placed, providers::link, songs.bySong(person.id()), providers::link);
+        return PlaylistResponse.from(placed, providers::link, songs.bySong(person.id()),
+                Links.forPerson(person, providers));
+    }
+
+    @GetMapping("/people/{id}/playlist-copies")
+    List<CopyResponse> copies(@PathVariable String id) {
+        Person person = people.get(PersonId.of(id));
+        return copies.of(person).stream().map(copy -> CopyResponse.from(copy, providers::link)).toList();
+    }
+
+    /**
+     * Copies the activity's newest playlist to the service named from now on, or stops when none is.
+     */
+    @PutMapping("/people/{id}/playlist-copy")
+    StatusResponse copy(@PathVariable String id, @RequestParam(required = false) String category,
+            @RequestBody ServiceRequest request) {
+        Person person = people.get(PersonId.of(id));
+        Optional<Category> activity = ActivityParameter.resolve(categories, category);
+        if (request.service() == null || request.service().isBlank()) {
+            copies.stop(person, activity);
+            return new StatusResponse("no longer copied");
+        }
+        return new StatusResponse(copies.keep(person, activity, Provider.parse(request.service())));
     }
 }

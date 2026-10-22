@@ -7,7 +7,9 @@ import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.NotFoundException;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.RecommendationService;
+import io.github.lemonjelly76.musicplayer.application.ServiceLink;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
@@ -37,6 +39,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -176,6 +179,20 @@ class MusicControllerTest {
                         [{"album":{"ref":"tidal:t-9","title":"Dummy","link":"https://tidal.com/browse/album/t-9"},
                           "rating":3,"general":false},
                          {"album":{"ref":"tidal:t-3","title":"Third"},"rating":null,"general":false}]""");
+    }
+
+    @Test
+    void showsTheFormatsAnAlbumCanBePlayedInAndWhereElseItOpens() {
+        AlbumRef third = new AlbumRef("Portishead", "Third", Optional.of(2008), ProviderIds.of(Provider.TIDAL, "t-3"),
+                Optional.empty(), Set.of(AudioFormat.DOLBY_ATMOS, AudioFormat.LOSSLESS));
+        given(providers.search(CRAIG, "Third", 20)).willReturn(List.of(third));
+        given(providers.elsewhere(CRAIG, third)).willReturn(List.of(
+                new ServiceLink(Provider.SPOTIFY, URI.create("https://open.spotify.com/search/Portishead%20Third"))));
+
+        assertThat(mvc.get().uri("/api/people/{id}/search?q=Third&category=none", CRAIG.id()))
+                .hasStatusOk().bodyJson().isLenientlyEqualTo("""
+                        [{"album":{"ref":"tidal:t-3","formats":["LOSSLESS","DOLBY_ATMOS"],
+                          "elsewhere":[{"service":"spotify","link":"https://open.spotify.com/search/Portishead%20Third"}]}}]""");
     }
 
     @Test

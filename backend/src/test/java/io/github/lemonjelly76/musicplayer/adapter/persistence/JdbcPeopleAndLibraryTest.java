@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.IntegrationTestConfiguration;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,7 +65,7 @@ class JdbcPeopleAndLibraryTest {
         Instant ratedAt = Instant.parse("2026-10-20T18:00:00Z");
         AlbumRef blue = new AlbumRef("Joni Mitchell", "Blue", Optional.of(1971),
                 new ProviderIds(Optional.of("t-1"), Optional.empty(), Optional.of("mb-1")),
-                Optional.of("https://covers.example/blue.jpg"));
+                Optional.of("https://covers.example/blue.jpg"), Set.of(AudioFormat.LOSSLESS, AudioFormat.HI_RES));
         LibraryAlbum blueEntry = LibraryAlbum.create(craig.id(), blue, ActivityRating.general(Rating.LOVE, ratedAt),
                 "Perfect", List.of("folk", "70s"), LocalDate.of(2026, 10, 20))
                 .rated(new ActivityRating(Optional.of(running.id()), Rating.DISLIKE, "Too slow", ratedAt.plusSeconds(1)));

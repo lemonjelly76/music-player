@@ -35,11 +35,25 @@ class ConnectControllerTest {
     private PersonService people;
     @MockitoBean(name = "tidalAuthorization")
     private ProviderAuthorization tidal;
+    @MockitoBean(name = "spotifyAuthorization")
+    private ProviderAuthorization spotify;
 
     @BeforeEach
     void setUp() {
         given(tidal.provider()).willReturn(Provider.TIDAL);
+        given(spotify.provider()).willReturn(Provider.SPOTIFY);
         given(people.get(CRAIG.id())).willReturn(CRAIG);
+    }
+
+    @Test
+    @WithMockUser
+    void connectsASecondServiceToo() {
+        given(spotify.connectUrl(CRAIG.id())).willReturn(URI.create("https://accounts.spotify.com/authorize?state=s"));
+
+        assertThat(mvc.get().uri("/api/people/{id}/connect?service=spotify", CRAIG.id()))
+                .hasStatusOk()
+                .bodyJson().isEqualTo("""
+                        {"service":"spotify","url":"https://accounts.spotify.com/authorize?state=s"}""");
     }
 
     @Test

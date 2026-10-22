@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,9 +90,21 @@ fun CoverMosaic(albums: List<Album>, modifier: Modifier = Modifier) {
 /** Something to do with an album from its ⋯ menu. */
 data class AlbumAction(val label: String, val run: () -> Unit)
 
+/** "Open in Spotify" and the like, for the person's services other than their own. */
+fun elsewhereActions(album: Album, open: (String) -> Unit): List<AlbumAction> =
+    album.elsewhere.map { AlbumAction(it.label) { open(it.link) } }
+
+/** The album's quality badges on a line of their own, for tiles too narrow to put them beside the artist. */
+@Composable
+fun QualityBadges(album: Album) {
+    if (album.qualities.isNotEmpty()) {
+        Row(Modifier.padding(top = 2.dp)) { album.qualities.forEach { QualityBadge(it) } }
+    }
+}
+
 /**
  * A row with the album's cover, title and artist, then whatever the screen adds below. Tapping it opens the album in
- * the person's streaming app.
+ * the person's streaming app; its ⋯ menu also opens it on their other services.
  */
 @Composable
 fun AlbumRow(
@@ -103,6 +116,7 @@ fun AlbumRow(
     below: @Composable ColumnScope.() -> Unit = {},
 ) {
     val link = album.link
+    val menu = actions + elsewhereActions(album, open)
     Column(
         Modifier.fillMaxWidth()
             .clickable(enabled = link != null) { link?.let(open) }
@@ -116,6 +130,7 @@ fun AlbumRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     badge?.let { Badge(it) }
+                    album.qualities.forEach { QualityBadge(it) }
                     Text(listOfNotNull(album.artist, album.year?.toString()).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
@@ -123,7 +138,7 @@ fun AlbumRow(
                 }
             }
             trailing()
-            if (actions.isNotEmpty()) ActionsMenu(actions)
+            if (menu.isNotEmpty()) ActionsMenu(menu)
         }
         below()
     }
@@ -135,6 +150,13 @@ private fun Badge(text: String) {
     Text(text, Modifier.padding(end = 6.dp).background(MaterialTheme.colorScheme.onSurfaceVariant,
         RoundedCornerShape(2.dp)).padding(horizontal = 4.dp),
         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.background)
+}
+
+/** "Hi-Res" or "Atmos" in the accent colour, as Tidal marks its best-sounding releases. */
+@Composable
+fun QualityBadge(text: String) {
+    Text(text, Modifier.padding(end = 6.dp).border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+        .padding(horizontal = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable

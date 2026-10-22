@@ -53,8 +53,8 @@ class PlaysController {
         Person person = people.get(PersonId.of(id));
         return plays.stats(person, ActivityParameter.resolve(categories, category), days)
                 .map(totals -> ListeningResponse.from(true, days, ListeningStats.of(totals, TOP),
-                        album -> providers.link(person, album)))
+                        Links.forPerson(person, providers)))
                 .orElseGet(() -> ListeningResponse.from(false, days, ListeningStats.of(List.of(), TOP),
-                        album -> Optional.empty()));
+                        Links.forPerson(person, providers)));
     }
 }

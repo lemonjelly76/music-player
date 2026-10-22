@@ -148,7 +148,21 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
             put("enabled", enabled)
         }))
 
-    suspend fun connectUrl(personId: String): String = Json.connectUrl(get("api/people/$personId/connect"))
+    /** The sign-in page for the person's own service, or for [service] when they connect a second one. */
+    suspend fun connectUrl(personId: String, service: String? = null): String =
+        Json.connectUrl(get("api/people/$personId/connect", *listOfNotNull(service?.let { "service" to it }).toTypedArray()))
+
+    /** Where each of the person's activities has its newest playlist copied. */
+    suspend fun playlistCopies(personId: String): List<PlaylistCopy> =
+        Json.copies(get("api/people/$personId/playlist-copies"))
+
+    /**
+     * Copies the activity's newest playlist to [service] from now on, or stops when it is null; [categoryId] null is
+     * General. Says how the first copy went.
+     */
+    suspend fun copyPlaylists(personId: String, categoryId: String?, service: String?): String =
+        Json.status(send(HttpMethod.Put, "api/people/$personId/playlist-copy",
+            buildJsonObject { put("service", service) }, "category" to (categoryId ?: GENERAL)))
 
     private suspend fun get(path: String, vararg query: Pair<String, String>): String =
         send(HttpMethod.Get, path, null, *query)

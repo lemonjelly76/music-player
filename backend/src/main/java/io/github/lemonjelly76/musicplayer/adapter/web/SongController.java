@@ -55,7 +55,8 @@ class SongController {
         Person person = people.get(PersonId.of(id));
         Optional<CategoryId> activity = ActivityParameter.resolve(categories, category).map(Category::id);
         return songs.songsFor(person.id(), activity).stream()
-                .map(song -> TrackResponse.from(song.track(), Optional.of(song), activity, providers::link))
+                .map(song -> TrackResponse.from(song.track(), Optional.of(song), activity,
+                        Links.forPerson(person, providers)))
                 .toList();
     }
 
@@ -73,7 +74,7 @@ class SongController {
         Map<String, LibrarySong> rated = songs.bySong(person.id());
         return songs.search(person, q.strip(), limit).stream()
                 .map(track -> TrackResponse.from(track, Optional.ofNullable(rated.get(track.songKey())), activity,
-                        providers::link))
+                        Links.forPerson(person, providers)))
                 .toList();
     }
 

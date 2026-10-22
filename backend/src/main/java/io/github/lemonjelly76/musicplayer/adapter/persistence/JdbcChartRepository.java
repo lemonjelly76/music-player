@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
 import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 class JdbcChartRepository implements ChartRepository {
@@ -36,22 +38,22 @@ class JdbcChartRepository implements ChartRepository {
         for (ResolvedChart.Song song : chart.songs()) {
             Track track = song.track();
             insert(chart, "SONG", song.position(), Optional.of(track.id()), track.artist(), track.title(), track.album(),
-                    track.cover());
+                    track.cover(), track.formats());
         }
         for (ResolvedChart.Album found : chart.albums()) {
             AlbumRef album = found.album();
             insert(chart, "ALBUM", found.position(), album.ids().get(chart.provider()), album.artist(), album.title(), "",
-                    album.cover());
+                    album.cover(), album.formats());
         }
     }
 
     private void insert(ResolvedChart chart, String kind, int position, Optional<String> itemId, String artist,
-            String title, String album, Optional<String> cover) {
+            String title, String album, Optional<String> cover, Set<AudioFormat> formats) {
         jdbc.sql("""
                         insert into chart_entry (provider, kind, position, country, fetched_at, item_id, artist, title,
-                            album, cover_url)
+                            album, cover_url, formats)
                         values (:provider, :kind, :position, :country, :fetchedAt, :itemId, :artist, :title, :album,
-                            :cover)""")
+                            :cover, :formats)""")
                 .param("provider", chart.provider().name())
                 .param("kind", kind)
                 .param("position", position)
@@ -62,6 +64,7 @@ class JdbcChartRepository implements ChartRepository {
                 .param("title", title)
                 .param("album", album)
                 .param("cover", cover.orElse(null))
+                .param("formats", Columns.formats(formats))
                 .update();
     }
 
@@ -79,11 +82,11 @@ class JdbcChartRepository implements ChartRepository {
         for (Row row : rows) {
             if (row.kind().equals("SONG")) {
                 songs.add(new ResolvedChart.Song(row.position(), new Track(provider, row.itemId(), row.artist(),
-                        row.title(), row.album(), Optional.ofNullable(row.cover()))));
+                        row.title(), row.album(), Optional.ofNullable(row.cover()), row.formats())));
             } else {
                 ProviderIds ids = row.itemId() == null ? ProviderIds.NONE : ProviderIds.of(provider, row.itemId());
                 albums.add(new ResolvedChart.Album(row.position(), new AlbumRef(row.artist(), row.title(),
-                        Optional.empty(), ids, Optional.ofNullable(row.cover()))));
+                        Optional.empty(), ids, Optional.ofNullable(row.cover()), row.formats())));
             }
         }
         Row first = rows.getFirst();
@@ -122,12 +125,12 @@ class JdbcChartRepository implements ChartRepository {
     }
 
     private record Row(String kind, int position, String country, Instant fetchedAt, String itemId, String artist,
-                       String title, String album, String cover) {
+                       String title, String album, String cover, Set<AudioFormat> formats) {
 
         static Row read(ResultSet row) throws SQLException {
             return new Row(row.getString("kind"), row.getInt("position"), row.getString("country"),
                     row.getTimestamp("fetched_at").toInstant(), row.getString("item_id"), row.getString("artist"),
-                    row.getString("title"), row.getString("album"), row.getString("cover_url"));
+                    row.getString("title"), row.getString("album"), row.getString("cover_url"), Columns.formats(row));
         }
     }
 }

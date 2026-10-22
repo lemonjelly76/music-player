@@ -26,22 +26,25 @@ final class World {
     final FakePorts.Recommendations recommendationRepository = new FakePorts.Recommendations();
     final FakePorts.Playlists playlistRepository = new FakePorts.Playlists();
     final FakePorts.Songs songRepository = new FakePorts.Songs();
+    final FakePorts.Copies copyRepository = new FakePorts.Copies();
     final FakePorts.FakeProvider tidal = new FakePorts.FakeProvider(Provider.TIDAL);
+    final FakePorts.FakeProvider spotify = new FakePorts.FakeProvider(Provider.SPOTIFY);
     final FakePorts.Catalogue catalogue = new FakePorts.Catalogue();
     final FakePorts.Similarity lastFm = new FakePorts.Similarity("lastfm");
 
     final PersonService people = new PersonService(peopleRepository);
     final CategoryService categories = new CategoryService(categoryRepository);
-    final MusicProviders providers = new MusicProviders(List.of(tidal));
+    final MusicProviders providers = new MusicProviders(List.of(tidal, spotify));
     final AlbumResolver resolver = new AlbumResolver(providers, catalogue);
     final LibraryService library = new LibraryService(libraryRepository, resolver, providers, clock);
     final RecommendationService recommendations = new RecommendationService(recommendationRepository, resolver,
             library, providers, clock);
     final SongService songs = new SongService(songRepository, providers, clock);
+    final PlaylistCopies copies = new PlaylistCopies(copyRepository, playlistRepository, providers);
     final PlaylistService playlists = new PlaylistService(playlistRepository, recommendationRepository, library,
-            songs, providers, clock);
+            songs, providers, copies, clock);
     final PlayService plays = new PlayService(playRepository, peopleRepository, playlistRepository,
-            recommendationRepository, List.of(), clock);
+            recommendationRepository, copyRepository, List.of(), clock);
     final CandidateService candidates = new CandidateService(library, plays, recommendations, List.of(lastFm),
             providers, clock);
 

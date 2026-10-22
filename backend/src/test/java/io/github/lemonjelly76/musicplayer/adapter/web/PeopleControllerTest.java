@@ -57,6 +57,17 @@ class PeopleControllerTest {
     }
 
     @Test
+    void saysWhichOtherServicesEachPersonHasConnected() {
+        given(people.all()).willReturn(List.of(CRAIG));
+        given(providers.alsoConnected(CRAIG)).willReturn(List.of(Provider.SPOTIFY));
+
+        assertThat(mvc.get().uri("/api/people"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        [{"name":"Craig","alsoConnected":["spotify"]}]""");
+    }
+
+    @Test
     void saysWhichServicesTheServerIsSetUpFor() {
         given(providers.find(Provider.TIDAL)).willReturn(Optional.of(mock(MusicProvider.class)));
         given(providers.find(Provider.SPOTIFY)).willReturn(Optional.empty());

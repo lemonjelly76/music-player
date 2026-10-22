@@ -60,8 +60,9 @@ class JdbcPlaylistRepository implements PlaylistRepository {
             Track track = playlist.tracks().get(position);
             jdbc.sql("""
                             insert into playlist_track (playlist_id, position, provider, track_id, artist, title, album,
-                                cover_url)
-                            values (:playlist, :position, :provider, :trackId, :artist, :title, :album, :cover)""")
+                                cover_url, formats)
+                            values (:playlist, :position, :provider, :trackId, :artist, :title, :album, :cover,
+                                :formats)""")
                     .param("playlist", playlist.id().value())
                     .param("position", position)
                     .param("provider", track.provider().name())
@@ -70,6 +71,7 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                     .param("title", track.title())
                     .param("album", track.album())
                     .param("cover", track.cover().orElse(null))
+                    .param("formats", Columns.formats(track.formats()))
                     .update();
         }
     }
@@ -164,6 +166,6 @@ class JdbcPlaylistRepository implements PlaylistRepository {
     private static Track track(ResultSet row) throws SQLException {
         return new Track(Provider.valueOf(row.getString("provider")), row.getString("track_id"),
                 row.getString("artist"), row.getString("title"), row.getString("album"),
-                Optional.ofNullable(row.getString("cover_url")));
+                Optional.ofNullable(row.getString("cover_url")), Columns.formats(row));
     }
 }

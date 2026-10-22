@@ -59,7 +59,8 @@ class JdbcRecommendationRepository implements RecommendationRepository {
                             values (:id, :list, :position, %s, :reason, :source)
                             on conflict (id) do update set tidal_id = excluded.tidal_id,
                                 spotify_id = excluded.spotify_id, musicbrainz_id = excluded.musicbrainz_id,
-                                cover_url = excluded.cover_url"""
+                                cover_url = excluded.cover_url,
+                                formats = coalesce(excluded.formats, recommendation.formats)"""
                             .formatted(AlbumColumns.NAMES, AlbumColumns.PARAMS)), pick.album())
                     .param("id", pick.id().value())
                     .param("list", list.id().value())

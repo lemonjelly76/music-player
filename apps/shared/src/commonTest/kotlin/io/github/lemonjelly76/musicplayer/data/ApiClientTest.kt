@@ -57,6 +57,30 @@ class ApiClientTest {
     }
 
     @Test
+    fun copiesAnActivitysPlaylistsToAnotherServiceAndConnectsIt() = runTest {
+        val api = client { request -> json(when {
+            "connect" in request.url.encodedPath -> """{"service":"spotify","url":"https://accounts.spotify.com/a"}"""
+            request.method == HttpMethod.Put -> """{"status":"copied to spotify"}"""
+            else -> "[]"
+        }) }
+
+        val status = api.copyPlaylists("1", "c1", "spotify")
+        api.copyPlaylists("1", null, null)
+        api.playlistCopies("1")
+        val url = api.connectUrl("1", "spotify")
+
+        val (copy, stop, list, connect) = requests
+        assertEquals("copied to spotify", status)
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/playlist-copy?category=c1", copy.url.toString())
+        assertEquals("""{"service":"spotify"}""", copy.body.toByteArray().decodeToString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/playlist-copy?category=none", stop.url.toString())
+        assertEquals("""{"service":null}""", stop.body.toByteArray().decodeToString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/playlist-copies", list.url.toString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/connect?service=spotify", connect.url.toString())
+        assertEquals("https://accounts.spotify.com/a", url)
+    }
+
+    @Test
     fun renamesAnActivity() = runTest {
         val renamed = client { json("""{"id":"c1","name":"Focus","rules":"Instrumental"}""") }
             .renameCategory("c1", "Focus")

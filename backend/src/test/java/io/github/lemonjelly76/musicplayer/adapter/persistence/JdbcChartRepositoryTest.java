@@ -1,6 +1,7 @@
 package io.github.lemonjelly76.musicplayer.adapter.persistence;
 
 import io.github.lemonjelly76.musicplayer.IntegrationTestConfiguration;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.ProviderIds;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,10 +40,11 @@ class JdbcChartRepositoryTest {
     private static ResolvedChart chart(Instant at, String firstSong) {
         return new ResolvedChart(Provider.SPOTIFY, "gb", at,
                 List.of(new ResolvedChart.Song(1, new Track(Provider.SPOTIFY, "t1", "Tate McRae", firstSong, "Housewife",
-                        Optional.of("https://i/1"))), new ResolvedChart.Song(3, new Track(Provider.SPOTIFY, "t3",
+                        Optional.of("https://i/1"), Set.of(AudioFormat.LOSSLESS))), new ResolvedChart.Song(3, new Track(Provider.SPOTIFY, "t3",
                         "Jamie Miller", "Babydoll", "Babydoll", Optional.empty()))),
                 List.of(new ResolvedChart.Album(1, new AlbumRef("Fontaines D.C.", "Dopamine Chamber", Optional.empty(),
-                        ProviderIds.of(Provider.SPOTIFY, "a1"), Optional.of("https://i/a1"))),
+                        ProviderIds.of(Provider.SPOTIFY, "a1"), Optional.of("https://i/a1"),
+                        Set.of(AudioFormat.HI_RES))),
                         new ResolvedChart.Album(2, new AlbumRef("Local Band", "Demo Tape", Optional.empty(),
                                 ProviderIds.NONE, Optional.empty()))));
     }

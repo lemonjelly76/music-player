@@ -14,6 +14,7 @@ import io.github.lemonjelly76.musicplayer.domain.library.LibrarySongId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistCopy;
 import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
@@ -29,6 +30,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.PlaylistCopyRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.SimilaritySource;
@@ -310,6 +312,43 @@ final class FakePorts {
         @Override
         public void delete(LibrarySongId id) {
             saved.remove(id);
+        }
+    }
+
+    static final class Copies implements PlaylistCopyRepository {
+
+        final List<PlaylistCopy> saved = new ArrayList<>();
+
+        @Override
+        public Optional<PlaylistCopy> find(PersonId person, Optional<CategoryId> activity) {
+            return saved.stream().filter(copy -> copy.person().equals(person) && copy.category().equals(activity))
+                    .findFirst();
+        }
+
+        @Override
+        public List<PlaylistCopy> forPerson(PersonId person) {
+            return saved.stream().filter(copy -> copy.person().equals(person)).toList();
+        }
+
+        @Override
+        public List<PlaylistCopy> forActivity(CategoryId activity) {
+            return saved.stream().filter(copy -> copy.category().equals(Optional.of(activity))).toList();
+        }
+
+        @Override
+        public Optional<PlaylistCopy> findByPlaylist(String providerPlaylistId) {
+            return saved.stream().filter(copy -> copy.playlistId().equals(Optional.of(providerPlaylistId))).findFirst();
+        }
+
+        @Override
+        public void save(PlaylistCopy copy) {
+            delete(copy.person(), copy.category());
+            saved.add(copy);
+        }
+
+        @Override
+        public void delete(PersonId person, Optional<CategoryId> activity) {
+            saved.removeIf(copy -> copy.person().equals(person) && copy.category().equals(activity));
         }
     }
 

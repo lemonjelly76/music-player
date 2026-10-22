@@ -13,8 +13,8 @@ import java.util.Optional;
  */
 final class AlbumColumns {
 
-    static final String NAMES = "artist, title, year, tidal_id, spotify_id, musicbrainz_id, cover_url";
-    static final String PARAMS = ":artist, :title, :year, :tidalId, :spotifyId, :musicBrainzId, :coverUrl";
+    static final String NAMES = "artist, title, year, tidal_id, spotify_id, musicbrainz_id, cover_url, formats";
+    static final String PARAMS = ":artist, :title, :year, :tidalId, :spotifyId, :musicBrainzId, :coverUrl, :formats";
 
     private AlbumColumns() {
     }
@@ -28,7 +28,8 @@ final class AlbumColumns {
                 .param("tidalId", album.ids().tidal().orElse(null))
                 .param("spotifyId", album.ids().spotify().orElse(null))
                 .param("musicBrainzId", album.ids().musicBrainz().orElse(null))
-                .param("coverUrl", album.cover().orElse(null));
+                .param("coverUrl", album.cover().orElse(null))
+                .param("formats", Columns.formats(album.formats()));
     }
 
     static AlbumRef read(ResultSet row) throws SQLException {
@@ -37,6 +38,7 @@ final class AlbumColumns {
         return new AlbumRef(row.getString("artist"), row.getString("title"), knownYear, new ProviderIds(
                 Optional.ofNullable(row.getString("tidal_id")),
                 Optional.ofNullable(row.getString("spotify_id")),
-                Optional.ofNullable(row.getString("musicbrainz_id"))), Optional.ofNullable(row.getString("cover_url")));
+                Optional.ofNullable(row.getString("musicbrainz_id"))), Optional.ofNullable(row.getString("cover_url")),
+                Columns.formats(row));
     }
 }

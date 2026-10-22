@@ -1,7 +1,10 @@
 package io.github.lemonjelly76.musicplayer.adapter.web;
 
+import io.github.lemonjelly76.musicplayer.application.ServiceLink;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.AudioFormat;
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
@@ -13,6 +16,7 @@ import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist.Slot;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistCopy;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.ArtistPlays;
@@ -27,6 +31,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Function;
 
@@ -38,12 +43,32 @@ final class Responses {
     private Responses() {
     }
 
-    record PersonResponse(String id, String name, String service, boolean connected, boolean playTracking) {
+    /**
+     * A person, whether they connected their own service, and the other services they connected too.
+     */
+    record PersonResponse(String id, String name, String service, boolean connected, boolean playTracking,
+                          List<String> alsoConnected) {
 
-        static PersonResponse from(Person person, boolean connected) {
+        static PersonResponse from(Person person, boolean connected, List<Provider> alsoConnected) {
             return new PersonResponse(person.id().toString(), person.name(),
-                    person.provider().map(provider -> provider.prefix()).orElse(null), connected, person.playTracking());
+                    person.provider().map(provider -> provider.prefix()).orElse(null), connected, person.playTracking(),
+                    alsoConnected.stream().map(Provider::prefix).toList());
         }
+    }
+
+    /**
+     * Where an activity's newest playlist is copied; the link is there once it has been written.
+     */
+    record CopyResponse(String categoryId, String service, String link) {
+
+        static CopyResponse from(PlaylistCopy copy, Function<SyncedPlaylist, Optional<URI>> playlistLinks) {
+            return new CopyResponse(copy.category().map(Object::toString).orElse(null), copy.service().prefix(),
+                    copy.playlistId().map(id -> new SyncedPlaylist(copy.service(), id)).flatMap(playlistLinks)
+                            .map(URI::toString).orElse(null));
+        }
+    }
+
+    record StatusResponse(String status) {
     }
 
     record CategoryResponse(String id, String name, String rules) {
@@ -53,16 +78,34 @@ final class Responses {
         }
     }
 
-    record AlbumResponse(String ref, String artist, String title, Integer year, String link, String cover) {
+    /**
+     * An album with the formats beyond the ordinary it can be played in (LOSSLESS, HI_RES, DOLBY_ATMOS), and where
+     * it opens on the person's other services.
+     */
+    record AlbumResponse(String ref, String artist, String title, Integer year, String link, String cover,
+                         List<String> formats, List<LinkResponse> elsewhere) {
 
-        static AlbumResponse from(AlbumRef album, Function<AlbumRef, Optional<URI>> links) {
+        static AlbumResponse from(AlbumRef album, Links links) {
             String ref = album.ids().tidal().map(id -> "tidal:" + id)
                     .or(() -> album.ids().spotify().map(id -> "spotify:" + id))
                     .or(() -> album.ids().musicBrainz().map(id -> "mbid:" + id))
                     .orElse(album.label());
             return new AlbumResponse(ref, album.artist(), album.title(), album.year().orElse(null),
-                    links.apply(album).map(URI::toString).orElse(null), album.cover().orElse(null));
+                    links.album().apply(album).map(URI::toString).orElse(null), album.cover().orElse(null),
+                    names(album.formats()), LinkResponse.all(links.albumElsewhere().apply(album)));
         }
+    }
+
+    record LinkResponse(String service, String link) {
+
+        static List<LinkResponse> all(List<ServiceLink> links) {
+            return links.stream().map(found -> new LinkResponse(found.service().prefix(), found.link().toString()))
+                    .toList();
+        }
+    }
+
+    private static List<String> names(Set<AudioFormat> formats) {
+        return formats.stream().map(Enum::name).toList();
     }
 
     /**
@@ -71,7 +114,7 @@ final class Responses {
     record PickResponse(String id, AlbumResponse album, String reason, String source, Integer rating) {
 
         static PickResponse from(Recommendation pick, Optional<CategoryId> activity,
-                Map<AlbumKey, LibraryAlbum> library, Function<AlbumRef, Optional<URI>> links) {
+                Map<AlbumKey, LibraryAlbum> library, Links links) {
             Integer rating = Optional.ofNullable(library.get(pick.album().key()))
                     .flatMap(entry -> entry.own(activity))
                     .map(found -> found.rating().value())
@@ -87,7 +130,7 @@ final class Responses {
     record ListResponse(String id, String name, String categoryId, Instant createdAt, List<PickResponse> picks) {
 
         static ListResponse from(RecommendationList list, Map<AlbumKey, LibraryAlbum> library,
-                Function<AlbumRef, Optional<URI>> links) {
+                Links links) {
             return new ListResponse(list.id().toString(), list.name(),
                     list.category().map(Object::toString).orElse(null), list.createdAt(),
                     list.picks().stream().map(pick -> PickResponse.from(pick, list.category(), library, links)).toList());
@@ -102,7 +145,7 @@ final class Responses {
                                 SortedSet<String> tags, LocalDate addedOn) {
 
         static LibraryAlbumResponse from(LibraryAlbum entry, Optional<CategoryId> activity,
-                Function<AlbumRef, Optional<URI>> links) {
+                Links links) {
             Optional<ActivityRating> rating = entry.ownOrGeneral(activity);
             return new LibraryAlbumResponse(entry.id().toString(), AlbumResponse.from(entry.album(), links),
                     rating.map(found -> found.rating().value()).orElse(null),
@@ -117,7 +160,7 @@ final class Responses {
     record FoundResponse(AlbumResponse album, Integer rating, boolean general) {
 
         static FoundResponse from(AlbumRef album, Optional<LibraryAlbum> entry, Optional<CategoryId> activity,
-                Function<AlbumRef, Optional<URI>> links) {
+                Links links) {
             Optional<ActivityRating> rating = entry.flatMap(found -> found.ownOrGeneral(activity));
             return new FoundResponse(AlbumResponse.from(album, links),
                     rating.map(found -> found.rating().value()).orElse(null),
@@ -130,7 +173,7 @@ final class Responses {
 
     record CandidateResponse(AlbumResponse album, double score, SortedSet<String> sources, List<String> seeds) {
 
-        static CandidateResponse from(Candidate candidate, Function<AlbumRef, Optional<URI>> links) {
+        static CandidateResponse from(Candidate candidate, Links links) {
             return new CandidateResponse(AlbumResponse.from(candidate.album(), links), candidate.score(),
                     candidate.sources(), candidate.seeds());
         }
@@ -150,7 +193,7 @@ final class Responses {
          * Each song carries the person's rating of it for the playlist's activity.
          */
         static PlaylistResponse from(Playlist playlist, Function<SyncedPlaylist, Optional<URI>> playlistLinks,
-                Map<String, LibrarySong> rated, Function<Track, Optional<URI>> links) {
+                Map<String, LibrarySong> rated, Links links) {
             Optional<URI> link = playlist.slot().flatMap(slot -> playlist.synced()).flatMap(playlistLinks);
             return new PlaylistResponse(playlist.id().toString(), playlist.name(), playlist.description(),
                     playlist.category().map(Object::toString).orElse(null), playlist.createdAt(),
@@ -167,16 +210,17 @@ final class Responses {
      * the activity; {@code general} when that is the General rating standing in for the activity's own.
      */
     record TrackResponse(String ref, String id, String artist, String title, String album, String cover, String link,
-                         Integer rating, boolean general) {
+                         Integer rating, boolean general, List<String> formats, List<LinkResponse> elsewhere) {
 
         static TrackResponse from(Track track, Optional<LibrarySong> song, Optional<CategoryId> activity,
-                Function<Track, Optional<URI>> links) {
+                Links links) {
             Optional<ActivityRating> rating = song.flatMap(found -> found.ownOrGeneral(activity));
             return new TrackResponse(track.provider().prefix() + ":" + track.id(), track.id(), track.artist(),
                     track.title(), track.album(), track.cover().orElse(null),
-                    links.apply(track).map(URI::toString).orElse(null),
+                    links.track().apply(track).map(URI::toString).orElse(null),
                     rating.map(found -> found.rating().value()).orElse(null),
-                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false));
+                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false),
+                    names(track.formats()), LinkResponse.all(links.trackElsewhere().apply(track)));
         }
     }
 
@@ -192,18 +236,18 @@ final class Responses {
 
         static ChartResponse from(Optional<ResolvedChart> chart, ChartPlaylist playlist, Optional<URI> playlistLink,
                 Map<String, LibrarySong> songs, Map<AlbumKey, LibraryAlbum> albums,
-                Function<Track, Optional<URI>> trackLinks, Function<AlbumRef, Optional<URI>> albumLinks) {
+                Links links) {
             Optional<CategoryId> general = Optional.empty();
             return new ChartResponse(chart.map(ResolvedChart::country).orElse(null),
                     chart.map(ResolvedChart::fetchedAt).orElse(null), playlist.wanted(),
                     playlistLink.map(URI::toString).orElse(null),
                     chart.map(ResolvedChart::songs).orElse(List.of()).stream()
                             .map(song -> new ChartSongResponse(song.position(), TrackResponse.from(song.track(),
-                                    Optional.ofNullable(songs.get(song.track().songKey())), general, trackLinks)))
+                                    Optional.ofNullable(songs.get(song.track().songKey())), general, links)))
                             .toList(),
                     chart.map(ResolvedChart::albums).orElse(List.of()).stream()
                             .map(found -> new ChartAlbumResponse(found.position(), FoundResponse.from(found.album(),
-                                    Optional.ofNullable(albums.get(found.album().key())), general, albumLinks)))
+                                    Optional.ofNullable(albums.get(found.album().key())), general, links)))
                             .toList());
         }
     }
@@ -224,7 +268,7 @@ final class Responses {
             List<ArtistResponse> artists) {
 
         static ListeningResponse from(boolean tracking, int days, ListeningStats stats,
-                Function<AlbumRef, Optional<URI>> links) {
+                Links links) {
             return new ListeningResponse(tracking, days, stats.tracks(), stats.albums(),
                     stats.topAlbums().stream().map(total -> PlayedAlbumResponse.from(total, links)).toList(),
                     stats.topArtists().stream().map(ArtistResponse::from).toList());
@@ -233,7 +277,7 @@ final class Responses {
 
     record PlayedAlbumResponse(AlbumResponse album, int plays, Instant lastPlayed) {
 
-        static PlayedAlbumResponse from(AlbumPlays total, Function<AlbumRef, Optional<URI>> links) {
+        static PlayedAlbumResponse from(AlbumPlays total, Links links) {
             return new PlayedAlbumResponse(AlbumResponse.from(total.album(), links), total.plays(), total.lastPlayed());
         }
     }

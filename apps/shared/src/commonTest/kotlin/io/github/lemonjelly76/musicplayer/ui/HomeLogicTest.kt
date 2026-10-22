@@ -3,8 +3,10 @@ package io.github.lemonjelly76.musicplayer.ui
 import io.github.lemonjelly76.musicplayer.data.Album
 import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
+import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.Rating
+import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.Track
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,6 +66,16 @@ class HomeLogicTest {
 
         assertEquals("50 songs · 21 Oct 2026", playlistDetails(playlist))
         assertEquals("1 song · 21 Oct 2026", playlistDetails(playlist.copy(tracks = songs.take(1))))
+    }
+
+    @Test
+    fun copiesPlaylistsToTheOtherServiceTheServerIsSetUpFor() {
+        val services = listOf(Service("tidal", true), Service("spotify", true))
+        val craig = Person("1", "Craig", "tidal", true, true)
+
+        assertEquals("spotify", copyService(craig, services))
+        assertEquals(null, copyService(craig, listOf(Service("tidal", true), Service("spotify", false))))
+        assertEquals(null, copyService(craig.copy(service = null), services))
     }
 
     @Test
