@@ -66,7 +66,7 @@ data class UiState(
     val serverConnected: Boolean = false,
     /** The activity's lists of albums to try, newest first. */
     val lists: List<PickList> = emptyList(),
-    /** The activity's song playlists, newest first; only the newest is still in the person's account. */
+    /** The activity's song playlists, newest first; those with a slot are in the person's streaming app. */
     val playlists: List<Playlist> = emptyList(),
     val library: List<LibraryAlbum> = emptyList(),
     /** What the person turned down for the activity, so a dislike can be taken back. */
@@ -385,6 +385,16 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         state.update { if (it.personId == personId) it.copy(charts = charts) else it }
     }
 
+    /**
+     * Puts the playlist in the person's streaming app as its activity's playlist [slot]; the activity's playlists
+     * are reloaded, as the one there before has swapped places with it or left.
+     */
+    fun putInSlot(playlist: Playlist, slot: Int) = load {
+        val personId = state.value.personId ?: return@load
+        api.putPlaylistInSlot(personId, playlist.id, slot)
+        loadLists()
+    }
+
     /** Turns the person's weekly chart playlist on or off. */
     fun setChartPlaylist(enabled: Boolean) = load {
         val personId = state.value.personId ?: return@load
@@ -429,7 +439,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         val personId = state.value.personId ?: return@coroutineScope
         val category = state.value.category
         val lists = async { api.lists(personId, category, limit = LISTS_SHOWN) }
-        val playlists = async { api.playlists(personId, category, limit = LISTS_SHOWN) }
+        val playlists = async { api.playlists(personId, category, limit = PLAYLISTS_SHOWN) }
         val answers = lists.await() to playlists.await()
         state.update {
             if (it.personId == personId && it.category == category) {
@@ -482,5 +492,8 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     private companion object {
         const val LISTS_SHOWN = 10
+
+        /** Every playlist the server gives, so any can be put back in the streaming app. */
+        const val PLAYLISTS_SHOWN = 20
     }
 }

@@ -8,6 +8,8 @@ import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist.Slot;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
@@ -49,10 +51,13 @@ class PlaylistServiceTest {
         assertThat(saved.playlist().name()).isEqualTo("AI Picks — Running");
         assertThat(saved.playlist().tracks()).extracting(Track::id).containsExactly("tr-1", "tr-2");
         assertThat(saved.dropped()).containsExactly(new Dropped("Made Up — Never Was", "not on tidal"));
-        assertThat(saved.sync()).isEqualTo("synced to tidal as AI Picks — Running");
-        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running [tr-1, tr-2]");
+        assertThat(saved.sync()).isEqualTo("synced to tidal as AI Picks — Running 1");
+        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 1 [tr-1, tr-2]");
         assertThat(world.playlists.latest(craig, Optional.of(running.id()), 1)).singleElement()
-                .satisfies(kept -> assertThat(kept.synced()).contains(new SyncedPlaylist(Provider.TIDAL, "playlist-1")));
+                .satisfies(kept -> {
+                    assertThat(kept.synced()).contains(new SyncedPlaylist(Provider.TIDAL, "playlist-1"));
+                    assertThat(kept.slot()).contains(new Slot(1, "AI Picks — Running 1"));
+                });
     }
 
     @Test
@@ -99,7 +104,7 @@ class PlaylistServiceTest {
     }
 
     @Test
-    void replacesTheActivitysPlaylistEvenWhenItWasMadeFromAlbums() {
+    void replacesTheActivitysPlaylistMadeFromAlbumsBeforePlaylistsHeldSongs() {
         Person craig = world.tidalUser("Craig");
         world.recommendationRepository.save(RecommendationList.create(craig.id(), Optional.of(running),
                         List.of(Recommendation.create(album("Air", "Moon Safari"), "Calm", PickSource.POOL)), NOW)
@@ -109,7 +114,7 @@ class PlaylistServiceTest {
         world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
         world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
 
-        assertThat(world.tidal.deletedPlaylists).containsExactly("album-playlist", "playlist-1");
+        assertThat(world.tidal.deletedPlaylists).containsExactly("album-playlist");
     }
 
     @Test
@@ -124,7 +129,7 @@ class PlaylistServiceTest {
         assertThat(world.playlists.latest(craig, Optional.empty(), 5)).hasSize(1);
 
         world.tidal.connectedPeople.add(craig.id());
-        assertThat(world.playlists.resync(craig, Optional.empty()).sync()).isEqualTo("synced to tidal as AI Picks");
+        assertThat(world.playlists.resync(craig, Optional.empty()).sync()).isEqualTo("synced to tidal as AI Picks 1");
     }
 
     @Test
@@ -165,7 +170,8 @@ class PlaylistServiceTest {
 
         assertThat(world.playlists.latest(craig, Optional.of(running.id()), 5))
                 .extracting(Playlist::name).containsExactly("AI Picks — Jogging", "AI Picks — Jogging");
-        assertThat(world.tidal.renamedPlaylists).containsExactly("playlist-2 AI Picks — Jogging");
+        assertThat(world.tidal.renamedPlaylists)
+                .containsExactlyInAnyOrder("playlist-1 AI Picks — Jogging 1", "playlist-2 AI Picks — Jogging 2");
     }
 
     @Test
@@ -179,5 +185,109 @@ class PlaylistServiceTest {
 
         assertThat(world.playlists.latest(craig, Optional.of(running.id()), 1))
                 .extracting(Playlist::name).containsExactly("AI Picks — Jogging");
+    }
+
+    @Test
+    void keepsThreePlaylistsForEachActivityInTheAccountReplacingTheOldest() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        IntStream.range(0, 4).forEach(n -> world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy"))));
+        world.playlists.save(craig, Optional.empty(), "", List.of(song("Air", "Sexy Boy")));
+
+        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 1 [tr-1]",
+                "AI Picks — Running 2 [tr-1]", "AI Picks — Running 3 [tr-1]", "AI Picks — Running 1 [tr-1]",
+                "AI Picks 1 [tr-1]");
+        assertThat(world.tidal.deletedPlaylists).containsExactly("playlist-1");
+        assertThat(slots(craig, Optional.of(running))).containsExactly("playlist-4 in 1", "playlist-3 in 3",
+                "playlist-2 in 2", "none");
+    }
+
+    @Test
+    void putsAnEarlierPlaylistBackInTheAccountInPlaceOfTheOneInThatSlot() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        IntStream.range(0, 4).forEach(n -> world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy"))));
+        PlaylistId first = world.playlists.latest(craig, Optional.of(running.id()), 5).getLast().id();
+
+        Playlist back = world.playlists.putInSlot(craig, first, 2);
+
+        assertThat(back.slot()).contains(new Slot(2, "AI Picks — Running 2"));
+        assertThat(world.tidal.playlistCalls).last().isEqualTo("AI Picks — Running 2 [tr-1]");
+        assertThat(world.tidal.deletedPlaylists).containsExactly("playlist-1", "playlist-2");
+        assertThat(slots(craig, Optional.of(running))).containsExactly("playlist-4 in 1", "playlist-3 in 3", "none",
+                "playlist-5 in 2");
+    }
+
+    @Test
+    void swapsTwoPlaylistsAlreadyInTheAccountByRenamingThem() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        IntStream.range(0, 2).forEach(n -> world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy"))));
+        PlaylistId second = world.playlists.latest(craig, Optional.of(running.id()), 1).getFirst().id();
+
+        world.playlists.putInSlot(craig, second, 1);
+
+        assertThat(world.tidal.playlistCalls).hasSize(2);
+        assertThat(world.tidal.renamedPlaylists)
+                .containsExactly("playlist-1 AI Picks — Running 2", "playlist-2 AI Picks — Running 1");
+        assertThat(slots(craig, Optional.of(running))).containsExactly("playlist-2 in 1", "playlist-1 in 2");
+    }
+
+    @Test
+    void movesAPlaylistToAnEmptySlotByRenamingIt() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        world.playlists.save(craig, Optional.empty(), "", List.of(song("Air", "Sexy Boy")));
+        PlaylistId only = world.playlists.latest(craig, Optional.empty(), 1).getFirst().id();
+
+        world.playlists.putInSlot(craig, only, 3);
+
+        assertThat(world.tidal.renamedPlaylists).containsExactly("playlist-1 AI Picks 3");
+        assertThat(slots(craig, Optional.empty())).containsExactly("playlist-1 in 3");
+    }
+
+    @Test
+    void numbersAPlaylistWrittenBeforeThereWereSlotsWhenTheSlotsNextChange() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        Playlist old = Playlist.create(craig.id(), Optional.of(running), "", List.of(world.tidal.songs.getFirst()), NOW);
+        world.playlistRepository.save(new Playlist(old.id(), old.person(), old.category(), old.name(), "", NOW,
+                Optional.of(new SyncedPlaylist(Provider.TIDAL, "old-playlist")),
+                Optional.of(new Slot(1, "AI Picks — Running")), old.tracks()));
+
+        world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
+
+        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 2 [tr-1]");
+        assertThat(world.tidal.renamedPlaylists).containsExactly("old-playlist AI Picks — Running 1");
+    }
+
+    @Test
+    void refusesASlotThatIsNotOneToThree() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        world.playlists.save(craig, Optional.empty(), "", List.of(song("Air", "Sexy Boy")));
+        PlaylistId only = world.playlists.latest(craig, Optional.empty(), 1).getFirst().id();
+
+        assertThatIllegalArgumentException().isThrownBy(() -> world.playlists.putInSlot(craig, only, 4))
+                .withMessageContaining("1 to 3");
+    }
+
+    @Test
+    void onlyPutsThePersonsOwnPlaylistsInTheirAccount() {
+        Person craig = world.tidalUser("Craig");
+        Person georgia = world.tidalUser("Georgia");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        world.playlists.save(georgia, Optional.empty(), "", List.of(song("Air", "Sexy Boy")));
+        PlaylistId theirs = world.playlists.latest(georgia, Optional.empty(), 1).getFirst().id();
+
+        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> world.playlists.putInSlot(craig, theirs, 1));
+    }
+
+    /** Each playlist, newest first, as "its id in the account in its slot", or "none" when out of the account. */
+    private List<String> slots(Person person, Optional<Category> activity) {
+        return world.playlists.latest(person, activity.map(Category::id), 10).stream()
+                .map(playlist -> playlist.slot().map(slot -> playlist.synced().orElseThrow().playlistId() + " in "
+                        + slot.number()).orElse("none"))
+                .toList();
     }
 }

@@ -122,12 +122,18 @@ fun HomeScreen(
     }
 }
 
-/** A playlist's card: its covers, and a play button on the newest, the one still in the person's account. */
+/** A playlist's card: its covers, and its number and a play button while it is in the person's streaming app. */
 @Composable
 private fun PlaylistCard(playlist: Playlist, newest: Boolean, show: () -> Unit, open: (String) -> Unit) {
     Column(Modifier.width(150.dp).clickable(onClick = show), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box {
             CoverMosaic(playlist.covers, Modifier.size(150.dp))
+            playlist.slot?.let { slot ->
+                Text("$slot", Modifier.padding(6.dp)
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold)
+            }
             playlist.link?.let { link ->
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(8.dp).size(40.dp)

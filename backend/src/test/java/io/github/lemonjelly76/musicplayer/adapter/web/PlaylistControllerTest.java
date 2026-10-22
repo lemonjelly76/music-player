@@ -12,6 +12,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -72,25 +74,45 @@ class PlaylistControllerTest {
 
     private static Playlist playlist(Instant at, String syncedTo) {
         return Playlist.create(CRAIG.id(), Optional.of(RUNNING), "Bright and fast", List.of(SEXY_BOY), at)
-                .syncedTo(new SyncedPlaylist(Provider.SPOTIFY, syncedTo));
+                .writtenTo(2, new SyncedPlaylist(Provider.SPOTIFY, syncedTo));
     }
 
     @Test
-    void listsTheActivitysPlaylistsWithTheirSongsAndOnlyTheNewestToPlay() {
+    void listsTheActivitysPlaylistsWithTheirSongsAndThoseInTheAccountToPlay() {
         given(songs.bySong(CRAIG.id())).willReturn(Map.of(SEXY_BOY.songKey(), LibrarySong.create(CRAIG.id(), SEXY_BOY,
                 new ActivityRating(Optional.of(RUNNING.id()), Rating.LOVE, "", NOW), LocalDate.of(2026, 10, 21))));
         given(playlists.latest(CRAIG, Optional.of(RUNNING.id()), 5)).willReturn(List.of(
-                playlist(NOW, "pl-2"), playlist(NOW.minusSeconds(86_400), "pl-1")));
+                playlist(NOW, "pl-2"), playlist(NOW.minusSeconds(86_400), "pl-1").outOfAccount()));
 
         assertThat(mvc.get().uri("/api/people/{id}/playlists?category={c}", CRAIG.id(), RUNNING.id()))
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
-                        [{"name":"AI Picks — Running","description":"Bright and fast",
+                        [{"name":"AI Picks — Running","description":"Bright and fast", "slot":2,
                           "link":"https://open.spotify.com/playlist/pl-2",
                           "tracks":[{"ref":"spotify:tr-1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
                             "cover":"https://i/300","link":"https://open.spotify.com/track/tr-1","rating":3,
                             "general":false}]},
-                         {"link":null}]""");
+                         {"link":null, "slot":null}]""");
+    }
+
+    @Test
+    void putsAPlaylistInASlotInThePersonsAccount() {
+        Playlist chosen = playlist(NOW, "pl-3");
+        given(playlists.putInSlot(CRAIG, chosen.id(), 2)).willReturn(chosen);
+        given(songs.bySong(CRAIG.id())).willReturn(Map.of());
+
+        assertThat(mvc.put().uri("/api/people/{id}/playlists/{playlist}/slot", CRAIG.id(), chosen.id())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"slot\":2}"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"slot":2, "link":"https://open.spotify.com/playlist/pl-3"}""");
+    }
+
+    @Test
+    void aSlotMustBeGiven() {
+        assertThat(mvc.put().uri("/api/people/{id}/playlists/{playlist}/slot", CRAIG.id(), PlaylistId.random())
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test

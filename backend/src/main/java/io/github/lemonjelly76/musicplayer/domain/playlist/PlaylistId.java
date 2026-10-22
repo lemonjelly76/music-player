@@ -13,6 +13,10 @@ public record PlaylistId(UUID value) {
         return new PlaylistId(UUID.randomUUID());
     }
 
+    public static PlaylistId of(String text) {
+        return new PlaylistId(UUID.fromString(text));
+    }
+
     @Override
     public String toString() {
         return value.toString();

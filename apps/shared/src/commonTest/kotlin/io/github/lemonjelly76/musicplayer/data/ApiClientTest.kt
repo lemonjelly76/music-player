@@ -122,6 +122,18 @@ class ApiClientTest {
     }
 
     @Test
+    fun putsAPlaylistInASpotifySlot() = runTest {
+        val placed = client { json("""{"id":"pl1","name":"AI Picks — Running","slot":3,"tracks":[]}""") }
+            .putPlaylistInSlot("1", "pl1", 3)
+
+        assertEquals(3, placed.slot)
+        val request = requests.single()
+        assertEquals(HttpMethod.Put, request.method)
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/playlists/pl1/slot", request.url.toString())
+        assertEquals("""{"slot":3}""", request.body.toByteArray().decodeToString())
+    }
+
+    @Test
     fun asksForTheActivitysPlaylists() = runTest {
         client { json("[]") }.playlists("1", "c1", 5)
 

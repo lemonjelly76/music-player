@@ -41,7 +41,7 @@ class PlayServiceTest {
     private void listOnPlaylist(Person person, Category category, String playlistId) {
         world.playlistRepository.save(Playlist.create(person.id(), Optional.of(category), "",
                 List.of(new Track(Provider.SPOTIFY, "tr-1", "Daft Punk", "One More Time", "Discovery", Optional.empty())),
-                NOW).syncedTo(new SyncedPlaylist(Provider.SPOTIFY, playlistId)));
+                NOW).writtenTo(1, new SyncedPlaylist(Provider.SPOTIFY, playlistId)));
     }
 
     private void albumListOnPlaylist(Person person, Category category, String playlistId) {

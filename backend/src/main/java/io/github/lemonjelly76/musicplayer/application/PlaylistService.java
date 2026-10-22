@@ -6,6 +6,8 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist.Slot;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
@@ -24,10 +26,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Turns the model's choice of songs into a playlist: finds each on the person's service, keeps the first
- * {@value Playlist#SIZE} once each, and writes them to their account in place of the activity's previous playlist.
+ * {@value Playlist#SIZE} once each, and writes them to their account. Each activity keeps up to
+ * {@value Playlist#SLOTS} playlists there, numbered, and the person chooses which.
  */
 public class PlaylistService {
 
@@ -112,26 +116,87 @@ public class PlaylistService {
     }
 
     /**
-     * Gives the activity's playlists its new name, here and, for each person's newest, in their account. An account
-     * that cannot be reached keeps the old name until their next playlist replaces it.
+     * Puts one of the person's playlists in their account as the activity's playlist in that slot. One already in
+     * the account is renamed, swapping numbers with any playlist in that slot; otherwise it is written in place of
+     * the playlist there.
+     */
+    public Playlist putInSlot(Person person, PlaylistId id, int number) {
+        if (number < 1 || number > Playlist.SLOTS) {
+            throw new IllegalArgumentException("A playlist slot is 1 to " + Playlist.SLOTS + ", not " + number);
+        }
+        Playlist chosen = repository.find(id).filter(found -> found.person().equals(person.id()))
+                .orElseThrow(() -> new NotFoundException("No playlist " + id + " for " + person.name()));
+        if (chosen.slot().map(Slot::number).orElse(0) == number) {
+            return chosen;
+        }
+        MusicProvider service = providers.forPerson(person).orElseThrow(() -> new MusicProviderUnavailableException(
+                person.name() + " has no streaming service set up"));
+        Optional<Playlist> there = repository.inAccount(person.id(), chosen.category()).stream()
+                .filter(held -> held.slot().orElseThrow().number() == number)
+                .findFirst();
+        Playlist placed = chosen.slot().isPresent()
+                ? swap(person, chosen, number, there)
+                : write(person, chosen, service, number, there.flatMap(Playlist::synced).map(SyncedPlaylist::playlistId));
+        there.filter(held -> chosen.slot().isEmpty()).ifPresent(held -> repository.save(held.outOfAccount()));
+        repository.save(placed);
+        renameMisnamed(person.id(), chosen.category());
+        return placed;
+    }
+
+    /**
+     * Gives the activity's playlists its new name, here and in each person's account. An account that cannot be
+     * reached keeps the old names until its playlists next change.
      */
     public void renameFor(Category category) {
         String name = RecommendationList.nameFor(Optional.of(category));
-        Set<PersonId> renamedInAccount = new HashSet<>();
+        Set<PersonId> people = new HashSet<>();
         for (Playlist playlist : repository.forActivity(category.id())) {
             repository.save(playlist.renamed(name));
-            if (playlist.synced().isPresent() && renamedInAccount.add(playlist.person())) {
-                renameInAccount(playlist.person(), playlist.synced().get(), name);
+            people.add(playlist.person());
+        }
+        people.forEach(person -> renameMisnamed(person, Optional.of(category.id())));
+    }
+
+    private Playlist swap(Person person, Playlist chosen, int number, Optional<Playlist> there) {
+        int from = chosen.slot().orElseThrow().number();
+        there.ifPresent(held -> renameInAccount(person.id(), held, held.nameInSlot(from)));
+        renameInAccount(person.id(), chosen, chosen.nameInSlot(number));
+        there.ifPresent(held -> repository.save(held.movedTo(from)));
+        return chosen.movedTo(number);
+    }
+
+    private Playlist write(Person person, Playlist playlist, MusicProvider service, int number,
+            Optional<String> replacing) {
+        List<String> trackIds = playableOn(service, playlist);
+        if (trackIds.isEmpty()) {
+            throw new IllegalArgumentException("None of its songs are on " + service.name().prefix());
+        }
+        String playlistId = service.replacePlaylist(person.id(), replacing, playlist.nameInSlot(number),
+                description(person, playlist), trackIds);
+        return playlist.writtenTo(number, new SyncedPlaylist(service.name(), playlistId));
+    }
+
+    /**
+     * Renames playlists in the account whose names there are out of date: written before playlists had numbers, or
+     * before their activity was renamed. A name is only cosmetic, so an account that cannot be reached is left.
+     */
+    private void renameMisnamed(PersonId person, Optional<CategoryId> activity) {
+        for (Playlist held : repository.inAccount(person, activity)) {
+            if (held.misnamedInAccount()) {
+                int number = held.slot().orElseThrow().number();
+                try {
+                    renameInAccount(person, held, held.nameInSlot(number));
+                    repository.save(held.movedTo(number));
+                } catch (MusicProviderUnavailableException e) {
+                    LOG.log(System.Logger.Level.WARNING, "Could not rename playlist " + held.id(), e);
+                }
             }
         }
     }
 
-    private void renameInAccount(PersonId person, SyncedPlaylist synced, String name) {
-        try {
-            providers.find(synced.provider()).ifPresent(service -> service.renamePlaylist(person, synced.playlistId(), name));
-        } catch (MusicProviderUnavailableException e) {
-            LOG.log(System.Logger.Level.WARNING, "Could not rename playlist " + synced.playlistId() + " to " + name, e);
-        }
+    private void renameInAccount(PersonId person, Playlist playlist, String name) {
+        SyncedPlaylist synced = playlist.synced().orElseThrow();
+        providers.get(synced.provider()).renamePlaylist(person, synced.playlistId(), name);
     }
 
     private static Optional<String> whyLeftOut(Track track, Set<String> songs, Set<String> ids,
@@ -147,46 +212,69 @@ public class PlaylistService {
     }
 
     /**
-     * Songs found on another service than the person's now (they switched) cannot go in its playlist.
+     * Writes the playlist to the person's account in the activity's first free slot, else in place of the oldest
+     * there; one already in a slot is written again in its own.
      */
     private Saved sync(Person person, Playlist playlist, MusicProvider service, List<Dropped> dropped) {
-        List<String> trackIds = playlist.tracks().stream()
-                .filter(track -> track.provider() == service.name())
-                .map(Track::id)
-                .toList();
-        if (trackIds.isEmpty()) {
+        if (playableOn(service, playlist).isEmpty()) {
             return new Saved(playlist, dropped, "not synced: none of the songs are on " + service.name().prefix());
         }
-        String description = playlist.description().isEmpty()
-                ? "Picked for " + person.name() + " on " + LocalDate.now(clock)
-                : playlist.description();
+        List<Playlist> held = repository.inAccount(person.id(), playlist.category()).stream()
+                .filter(other -> !other.id().equals(playlist.id()))
+                .toList();
+        Optional<Playlist> replaced = playlist.slot().isPresent() || held.size() < Playlist.SLOTS
+                ? Optional.empty() : Optional.of(held.getLast());
+        int number = playlist.slot().map(Slot::number)
+                .or(() -> replaced.flatMap(Playlist::slot).map(Slot::number))
+                .orElseGet(() -> firstFree(held));
+        Optional<String> replacing = playlist.slot().isPresent() ? playlist.synced().map(SyncedPlaylist::playlistId)
+                : replaced.isPresent() ? replaced.flatMap(Playlist::synced).map(SyncedPlaylist::playlistId)
+                : held.isEmpty() ? albumListPlaylist(playlist) : Optional.empty();
         try {
-            String playlistId = service.replacePlaylist(person.id(), previous(playlist), playlist.name(), description,
-                    trackIds);
-            Playlist synced = playlist.syncedTo(new SyncedPlaylist(service.name(), playlistId));
-            repository.save(synced);
-            return new Saved(synced, dropped, "synced to " + service.name().prefix() + " as " + playlist.name());
+            Playlist written = write(person, playlist, service, number, replacing);
+            replaced.ifPresent(old -> repository.save(old.outOfAccount()));
+            repository.save(written);
+            renameMisnamed(person.id(), playlist.category());
+            return new Saved(written, dropped, "synced to " + service.name().prefix() + " as "
+                    + written.nameInSlot(number));
         } catch (MusicProviderUnavailableException e) {
             return new Saved(playlist, dropped, "saved but not synced: " + e.getMessage());
         }
     }
 
+    private static int firstFree(List<Playlist> held) {
+        Set<Integer> taken = held.stream().map(playlist -> playlist.slot().orElseThrow().number())
+                .collect(Collectors.toSet());
+        return IntStream.rangeClosed(1, Playlist.SLOTS).filter(number -> !taken.contains(number)).findFirst()
+                .orElseThrow();
+    }
+
     /**
-     * The activity's playlist in the person's account: the last one written from songs, else one written from an
-     * album list before playlists held songs.
+     * Songs found on another service than the person's now (they switched) cannot go in its playlist.
      */
-    private Optional<String> previous(Playlist playlist) {
-        return repository.latest(playlist.person(), playlist.category(), EARLIER_LISTS).stream()
-                .filter(earlier -> !earlier.id().equals(playlist.id()))
-                .flatMap(earlier -> earlier.synced().stream())
+    private static List<String> playableOn(MusicProvider service, Playlist playlist) {
+        return playlist.tracks().stream()
+                .filter(track -> track.provider() == service.name())
+                .map(Track::id)
+                .toList();
+    }
+
+    private String description(Person person, Playlist playlist) {
+        return playlist.description().isEmpty()
+                ? "Picked for " + person.name() + " on " + LocalDate.now(clock)
+                : playlist.description();
+    }
+
+    /**
+     * The activity's playlist written from a list of albums before playlists held songs, to replace with the first
+     * playlist of songs.
+     */
+    private Optional<String> albumListPlaylist(Playlist playlist) {
+        return albumLists.findByPerson(playlist.person(), playlist.category(), EARLIER_LISTS).stream()
+                .filter(list -> list.category().equals(playlist.category()) && list.name().equals(playlist.name()))
+                .flatMap(list -> list.playlist().stream())
                 .map(SyncedPlaylist::playlistId)
-                .findFirst()
-                .or(() -> albumLists.findByPerson(playlist.person(), playlist.category(), EARLIER_LISTS).stream()
-                        .filter(list -> list.category().equals(playlist.category())
-                                && list.name().equals(playlist.name()))
-                        .flatMap(list -> list.playlist().stream())
-                        .map(SyncedPlaylist::playlistId)
-                        .findFirst());
+                .findFirst();
     }
 
     public record TrackRequest(String artist, String title) {

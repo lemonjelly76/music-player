@@ -117,12 +117,16 @@ final class Views {
     /**
      * A playlist with each song's rating for its activity (love, ok or dislike), where the person has given one.
      */
-    record PlaylistView(String name, String activity, String description, Instant createdAt, boolean synced,
+    /**
+     * {@code inAccount} is the playlist's name in the person's account while it is one of the activity's numbered
+     * playlists there, else null.
+     */
+    record PlaylistView(String name, String activity, String description, Instant createdAt, String inAccount,
                         List<PlaylistSongView> songs) {
 
         static PlaylistView from(Playlist playlist, String activity, Map<String, LibrarySong> rated) {
             return new PlaylistView(playlist.name(), activity, playlist.description(), playlist.createdAt(),
-                    playlist.synced().isPresent(),
+                    playlist.slot().map(Playlist.Slot::nameInAccount).orElse(null),
                     playlist.tracks().stream()
                             .map(track -> new PlaylistSongView(track.label(), track.album(),
                                     Optional.ofNullable(rated.get(track.songKey()))

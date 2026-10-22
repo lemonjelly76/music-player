@@ -47,8 +47,9 @@ class PlaylistTools {
 
     @McpTool(name = "save_playlist",
             description = "Saves a playlist of single songs (not albums) for a person, optionally for one category, "
-                    + "and writes it to their streaming service as 'AI Picks' or 'AI Picks — <Category>', replacing "
-                    + "the previous one. It keeps the first " + Playlist.SIZE + " songs found, so give about 60 in "
+                    + "and writes it to their streaming service as 'AI Picks — <Category> 1', 2 or 3 ('AI Picks 1' "
+                    + "for general): each category keeps " + Playlist.SLOTS + " there, a new one taking a free number "
+                    + "or replacing the oldest, and the person chooses which in the app. It keeps the first " + Playlist.SIZE + " songs found, so give about 60 in "
                     + "play order. Songs their service does not have, repeats, and songs or albums they turned down "
                     + "for the category are dropped and listed with the reason.",
             annotations = @McpAnnotations(title = "Save playlist", destructiveHint = false, openWorldHint = true))

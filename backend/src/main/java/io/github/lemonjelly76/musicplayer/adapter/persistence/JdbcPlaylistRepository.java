@@ -4,6 +4,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist.Slot;
 import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.PlaylistRepository;
@@ -35,10 +36,12 @@ class JdbcPlaylistRepository implements PlaylistRepository {
     public void save(Playlist playlist) {
         jdbc.sql("""
                         insert into playlist (id, person_id, category_id, name, description, created_at, provider,
-                            provider_playlist_id)
-                        values (:id, :person, :category, :name, :description, :createdAt, :provider, :synced)
+                            provider_playlist_id, slot, name_in_account)
+                        values (:id, :person, :category, :name, :description, :createdAt, :provider, :synced, :slot,
+                            :nameInAccount)
                         on conflict (id) do update set name = excluded.name, provider = excluded.provider,
-                            provider_playlist_id = excluded.provider_playlist_id""")
+                            provider_playlist_id = excluded.provider_playlist_id, slot = excluded.slot,
+                            name_in_account = excluded.name_in_account""")
                 .param("id", playlist.id().value())
                 .param("person", playlist.person().value())
                 .param("category", playlist.category().map(CategoryId::value).orElse(null))
@@ -47,6 +50,8 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                 .param("createdAt", Columns.timestamp(playlist.createdAt()))
                 .param("provider", playlist.synced().map(synced -> synced.provider().name()).orElse(null))
                 .param("synced", playlist.synced().map(SyncedPlaylist::playlistId).orElse(null))
+                .param("slot", playlist.slot().map(Slot::number).orElse(null))
+                .param("nameInAccount", playlist.slot().map(Slot::nameInAccount).orElse(null))
                 .update();
         jdbc.sql("delete from playlist_track where playlist_id = :playlist")
                 .param("playlist", playlist.id().value())
@@ -84,6 +89,27 @@ class JdbcPlaylistRepository implements PlaylistRepository {
     }
 
     @Override
+    public Optional<Playlist> find(PlaylistId id) {
+        return withTracks(jdbc.sql("select * from playlist where id = :id")
+                .param("id", id.value())
+                .query((row, number) -> withoutTracks(row))
+                .list()).stream().findFirst();
+    }
+
+    @Override
+    public List<Playlist> inAccount(PersonId person, Optional<CategoryId> activity) {
+        return withTracks(jdbc.sql("""
+                        select * from playlist
+                        where person_id = :person and category_id is not distinct from cast(:category as uuid)
+                            and slot is not null
+                        order by created_at desc""")
+                .param("person", person.value())
+                .param("category", activity.map(CategoryId::value).orElse(null))
+                .query((row, number) -> withoutTracks(row))
+                .list());
+    }
+
+    @Override
     public List<Playlist> forActivity(CategoryId activity) {
         return withTracks(jdbc.sql("select * from playlist where category_id = :category order by created_at desc")
                 .param("category", activity.value())
@@ -114,13 +140,14 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                         .add(entry.getValue()));
         return playlists.stream()
                 .map(playlist -> new Playlist(playlist.id(), playlist.person(), playlist.category(), playlist.name(),
-                        playlist.description(), playlist.createdAt(), playlist.synced(),
+                        playlist.description(), playlist.createdAt(), playlist.synced(), playlist.slot(),
                         tracks.getOrDefault(playlist.id().value(), List.of())))
                 .toList();
     }
 
     private static Playlist withoutTracks(ResultSet row) throws SQLException {
         String synced = row.getString("provider_playlist_id");
+        Integer slot = row.getObject("slot", Integer.class);
         return new Playlist(
                 new PlaylistId(row.getObject("id", UUID.class)),
                 new PersonId(row.getObject("person_id", UUID.class)),
@@ -130,6 +157,7 @@ class JdbcPlaylistRepository implements PlaylistRepository {
                 row.getTimestamp("created_at").toInstant(),
                 synced == null ? Optional.empty()
                         : Optional.of(new SyncedPlaylist(Provider.valueOf(row.getString("provider")), synced)),
+                slot == null ? Optional.empty() : Optional.of(new Slot(slot, row.getString("name_in_account"))),
                 List.of());
     }
 

@@ -12,12 +12,14 @@ import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist.Slot;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.ArtistPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.ListeningStats;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 
 import java.net.URI;
 import java.time.Instant;
@@ -138,17 +140,21 @@ final class Responses {
      * Songs to play straight through; only the newest for an activity has a {@code link}, as each new one replaces
      * it in the person's account.
      */
+    /**
+     * A playlist and, while it is in the person's account, its slot there and a link to play it.
+     */
     record PlaylistResponse(String id, String name, String description, String categoryId, Instant createdAt,
-                            String link, List<TrackResponse> tracks) {
+                            Integer slot, String link, List<TrackResponse> tracks) {
 
         /**
          * Each song carries the person's rating of it for the playlist's activity.
          */
-        static PlaylistResponse from(Playlist playlist, Optional<URI> link, Map<String, LibrarySong> rated,
-                Function<Track, Optional<URI>> links) {
+        static PlaylistResponse from(Playlist playlist, Function<SyncedPlaylist, Optional<URI>> playlistLinks,
+                Map<String, LibrarySong> rated, Function<Track, Optional<URI>> links) {
+            Optional<URI> link = playlist.slot().flatMap(slot -> playlist.synced()).flatMap(playlistLinks);
             return new PlaylistResponse(playlist.id().toString(), playlist.name(), playlist.description(),
                     playlist.category().map(Object::toString).orElse(null), playlist.createdAt(),
-                    link.map(URI::toString).orElse(null),
+                    playlist.slot().map(Slot::number).orElse(null), link.map(URI::toString).orElse(null),
                     playlist.tracks().stream()
                             .map(track -> TrackResponse.from(track, Optional.ofNullable(rated.get(track.songKey())),
                                     playlist.category(), links))

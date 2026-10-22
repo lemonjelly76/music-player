@@ -5,6 +5,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
@@ -76,7 +77,7 @@ class JdbcPlaylistRepositoryTest {
         Playlist saved = playlist(Optional.of(running), NOW, "A", "B");
         playlists.save(saved);
 
-        Playlist synced = saved.syncedTo(new SyncedPlaylist(Provider.SPOTIFY, "pl-1"));
+        Playlist synced = saved.writtenTo(2, new SyncedPlaylist(Provider.SPOTIFY, "pl-1"));
         playlists.save(synced);
 
         assertThat(playlists.findBySynced("pl-1")).contains(synced);
@@ -96,5 +97,22 @@ class JdbcPlaylistRepositoryTest {
         playlists.save(craigs.renamed("AI Picks — Jogging"));
 
         assertThat(playlists.forActivity(running.id())).containsExactly(craigs.renamed("AI Picks — Jogging"), robins);
+    }
+
+    @Test
+    void findsAPlaylistByIdAndThoseInTheAccountForAnActivity() {
+        Playlist inAccount = playlist(Optional.of(running), NOW, "A")
+                .writtenTo(3, new SyncedPlaylist(Provider.SPOTIFY, "pl-3"));
+        Playlist replaced = playlist(Optional.of(running), NOW.minusSeconds(60), "B")
+                .writtenTo(1, new SyncedPlaylist(Provider.SPOTIFY, "pl-1")).outOfAccount();
+        Playlist general = playlist(Optional.empty(), NOW, "C").writtenTo(1, new SyncedPlaylist(Provider.SPOTIFY, "pl-g"));
+        playlists.save(inAccount);
+        playlists.save(replaced);
+        playlists.save(general);
+
+        assertThat(playlists.find(replaced.id())).contains(replaced);
+        assertThat(playlists.find(PlaylistId.random())).isEmpty();
+        assertThat(playlists.inAccount(craig.id(), Optional.of(running.id()))).containsExactly(inAccount);
+        assertThat(playlists.inAccount(craig.id(), Optional.empty())).containsExactly(general);
     }
 }

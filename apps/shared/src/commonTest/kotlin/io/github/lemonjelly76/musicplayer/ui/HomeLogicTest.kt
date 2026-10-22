@@ -58,13 +58,25 @@ class HomeLogicTest {
     }
 
     @Test
-    fun describesAPlaylistBySongsAndWhetherItWasReplaced() {
+    fun describesAPlaylistBySongsAndDate() {
         val songs = List(50) { Track("t$it", "Air", "Song $it", "Album", null, null) }
         val playlist = Playlist("p", "AI Picks", "", null, "2026-10-21T18:00:00Z", "https://open.spotify.com/playlist/p", songs)
 
         assertEquals("50 songs · 21 Oct 2026", playlistDetails(playlist))
-        assertEquals("1 song · 21 Oct 2026 · replaced since",
-            playlistDetails(playlist.copy(link = null, tracks = songs.take(1))))
+        assertEquals("1 song · 21 Oct 2026", playlistDetails(playlist.copy(tracks = songs.take(1))))
+    }
+
+    @Test
+    fun namesEachSlotByWhatHoldsItNow() {
+        fun playlist(id: String, date: String, slot: Int?, mood: String = "") =
+            Playlist(id, "AI Picks", mood, null, "2026-10-${date}T18:00:00Z", null, emptyList(), slot)
+        val shown = playlist("p1", "21", slot = 2, mood = "Bright and fast")
+        val others = listOf(shown, playlist("p2", "20", slot = 1), playlist("p3", "19", slot = null))
+
+        assertEquals(listOf("1 · 20 Oct", "2 · this one", "3 · empty"), slotChoices(shown, others))
+        assertEquals(listOf("1 · 20 Oct", "2 · Bright and fast", "3 · empty"), slotChoices(others.last(), others))
+        assertEquals("2 · A slow burn for late…", slotChoices(others.last(),
+            listOf(shown.copy(description = "A slow burn for late nights in")))[1])
     }
 
     @Test

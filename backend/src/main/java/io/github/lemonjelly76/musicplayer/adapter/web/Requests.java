@@ -58,6 +58,9 @@ final class Requests {
     record ChartPlaylistRequest(Boolean enabled) {
     }
 
+    record PlaylistSlotRequest(Integer slot) {
+    }
+
     /**
      * A category with {@code enabled} null follows the person's own setting again.
      */

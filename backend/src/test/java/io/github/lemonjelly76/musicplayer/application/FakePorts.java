@@ -14,6 +14,7 @@ import io.github.lemonjelly76.musicplayer.domain.library.LibrarySongId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
+import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
 import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
@@ -335,6 +336,18 @@ final class FakePorts {
             return newestFirst()
                     .filter(playlist -> playlist.person().equals(person) && playlist.category().equals(activity))
                     .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public Optional<Playlist> find(PlaylistId id) {
+            return Optional.ofNullable(saved.get(id.toString()));
+        }
+
+        @Override
+        public List<Playlist> inAccount(PersonId person, Optional<CategoryId> activity) {
+            return latest(person, activity, Integer.MAX_VALUE).stream()
+                    .filter(playlist -> playlist.slot().isPresent())
                     .toList();
         }
 

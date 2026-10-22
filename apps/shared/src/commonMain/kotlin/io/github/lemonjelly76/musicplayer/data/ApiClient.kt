@@ -72,6 +72,11 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun playlists(personId: String, category: String, limit: Int): List<Playlist> =
         Json.playlists(get("api/people/$personId/playlists", "category" to category, "limit" to limit.toString()))
 
+    /** Puts the playlist in the person's streaming app as its activity's playlist [slot] (1 to 3). */
+    suspend fun putPlaylistInSlot(personId: String, playlistId: String, slot: Int): Playlist =
+        Json.playlist(send(HttpMethod.Put, "api/people/$personId/playlists/$playlistId/slot",
+            buildJsonObject { put("slot", slot) }))
+
     /** What the person loves or rates OK for the activity, loved first. */
     suspend fun library(personId: String, category: String): List<LibraryAlbum> =
         Json.library(get("api/people/$personId/library", "category" to category))

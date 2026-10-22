@@ -116,6 +116,8 @@ data class Playlist(
     val createdAt: String,
     val link: String?,
     val tracks: List<Track>,
+    /** Its number among the activity's playlists in the person's streaming app, 1 to [SLOTS]; null when not there. */
+    val slot: Int? = null,
 ) {
     /** One cover per album, as albums, for the covers a playlist is shown with. */
     val covers: List<Album>
@@ -125,6 +127,9 @@ data class Playlist(
     companion object {
         /** How many songs Claude puts in a playlist. */
         const val SIZE = 50
+
+        /** How many of an activity's playlists are kept in the person's streaming app. */
+        const val SLOTS = 3
     }
 }
 
@@ -216,17 +221,20 @@ object Json {
         )
     }
 
-    fun playlists(text: String): List<Playlist> = array(text).map { playlist ->
-        Playlist(
-            id = playlist.string("id"),
-            name = playlist.string("name"),
-            description = playlist.optString("description"),
-            categoryId = playlist.stringOrNull("categoryId"),
-            createdAt = playlist.optString("createdAt"),
-            link = playlist.stringOrNull("link"),
-            tracks = playlist.objects("tracks").map(::track),
-        )
-    }
+    fun playlists(text: String): List<Playlist> = array(text).map(::playlist)
+
+    fun playlist(text: String): Playlist = playlist(obj(text))
+
+    private fun playlist(json: JsonObject) = Playlist(
+        id = json.string("id"),
+        name = json.string("name"),
+        description = json.optString("description"),
+        categoryId = json.stringOrNull("categoryId"),
+        createdAt = json.optString("createdAt"),
+        link = json.stringOrNull("link"),
+        tracks = json.objects("tracks").map(::track),
+        slot = json.primitive("slot")?.intOrNull,
+    )
 
     fun songs(text: String): List<Track> = array(text).map(::track)
 

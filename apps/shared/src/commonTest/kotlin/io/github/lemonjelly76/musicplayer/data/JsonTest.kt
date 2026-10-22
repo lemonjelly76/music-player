@@ -36,7 +36,7 @@ class JsonTest {
     fun readsPlaylistsOfSongs() {
         val playlists = Json.playlists("""
             [{"id":"pl1","name":"AI Picks — Running","description":"Bright and fast","categoryId":"c1",
-              "createdAt":"2026-10-21T18:00:00Z","link":"https://open.spotify.com/playlist/9",
+              "createdAt":"2026-10-21T18:00:00Z","slot":2,"link":"https://open.spotify.com/playlist/9",
               "tracks":[{"id":"t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
                 "cover":"https://i/300","link":"https://open.spotify.com/track/t1"}]},
              {"id":"pl0","name":"AI Picks — Running","createdAt":"2026-10-20T18:00:00Z","link":null,
@@ -49,7 +49,9 @@ class JsonTest {
         assertEquals(Track("t1", "Air", "Sexy Boy", "Moon Safari", "https://i/300", "https://open.spotify.com/track/t1"),
             newest.tracks.single())
         assertNull(newest.tracks.single().rating)
+        assertEquals(2, newest.slot)
         assertNull(older.link)
+        assertNull(older.slot)
         assertEquals("", older.description)
         assertNull(older.tracks.single().cover)
     }
