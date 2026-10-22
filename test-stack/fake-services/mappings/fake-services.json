@@ -1,0 +1,342 @@
+{
+  "mappings": [
+    {
+      "name": "Spotify sign-in page sends straight back with a code",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/authorize"
+      },
+      "response": {
+        "status": 302,
+        "headers": {
+          "Location": "{{request.query.redirect_uri}}?code=fake-code&state={{request.query.state}}"
+        }
+      }
+    },
+    {
+      "name": "Spotify tokens",
+      "priority": 5,
+      "request": {
+        "method": "POST",
+        "urlPath": "/spotify/api/token"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"access_token\": \"fake-access-token\", \"token_type\": \"Bearer\", \"expires_in\": 3600, \"refresh_token\": \"fake-refresh-token\", \"scope\": \"user-library-read\"}"
+      }
+    },
+    {
+      "name": "Spotify account",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/me"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"id\": \"fake-user\", \"display_name\": \"Fake\"}"
+      }
+    },
+    {
+      "name": "Search containing TOO MANY is refused for an hour, to try the rate-limit message",
+      "priority": 1,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "q": {
+            "matches": "(?i).*too many.*"
+          }
+        }
+      },
+      "response": {
+        "status": 429,
+        "headers": {
+          "Content-Type": "application/json",
+          "Retry-After": "3600"
+        },
+        "body": "{\"error\": {\"status\": 429, \"message\": \"Too many requests\"}}"
+      }
+    },
+    {
+      "name": "Search containing NOT ON SPOTIFY finds nothing",
+      "priority": 2,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "q": {
+            "matches": "(?i).*not on spotify.*"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"tracks\": {\"items\": []}, \"albums\": {\"items\": []}}"
+      }
+    },
+    {
+      "name": "A song asked for by title and artist is always found",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "type": {
+            "equalTo": "track"
+          },
+          "q": {
+            "matches": "track:.+ artist:.+"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{{regexExtract request.query.q 'track:(.+) artist:(.+)' 'parts'}}{\"tracks\": {\"items\": [{\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{parts.0}}}\", \"artists\": [{\"name\": \"{{{parts.1}}}\"}], \"album\": {\"name\": \"{{{parts.0}}}\", \"album_type\": \"single\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode parts.0}}/300\", \"width\": 300, \"height\": 300}]}}]}}"
+      }
+    },
+    {
+      "name": "An album asked for by title and artist is always found",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "type": {
+            "equalTo": "album"
+          },
+          "q": {
+            "matches": "album:.+ artist:.+"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{{regexExtract request.query.q 'album:(.+) artist:(.+)' 'parts'}}{\"albums\": {\"items\": [{\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{parts.0}}}\", \"artists\": [{\"name\": \"{{{parts.1}}}\"}], \"album_type\": \"album\", \"release_date\": \"2020-01-01\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode parts.0}}/300\", \"width\": 300, \"height\": 300}]}]}}"
+      }
+    },
+    {
+      "name": "Typed song searches find three songs named after the search",
+      "priority": 9,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "type": {
+            "equalTo": "track"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"tracks\": {\"items\": [{\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}}\", \"artists\": [{\"name\": \"Fake Artist 1\"}], \"album\": {\"name\": \"Fake Album 1\", \"album_type\": \"album\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'song1'}}/300\", \"width\": 300, \"height\": 300}]}}, {\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}} (Live)\", \"artists\": [{\"name\": \"Fake Artist 2\"}], \"album\": {\"name\": \"Fake Album 2\", \"album_type\": \"album\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'song2'}}/300\", \"width\": 300, \"height\": 300}]}}, {\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}} Again\", \"artists\": [{\"name\": \"Fake Artist 3\"}], \"album\": {\"name\": \"Fake Album 3\", \"album_type\": \"album\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'song3'}}/300\", \"width\": 300, \"height\": 300}]}}]}}"
+      }
+    },
+    {
+      "name": "Typed album searches find three albums named after the search",
+      "priority": 9,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/search",
+        "queryParameters": {
+          "type": {
+            "equalTo": "album"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"albums\": {\"items\": [{\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}}\", \"artists\": [{\"name\": \"Fake Artist 1\"}], \"album_type\": \"album\", \"release_date\": \"2011-05-01\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'album1'}}/300\", \"width\": 300, \"height\": 300}]}, {\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}} II\", \"artists\": [{\"name\": \"Fake Artist 2\"}], \"album_type\": \"album\", \"release_date\": \"2012-05-01\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'album2'}}/300\", \"width\": 300, \"height\": 300}]}, {\"id\": \"{{randomValue length=22 type='ALPHANUMERIC'}}\", \"name\": \"{{{request.query.q}}} (Deluxe)\", \"artists\": [{\"name\": \"Fake Artist 3\"}], \"album_type\": \"album\", \"release_date\": \"2013-05-01\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode 'album3'}}/300\", \"width\": 300, \"height\": 300}]}]}}"
+      }
+    },
+    {
+      "name": "Any album by id",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/spotify/v1/albums/[^/]+"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"id\": \"{{request.pathSegments.[3]}}\", \"name\": \"Fake Album\", \"artists\": [{\"name\": \"Fake Artist\"}], \"album_type\": \"album\", \"release_date\": \"2020-01-01\", \"images\": [{\"url\": \"https://picsum.photos/seed/{{urlEncode request.pathSegments.[3]}}/300\", \"width\": 300, \"height\": 300}]}"
+      }
+    },
+    {
+      "name": "Saved albums: none",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/me/albums"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"items\": [], \"next\": null}"
+      }
+    },
+    {
+      "name": "Save to library",
+      "priority": 5,
+      "request": {
+        "method": "PUT",
+        "urlPath": "/spotify/v1/me/library"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{}"
+      }
+    },
+    {
+      "name": "Recently played: nothing",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPath": "/spotify/v1/me/player/recently-played"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"items\": [], \"cursors\": null}"
+      }
+    },
+    {
+      "name": "New playlist",
+      "priority": 5,
+      "request": {
+        "method": "POST",
+        "urlPath": "/spotify/v1/me/playlists"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"id\": \"fakeplaylist{{randomValue length=10 type='ALPHANUMERIC'}}\"}"
+      }
+    },
+    {
+      "name": "Songs added to a playlist",
+      "priority": 5,
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/spotify/v1/playlists/[^/]+/items"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"snapshot_id\": \"fake-snapshot\"}"
+      }
+    },
+    {
+      "name": "Playlist renamed",
+      "priority": 5,
+      "request": {
+        "method": "PUT",
+        "urlPathPattern": "/spotify/v1/playlists/[^/]+"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{}"
+      }
+    },
+    {
+      "name": "Playlist unfollowed",
+      "priority": 5,
+      "request": {
+        "method": "DELETE",
+        "urlPathPattern": "/spotify/v1/playlists/[^/]+/followers"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{}"
+      }
+    },
+    {
+      "name": "Apple Music UK top 50 songs, saved 2026-10-22",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/charts/[a-z]+/music/most-played/[0-9]+/songs.json"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyFileName": "charts/songs.json",
+        "transformers": []
+      }
+    },
+    {
+      "name": "Apple Music UK top 50 albums, saved 2026-10-22",
+      "priority": 5,
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/charts/[a-z]+/music/most-played/[0-9]+/albums.json"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyFileName": "charts/albums.json",
+        "transformers": []
+      }
+    },
+    {
+      "name": "MusicBrainz finds nothing",
+      "priority": 9,
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/musicbrainz/.*"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"release-groups\": [], \"count\": 0}"
+      }
+    }
+  ]
+}

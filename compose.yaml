@@ -32,5 +32,64 @@ services:
       db:
         condition: service_healthy
 
+  # The test stack (`docker compose --profile test up -d --build`): the same server on port 8092 with its own
+  # throwaway database, talking to fake Spotify, Apple Music charts and MusicBrainz instead of the real ones, so
+  # testing never uses up a real service's request limits. See test-stack/README.md.
+  test-db:
+    image: postgres:18-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_DB: music_player
+      POSTGRES_USER: music_player
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music_player -d music_player"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  fake-services:
+    image: wiremock/wiremock:3.13.2
+    profiles: [test]
+    command: ["--global-response-templating", "--disable-banner"]
+    volumes:
+      - ./test-stack/fake-services:/home/wiremock:ro
+    ports:
+      - "127.0.0.1:${FAKE_SERVICES_PORT:-8091}:8080"
+
+  test-app:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://test-db:5432/music_player
+      POSTGRES_PASSWORD: test
+      PUBLIC_URL: http://localhost:${TEST_APP_PORT:-8092}
+      SPOTIFY_CLIENT_ID: fake-client
+      SPOTIFY_CLIENT_SECRET: fake-secret
+      TIDAL_CLIENT_ID: ""
+      TIDAL_CLIENT_SECRET: ""
+      LASTFM_API_KEY: ""
+      LIDARR_URL: ""
+      SPRING_APPLICATION_JSON: >-
+        {"spotify": {"api-url": "http://fake-services:8080/spotify/v1",
+          "oauth": {"authorize-url": "http://localhost:${FAKE_SERVICES_PORT:-8091}/spotify/authorize",
+                    "token-url": "http://fake-services:8080/spotify/api/token"}},
+         "musicbrainz": {"api-url": "http://fake-services:8080/musicbrainz/ws/2"},
+         "charts": {"url": "http://fake-services:8080/charts", "initial-delay": "15s", "lookup-pause": "0ms"}}
+    ports:
+      - "127.0.0.1:${TEST_APP_PORT:-8092}:8080"
+    depends_on:
+      test-db:
+        condition: service_healthy
+      fake-services:
+        condition: service_started
+
 volumes:
   db-data:
