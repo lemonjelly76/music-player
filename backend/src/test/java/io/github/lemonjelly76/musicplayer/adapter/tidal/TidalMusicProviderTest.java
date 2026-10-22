@@ -19,10 +19,12 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.delete;
 import static com.github.tomakehurst.wiremock.client.WireMock.deleteRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -73,21 +75,33 @@ class TidalMusicProviderTest {
                 {"access_token":"app-token","expires_in":3600}""")));
     }
 
+    /**
+     * Tidal answers a search with one searchResults resource whose relationship lists what it found.
+     */
+    private static String searchResults(String type, String... ids) {
+        String found = String.join(",", Arrays.stream(ids)
+                .map(id -> "{\"id\":\"" + id + "\",\"type\":\"" + type + "\"}").toList());
+        return "{\"data\":[{\"id\":\"opaque\",\"type\":\"searchResults\",\"relationships\":{\""
+                + type + "\":{\"data\":[" + found + "]}}}]}";
+    }
+
     private static AlbumRef blue() {
         return new AlbumRef("Joni Mitchell", "Blue", Optional.of(1971), ProviderIds.of(Provider.TIDAL, "77"));
     }
 
     @Test
     void searchesAlbumsAndReadsTheirArtistsAndYears() {
-        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/joni%20mitchell/relationships/albums"))
-                .willReturn(okJson("""
-                        {"data":[{"id":"77","type":"albums"},{"id":"78","type":"albums"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults")).willReturn(okJson(searchResults("albums", "77", "78"))));
         tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson(ALBUMS)));
 
         List<AlbumRef> found = provider.searchAlbums("joni mitchell", 5);
 
         assertThat(found).containsExactly(blue(),
                 new AlbumRef("Joni Mitchell", "Hejira", Optional.of(1976), ProviderIds.of(Provider.TIDAL, "78")));
+        tidal.verify(getRequestedFor(urlPathEqualTo("/v2/searchResults"))
+                .withQueryParam("filter[query]", equalTo("joni mitchell"))
+                .withQueryParam("include", equalTo("albums"))
+                .withQueryParam("countryCode", equalTo("GB")));
         tidal.verify(getRequestedFor(urlPathEqualTo("/v2/albums"))
                 .withQueryParam("filter[id]", havingExactly("77", "78"))
                 .withQueryParam("include", equalTo("artists,coverArt"))
@@ -97,9 +111,8 @@ class TidalMusicProviderTest {
 
     @Test
     void findsTheAlbumMatchingAnArtistAndTitle() {
-        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/Joni%20Mitchell%20Hejira/relationships/albums"))
-                .willReturn(okJson("""
-                        {"data":[{"id":"77","type":"albums"},{"id":"78","type":"albums"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults")).withQueryParam("filter[query]",
+                equalTo("Joni Mitchell Hejira")).willReturn(okJson(searchResults("albums", "77", "78"))));
         tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson(ALBUMS)));
 
         assertThat(provider.findAlbum("Joni Mitchell", "Hejira")).map(AlbumRef::title).contains("Hejira");
@@ -107,14 +120,30 @@ class TidalMusicProviderTest {
 
     @Test
     void savesAFavouriteToThePersonsCollection() {
-        tidal.stubFor(post(urlPathEqualTo("/v2/userCollections/u-42/relationships/albums")).willReturn(okJson("{}")));
+        tidal.stubFor(post(urlPathEqualTo("/v2/userCollectionAlbums/me/relationships/items")).willReturn(okJson("{}")));
 
         provider.addFavourite(CRAIG, "77");
 
-        tidal.verify(postRequestedFor(urlPathEqualTo("/v2/userCollections/u-42/relationships/albums"))
+        tidal.verify(postRequestedFor(urlPathEqualTo("/v2/userCollectionAlbums/me/relationships/items"))
                 .withHeader("Authorization", equalTo("Bearer user-token"))
                 .withRequestBody(equalToJson("""
                         {"data":[{"id":"77","type":"albums"}]}""")));
+    }
+
+    @Test
+    void readsEveryPageOfThePersonsFavouriteAlbums() {
+        tidal.stubFor(get(urlPathEqualTo("/v2/userCollectionAlbums/me/relationships/items"))
+                .withQueryParam("page[cursor]", absent()).willReturn(okJson("""
+                        {"data":[{"id":"77","type":"albums"}],
+                         "links":{"next":"/userCollectionAlbums/me/relationships/items?page%5Bcursor%5D=c2"}}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/userCollectionAlbums/me/relationships/items"))
+                .withQueryParam("page[cursor]", equalTo("c2")).willReturn(okJson("""
+                        {"data":[{"id":"78","type":"albums"}],"links":{}}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/albums")).willReturn(okJson(ALBUMS)));
+
+        assertThat(provider.favouriteAlbums(CRAIG)).extracting(AlbumRef::title).containsExactly("Blue", "Hejira");
+        tidal.verify(getRequestedFor(urlPathEqualTo("/v2/userCollectionAlbums/me/relationships/items"))
+                .withHeader("Authorization", equalTo("Bearer user-token")));
     }
 
     @Test
@@ -152,8 +181,7 @@ class TidalMusicProviderTest {
 
     @Test
     void searchesSongsWithTheirAlbumsCovers() {
-        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/river/relationships/tracks")).willReturn(okJson("""
-                {"data":[{"id":"s1","type":"tracks"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults")).willReturn(okJson(searchResults("tracks", "s1"))));
         tidal.stubFor(get(urlPathEqualTo("/v2/tracks")).willReturn(okJson("""
                 {"data":[{"id":"s1","type":"tracks","attributes":{"title":"River"},
                    "relationships":{"artists":{"data":[{"id":"a1","type":"artists"}]},
@@ -174,9 +202,8 @@ class TidalMusicProviderTest {
 
     @Test
     void findsASongWithItsAlbum() {
-        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults/Joni%20Mitchell%20River/relationships/tracks"))
-                .willReturn(okJson("""
-                        {"data":[{"id":"s2","type":"tracks"},{"id":"s1","type":"tracks"}]}""")));
+        tidal.stubFor(get(urlPathEqualTo("/v2/searchResults")).withQueryParam("include", equalTo("tracks"))
+                .willReturn(okJson(searchResults("tracks", "s2", "s1"))));
         tidal.stubFor(get(urlPathEqualTo("/v2/tracks")).willReturn(okJson("""
                 {"data":[
                   {"id":"s2","type":"tracks","attributes":{"title":"River"},

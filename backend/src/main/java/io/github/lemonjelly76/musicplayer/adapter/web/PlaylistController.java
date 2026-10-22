@@ -61,8 +61,16 @@ class PlaylistController {
         List<Playlist> found = playlists.latest(person,
                 ActivityParameter.resolve(categories, category).map(Category::id), limit);
         Map<String, LibrarySong> rated = songs.bySong(person.id());
-        return found.stream().map(playlist -> PlaylistResponse.from(playlist, providers::link, rated, providers::link))
+        return found.stream()
+                .map(playlist -> PlaylistResponse.from(asSeenBy(person, playlist), providers::link, rated, providers::link))
                 .toList();
+    }
+
+    /**
+     * One in their account on a service they have since left is shown as not in their account.
+     */
+    private static Playlist asSeenBy(Person person, Playlist playlist) {
+        return person.provider().filter(playlist::inAccountOn).isPresent() ? playlist : playlist.outOfAccount();
     }
 
     /**

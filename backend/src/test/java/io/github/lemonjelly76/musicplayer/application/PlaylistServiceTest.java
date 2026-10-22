@@ -262,6 +262,38 @@ class PlaylistServiceTest {
     }
 
     @Test
+    void numbersSlotsAfreshOnAServiceSwitchedToLeavingTheOtherServicesPlaylistsThere() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        IntStream.rangeClosed(1, 3).forEach(n -> world.playlistRepository.save(
+                Playlist.create(craig.id(), Optional.of(running), "", List.of(world.tidal.songs.getFirst()), NOW)
+                        .writtenTo(n, new SyncedPlaylist(Provider.SPOTIFY, "spotify-" + n))));
+
+        world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")));
+
+        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 1 [tr-1]");
+        assertThat(world.tidal.deletedPlaylists).isEmpty();
+        assertThat(slots(craig, Optional.of(running))).containsExactlyInAnyOrder("playlist-1 in 1", "spotify-1 in 1",
+                "spotify-2 in 2", "spotify-3 in 3");
+    }
+
+    @Test
+    void putsAPlaylistInASlotLeavingTheOtherServicesPlaylistWithThatNumber() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        Playlist mine = Playlist.create(craig.id(), Optional.of(running), "", List.of(world.tidal.songs.getFirst()), NOW);
+        world.playlistRepository.save(mine);
+        world.playlistRepository.save(Playlist.create(craig.id(), Optional.of(running), "",
+                List.of(world.tidal.songs.getFirst()), NOW).writtenTo(2, new SyncedPlaylist(Provider.SPOTIFY, "spotify-2")));
+
+        world.playlists.putInSlot(craig, mine.id(), 2);
+
+        assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 2 [tr-1]");
+        assertThat(world.tidal.deletedPlaylists).isEmpty();
+        assertThat(slots(craig, Optional.of(running))).containsExactlyInAnyOrder("playlist-1 in 2", "spotify-2 in 2");
+    }
+
+    @Test
     void refusesASlotThatIsNotOneToThree() {
         Person craig = world.tidalUser("Craig");
         world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");

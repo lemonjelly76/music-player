@@ -126,18 +126,19 @@ public class PlaylistService {
         }
         Playlist chosen = repository.find(id).filter(found -> found.person().equals(person.id()))
                 .orElseThrow(() -> new NotFoundException("No playlist " + id + " for " + person.name()));
-        if (chosen.slot().map(Slot::number).orElse(0) == number) {
-            return chosen;
-        }
         MusicProvider service = providers.forPerson(person).orElseThrow(() -> new MusicProviderUnavailableException(
                 person.name() + " has no streaming service set up"));
-        Optional<Playlist> there = repository.inAccount(person.id(), chosen.category()).stream()
+        boolean inAccount = chosen.inAccountOn(service.name());
+        if (inAccount && chosen.slot().orElseThrow().number() == number) {
+            return chosen;
+        }
+        Optional<Playlist> there = held(person.id(), service, chosen.category()).stream()
                 .filter(held -> held.slot().orElseThrow().number() == number)
                 .findFirst();
-        Playlist placed = chosen.slot().isPresent()
+        Playlist placed = inAccount
                 ? swap(person, chosen, number, there)
                 : write(person, chosen, service, number, there.flatMap(Playlist::synced).map(SyncedPlaylist::playlistId));
-        there.filter(held -> chosen.slot().isEmpty()).ifPresent(held -> repository.save(held.outOfAccount()));
+        there.filter(held -> !inAccount).ifPresent(held -> repository.save(held.outOfAccount()));
         repository.save(placed);
         renameMisnamed(person.id(), chosen.category());
         return placed;
@@ -219,15 +220,15 @@ public class PlaylistService {
         if (playableOn(service, playlist).isEmpty()) {
             return new Saved(playlist, dropped, "not synced: none of the songs are on " + service.name().prefix());
         }
-        List<Playlist> held = repository.inAccount(person.id(), playlist.category()).stream()
+        boolean inAccount = playlist.inAccountOn(service.name());
+        List<Playlist> held = held(person.id(), service, playlist.category()).stream()
                 .filter(other -> !other.id().equals(playlist.id()))
                 .toList();
-        Optional<Playlist> replaced = playlist.slot().isPresent() || held.size() < Playlist.SLOTS
+        Optional<Playlist> replaced = inAccount || held.size() < Playlist.SLOTS
                 ? Optional.empty() : Optional.of(held.getLast());
-        int number = playlist.slot().map(Slot::number)
-                .or(() -> replaced.flatMap(Playlist::slot).map(Slot::number))
+        int number = (inAccount ? playlist.slot() : replaced.flatMap(Playlist::slot)).map(Slot::number)
                 .orElseGet(() -> firstFree(held));
-        Optional<String> replacing = playlist.slot().isPresent() ? playlist.synced().map(SyncedPlaylist::playlistId)
+        Optional<String> replacing = inAccount ? playlist.synced().map(SyncedPlaylist::playlistId)
                 : replaced.isPresent() ? replaced.flatMap(Playlist::synced).map(SyncedPlaylist::playlistId)
                 : held.isEmpty() ? albumListPlaylist(playlist) : Optional.empty();
         try {
@@ -240,6 +241,16 @@ public class PlaylistService {
         } catch (MusicProviderUnavailableException e) {
             return new Saved(playlist, dropped, "saved but not synced: " + e.getMessage());
         }
+    }
+
+    /**
+     * The activity's playlists in the person's account on that service, newest first. Those on a service they used
+     * before stay there, keeping their numbers in case they switch back.
+     */
+    private List<Playlist> held(PersonId person, MusicProvider service, Optional<CategoryId> activity) {
+        return repository.inAccount(person, activity).stream()
+                .filter(playlist -> playlist.inAccountOn(service.name()))
+                .toList();
     }
 
     private static int firstFree(List<Playlist> held) {

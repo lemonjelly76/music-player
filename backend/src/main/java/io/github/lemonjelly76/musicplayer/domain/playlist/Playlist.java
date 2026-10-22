@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.domain.playlist;
 
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
@@ -86,6 +87,13 @@ public record Playlist(PlaylistId id, PersonId person, Optional<CategoryId> cate
      */
     public Playlist outOfAccount() {
         return new Playlist(id, person, category, name, description, createdAt, synced, Optional.empty(), tracks);
+    }
+
+    /**
+     * Whether it is in the person's account on that service now; one on a service they have since left is not.
+     */
+    public boolean inAccountOn(Provider service) {
+        return slot.isPresent() && synced.map(SyncedPlaylist::provider).filter(service::equals).isPresent();
     }
 
     /**

@@ -109,6 +109,19 @@ class PlaylistControllerTest {
     }
 
     @Test
+    void aPlaylistOnAServiceTheyHaveSinceLeftIsNotShownAsInTheirAccount() {
+        given(songs.bySong(CRAIG.id())).willReturn(Map.of());
+        given(playlists.latest(CRAIG, Optional.of(RUNNING.id()), 5)).willReturn(List.of(
+                Playlist.create(CRAIG.id(), Optional.of(RUNNING), "", List.of(SEXY_BOY), NOW)
+                        .writtenTo(1, new SyncedPlaylist(Provider.TIDAL, "tidal-1"))));
+
+        assertThat(mvc.get().uri("/api/people/{id}/playlists?category={c}", CRAIG.id(), RUNNING.id()))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        [{"slot":null, "link":null}]""");
+    }
+
+    @Test
     void aSlotMustBeGiven() {
         assertThat(mvc.put().uri("/api/people/{id}/playlists/{playlist}/slot", CRAIG.id(), PlaylistId.random())
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))

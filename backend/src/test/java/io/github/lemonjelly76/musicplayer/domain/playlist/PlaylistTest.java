@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.domain.playlist;
 import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList.SyncedPlaylist;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -31,6 +32,16 @@ class PlaylistTest {
 
         assertThat(running.name()).isEqualTo("AI Picks — Running");
         assertThat(general.name()).isEqualTo("AI Picks");
+    }
+
+    @Test
+    void isOnlyInTheAccountOfTheServiceItWasWrittenTo() {
+        Playlist written = Playlist.create(PersonId.random(), Optional.empty(), "", tracks(3), NOW)
+                .writtenTo(1, new SyncedPlaylist(Provider.SPOTIFY, "pl-1"));
+
+        assertThat(written.inAccountOn(Provider.SPOTIFY)).isTrue();
+        assertThat(written.inAccountOn(Provider.TIDAL)).isFalse();
+        assertThat(written.outOfAccount().inAccountOn(Provider.SPOTIFY)).isFalse();
     }
 
     @Test

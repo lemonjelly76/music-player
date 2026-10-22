@@ -44,6 +44,7 @@ class TidalMusicProvider implements MusicProvider {
     static final int COVER_WIDTH = 320;
     private static final int MAX_PAGES = 50;
     private static final MediaType JSON_API = MediaType.parseMediaType("application/vnd.api+json");
+    private static final String COLLECTED_ALBUMS = "/userCollectionAlbums/me/relationships/items";
 
     private final TidalProperties properties;
     private final ProviderAuthorization authorization;
@@ -74,13 +75,7 @@ class TidalMusicProvider implements MusicProvider {
 
     @Override
     public List<AlbumRef> searchAlbums(String query, int limit) {
-        String path = UriComponentsBuilder.fromPath("/searchResults/{query}/relationships/albums")
-                .queryParam("countryCode", properties.countryCode())
-                .buildAndExpand(query)
-                .encode()
-                .toUriString();
-        List<String> ids = ids(get(path, authorization.appToken())).stream().limit(limit).toList();
-        return albums(ids);
+        return albums(search(query, "albums").stream().limit(limit).toList());
     }
 
     @Override
@@ -116,12 +111,23 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     private List<FoundTrack> searchFoundTracks(String query, int limit) {
-        String path = UriComponentsBuilder.fromPath("/searchResults/{query}/relationships/tracks")
+        return tracks(search(query, "tracks").stream().limit(limit).toList());
+    }
+
+    /**
+     * Tidal answers a search with one searchResults resource, whose relationship of the given type lists the ids
+     * it found, best first.
+     */
+    private List<String> search(String query, String type) {
+        String path = UriComponentsBuilder.fromPath("/searchResults")
+                .queryParam("filter[query]", "{query}")
                 .queryParam("countryCode", properties.countryCode())
-                .buildAndExpand(query)
+                .queryParam("include", type)
                 .encode()
+                .buildAndExpand(query)
                 .toUriString();
-        return tracks(ids(get(path, authorization.appToken())).stream().limit(limit).toList());
+        JsonNode results = get(path, authorization.appToken()).path("data").path(0);
+        return ids(results.path("relationships").path(type));
     }
 
     @Override
@@ -134,8 +140,7 @@ class TidalMusicProvider implements MusicProvider {
     @Override
     public List<AlbumRef> favouriteAlbums(PersonId person) {
         String token = authorization.accessToken(person);
-        List<String> ids = allIds("/userCollections/" + userId(person) + "/relationships/albums?countryCode="
-                + properties.countryCode(), token);
+        List<String> ids = allIds(COLLECTED_ALBUMS, token);
         List<AlbumRef> albums = new ArrayList<>();
         for (int start = 0; start < ids.size(); start += BATCH) {
             albums.addAll(albums(ids.subList(start, Math.min(ids.size(), start + BATCH))));
@@ -145,8 +150,7 @@ class TidalMusicProvider implements MusicProvider {
 
     @Override
     public void addFavourite(PersonId person, String id) {
-        send(HttpMethod.POST, "/userCollections/" + userId(person) + "/relationships/albums?countryCode="
-                + properties.countryCode(), resources("albums", List.of(id)), authorization.accessToken(person));
+        send(HttpMethod.POST, COLLECTED_ALBUMS, resources("albums", List.of(id)), authorization.accessToken(person));
     }
 
     @Override
@@ -157,7 +161,7 @@ class TidalMusicProvider implements MusicProvider {
         ObjectNode playlist = jsonMapper.createObjectNode();
         ObjectNode data = playlist.putObject("data").put("type", "playlists");
         data.putObject("attributes").put("name", name).put("description", description).put("accessType", "PUBLIC");
-        String playlistId = send(HttpMethod.POST, "/playlists?countryCode=" + properties.countryCode(), playlist, token)
+        String playlistId = send(HttpMethod.POST, "/playlists", playlist, token)
                 .path("data").path("id").asString();
         for (int start = 0; start < trackIds.size(); start += BATCH) {
             send(HttpMethod.POST, "/playlists/" + playlistId + "/relationships/items",
@@ -211,11 +215,6 @@ class TidalMusicProvider implements MusicProvider {
         } catch (RestClientException | JacksonException e) {
             return Optional.empty();
         }
-    }
-
-    private String userId(PersonId person) {
-        return authorization.userId(person).orElseThrow(() -> new MusicProviderUnavailableException(
-                "Tidal did not say who this person is; connect Tidal again from the app"));
     }
 
     private void deletePlaylist(String playlistId, String token) {
@@ -408,6 +407,18 @@ class TidalMusicProvider implements MusicProvider {
         });
     }
 
+    /**
+     * Tidal says why in {@code errors[0].detail}, such as "Invalid resource ID".
+     */
+    private String reason(String body) {
+        try {
+            String detail = jsonMapper.readTree(body).path("errors").path(0).path("detail").asString("");
+            return detail.isBlank() ? "" : " (" + detail + ")";
+        } catch (JacksonException e) {
+            return "";
+        }
+    }
+
     private JsonNode call(Supplier<String> request) {
         try {
             String body = request.get();
@@ -416,7 +427,8 @@ class TidalMusicProvider implements MusicProvider {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new MusicProviderUnavailableException("Tidal has no such item", e);
             }
-            throw new MusicProviderUnavailableException("Tidal refused the request: " + e.getStatusCode(), e);
+            throw new MusicProviderUnavailableException("Tidal refused the request: " + e.getStatusCode()
+                    + reason(e.getResponseBodyAsString()), e);
         } catch (RestClientException | JacksonException e) {
             throw new MusicProviderUnavailableException("Could not reach Tidal", e);
         }
