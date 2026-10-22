@@ -194,7 +194,7 @@ An activity holds only what was rated for it, so a new activity starts empty. Ge
 
 The app shows it on General's Home as "Popular this week": a "Top 50 songs" card that opens the full list (each song numbered by chart place, with rating buttons, and a play button for the person's playlist), then the top albums by place. Ratings there are General ones (`GET /people/{id}/charts`, `PUT /people/{id}/chart-playlist`).
 
-**Rate limits.** Spotify limits how fast an app may call it, and a development-mode app is easily locked out for most of a day after a burst. The Spotify adapter waits and retries when Spotify asks for a short pause (at most 30 seconds), and otherwise says how long Spotify wants. The chart job tries again each hour.
+**Rate limits.** Spotify limits how fast an app may call it, and a development-mode app is easily locked out for most of a day after a burst. The Spotify adapter waits and retries when Spotify asks for a short pause (at most 30 seconds), and otherwise says how long Spotify wants. The chart job tries again each hour. Every service also remembers which song or album it found for each artist and title (`catalogue_lookup`, `CachingMusicProvider`), for a month when found and a week when not, so a daily chart, a repeated playlist or a rating that names the same music again costs no calls.
 
 ### ADR-016 One Compose codebase for Android and Windows — Accepted
 

@@ -7,11 +7,8 @@ import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -96,34 +93,5 @@ class ChartServiceTest {
 
         assertThat(world.tidal.playlistCalls).isEmpty();
         assertThat(charts.playlistFor(craig).wanted()).isFalse();
-    }
-
-    /** A clock the test moves on. */
-    private static final class MovableClock extends Clock {
-
-        private Instant now;
-
-        MovableClock(Instant start) {
-            now = start;
-        }
-
-        void move(Duration by) {
-            now = now.plus(by);
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }

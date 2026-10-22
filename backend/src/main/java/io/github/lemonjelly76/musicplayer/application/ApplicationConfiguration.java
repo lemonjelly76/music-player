@@ -7,6 +7,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ChartSource;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
+import io.github.lemonjelly76.musicplayer.domain.port.LookupCache;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.PersonRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository;
@@ -48,8 +49,10 @@ class ApplicationConfiguration {
     }
 
     @Bean
-    MusicProviders musicProviders(List<MusicProvider> providers) {
-        return new MusicProviders(providers);
+    MusicProviders musicProviders(List<MusicProvider> providers, LookupCache lookups, Clock clock) {
+        return new MusicProviders(providers.stream()
+                .<MusicProvider>map(service -> new CachingMusicProvider(service, lookups, clock))
+                .toList());
     }
 
     @Bean

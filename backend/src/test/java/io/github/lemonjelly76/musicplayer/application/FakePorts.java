@@ -22,6 +22,7 @@ import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.LookupCache;
 import io.github.lemonjelly76.musicplayer.domain.port.ListeningHistory;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
@@ -265,6 +266,32 @@ final class FakePorts {
         }
     }
 
+    static final class Lookups implements LookupCache {
+
+        final Map<String, Lookup<Track>> tracks = new HashMap<>();
+        final Map<String, Lookup<AlbumRef>> albums = new HashMap<>();
+
+        @Override
+        public Optional<Lookup<Track>> track(Provider provider, String key) {
+            return Optional.ofNullable(tracks.get(provider + key));
+        }
+
+        @Override
+        public void saveTrack(Provider provider, String key, Lookup<Track> lookup) {
+            tracks.put(provider + key, lookup);
+        }
+
+        @Override
+        public Optional<Lookup<AlbumRef>> album(Provider provider, String key) {
+            return Optional.ofNullable(albums.get(provider + key));
+        }
+
+        @Override
+        public void saveAlbum(Provider provider, String key, Lookup<AlbumRef> lookup) {
+            albums.put(provider + key, lookup);
+        }
+    }
+
     static final class Songs implements SongRepository {
 
         final Map<LibrarySongId, LibrarySong> saved = new LinkedHashMap<>();
@@ -343,6 +370,7 @@ final class FakePorts {
         final List<String> deletedPlaylists = new ArrayList<>();
         final List<String> renamedPlaylists = new ArrayList<>();
         int findCalls;
+        int trackFinds;
         /** Searches after this many fail, as when the service goes down part way through. */
         int findsBeforeFailing = Integer.MAX_VALUE;
         boolean failing;
@@ -409,6 +437,7 @@ final class FakePorts {
 
         @Override
         public Optional<Track> findTrack(String artist, String title) {
+            trackFinds++;
             if (failing) {
                 throw new MusicProviderUnavailableException(name.prefix() + " stopped answering");
             }
