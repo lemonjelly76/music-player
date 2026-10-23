@@ -14,6 +14,8 @@ import androidx.activity.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.lemonjelly76.musicplayer.data.SharedPreferencesSettingsStore
+import io.github.lemonjelly76.musicplayer.data.TIDAL_PACKAGE
+import io.github.lemonjelly76.musicplayer.data.tidalAppLinks
 
 class MainActivity : ComponentActivity() {
 
@@ -32,12 +34,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Tidal and Spotify links open in their own apps when installed, else in the browser. */
+    /**
+     * Tidal links go straight to the Tidal app when it is installed, as Android would otherwise open them in the
+     * browser; Spotify's open in its app by themselves. Anything else, or Tidal without its app, opens in the browser.
+     */
     private fun open(url: String) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } catch (e: ActivityNotFoundException) {
+        val inTidal = tidalAppLinks(url).any { link ->
+            started(Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(TIDAL_PACKAGE))
+        }
+        if (inTidal) return
+        if (!started(Intent(Intent.ACTION_VIEW, Uri.parse(url)))) {
             Toast.makeText(this, "Nothing on this phone can open $url", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun started(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
     }
 }
