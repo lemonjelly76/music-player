@@ -131,4 +131,21 @@ class HomeLogicTest {
         assertEquals(listOf(running, dinner, chill), activities.moved("chill", 1))
         assertEquals(activities, activities.moved("nope", 1))
     }
+
+    @Test
+    fun askingToDeleteAPlaylistSaysWhatGoesWhere() {
+        fun playlist(id: String, slot: Int?) =
+            Playlist(id, "AI Picks — Running", "", "c1", "2026-10-21T18:00:00Z", null, emptyList(), slot)
+        val newest = playlist("new", 2)
+        val older = playlist("old", null)
+
+        assertEquals(Confirm("Delete this playlist?", "It goes from here and from Tidal, where it's AI Picks — Running 2.",
+            "Delete"), deletePlaylistQuestion(newest, listOf(newest, older), "tidal", copiedTo = null))
+        assertEquals("It isn't in Tidal, so it only goes from here.",
+            deletePlaylistQuestion(older, listOf(newest, older), "tidal", copiedTo = "spotify").text)
+        assertEquals("It goes from here and from Tidal, where it's AI Picks — Running 2. Its copy in Spotify becomes " +
+            "the playlist before it.", deletePlaylistQuestion(newest, listOf(newest, older), "tidal", "spotify").text)
+        assertEquals("It goes from here and from Tidal, where it's AI Picks — Running 2. Its copy in Spotify goes too.",
+            deletePlaylistQuestion(newest, listOf(newest), "tidal", "spotify").text)
+    }
 }

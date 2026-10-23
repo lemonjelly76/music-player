@@ -135,8 +135,8 @@ private fun ArtistCircle(artist: ArtistPlays, albums: List<PlayedAlbum>) {
 private fun RankedAlbum(rank: Int, played: PlayedAlbum, viewModel: MainViewModel, open: (String) -> Unit) {
     val album = played.album
     val actions = listOfNotNull(
-        album.link?.let { link -> AlbumAction("Open in ${serviceOfLink(link)}") { open(link) } },
-        AlbumAction("More like this") { viewModel.moreLikeThis(album) },
+        album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
+        MenuAction("More like this") { viewModel.moreLikeThis(album) },
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(rank.toString(), Modifier.padding(start = 16.dp).width(24.dp), style = MaterialTheme.typography.bodyLarge,

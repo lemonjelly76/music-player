@@ -69,6 +69,11 @@ public interface MusicProvider {
      */
     void renamePlaylist(PersonId person, String playlistId, String newName);
 
+    /**
+     * Removes a playlist from the person's account; one already gone is no error.
+     */
+    void deletePlaylist(PersonId person, String playlistId);
+
     URI trackLink(String id);
 
     URI playlistLink(String playlistId);

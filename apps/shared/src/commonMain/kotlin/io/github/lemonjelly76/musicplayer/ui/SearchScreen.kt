@@ -102,8 +102,8 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
 private fun FoundRow(found: Found, activity: String, viewModel: MainViewModel, open: (String) -> Unit) {
     val album = found.album
     val actions = listOfNotNull(
-        album.link?.let { link -> AlbumAction("Open in ${serviceOfLink(link)}") { open(link) } },
-        AlbumAction("More like this") { viewModel.moreLikeThis(album) },
+        album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
+        MenuAction("More like this") { viewModel.moreLikeThis(album) },
     )
     AlbumRow(album, open, actions) {
         val general = found.rating?.takeIf { found.general }

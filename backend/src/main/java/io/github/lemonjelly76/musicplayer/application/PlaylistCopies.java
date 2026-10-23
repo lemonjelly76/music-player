@@ -77,6 +77,34 @@ public class PlaylistCopies {
     }
 
     /**
+     * After the activity's newest playlist was deleted, copies the one before it; with none left, takes the copy
+     * away, still copying the next. Says how that went, to follow the word of the delete.
+     */
+    public Optional<String> followNewest(Person person, Optional<CategoryId> activity) {
+        Optional<PlaylistCopy> copy = copies.find(person.id(), activity)
+                .filter(found -> !person.provider().equals(Optional.of(found.service())));
+        if (copy.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<Playlist> newest = playlists.latest(person.id(), activity, 1).stream().findFirst();
+        if (newest.isPresent()) {
+            return Optional.of("; " + write(person, newest.get(), copy.get()));
+        }
+        return copy.get().playlistId().map(id -> remove(copy.get(), id));
+    }
+
+    private String remove(PlaylistCopy copy, String playlistId) {
+        String where = copy.service().prefix();
+        try {
+            providers.get(copy.service()).deletePlaylist(copy.person(), playlistId);
+            copies.save(PlaylistCopy.wanted(copy.person(), copy.category(), copy.service()));
+            return ", and its copy from " + where;
+        } catch (MusicProviderUnavailableException e) {
+            return "; its copy is still in " + where + ": " + e.getMessage();
+        }
+    }
+
+    /**
      * Gives the activity's copies its new name in each person's account; one that cannot be reached keeps the old.
      */
     public void renamed(Category activity) {

@@ -33,7 +33,7 @@ class JdbcRecommendationRepository implements RecommendationRepository {
     }
 
     /**
-     * Saving a list again updates its playlist and its picks' ids and covers.
+     * Saving a list again updates its playlist and its picks' ids and covers, and drops picks taken out of it.
      */
     @Override
     @Transactional
@@ -52,6 +52,10 @@ class JdbcRecommendationRepository implements RecommendationRepository {
                 .param("provider", list.playlist().map(synced -> synced.provider().name()).orElse(null))
                 .param("playlistId", list.playlist().map(SyncedPlaylist::playlistId).orElse(null))
                 .update();
+        jdbc.sql("delete from recommendation where list_id = :list and not (id = any(:kept))")
+                .param("list", list.id().value())
+                .param("kept", list.picks().stream().map(pick -> pick.id().value()).toArray(UUID[]::new))
+                .update();
         for (int position = 0; position < list.picks().size(); position++) {
             Recommendation pick = list.picks().get(position);
             AlbumColumns.bind(jdbc.sql("""
@@ -69,6 +73,11 @@ class JdbcRecommendationRepository implements RecommendationRepository {
                     .param("source", pick.source().name())
                     .update();
         }
+    }
+
+    @Override
+    public void delete(RecommendationListId id) {
+        jdbc.sql("delete from recommendation_list where id = :id").param("id", id.value()).update();
     }
 
     @Override

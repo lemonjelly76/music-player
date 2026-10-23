@@ -322,4 +322,55 @@ class PlaylistServiceTest {
                         + slot.number()).orElse("none"))
                 .toList();
     }
+
+    @Test
+    void deletesAPlaylistHereAndFromTheAccountItIsIn() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        Playlist saved = world.playlists.save(craig, Optional.of(running), "", List.of(song("Air", "Sexy Boy")))
+                .playlist();
+
+        String done = world.playlists.delete(craig, saved.id());
+
+        assertThat(done).isEqualTo("Deleted AI Picks — Running 1 here and from tidal");
+        assertThat(world.tidal.deletedPlaylists).containsExactly("playlist-1");
+        assertThat(world.playlistRepository.find(saved.id())).isEmpty();
+    }
+
+    @Test
+    void deletesAPlaylistThatIsNotInTheAccountOnlyHere() {
+        Person craig = world.tidalUser("Craig");
+        Playlist kept = Playlist.create(craig.id(), Optional.of(running), "",
+                List.of(world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari")), NOW);
+        world.playlistRepository.save(kept);
+
+        assertThat(world.playlists.delete(craig, kept.id())).isEqualTo("Playlist deleted");
+        assertThat(world.tidal.deletedPlaylists).isEmpty();
+        assertThat(world.playlistRepository.find(kept.id())).isEmpty();
+    }
+
+    @Test
+    void stillDeletesAPlaylistWhenItsServiceCannotBeReachedAndSaysItIsLeftThere() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari");
+        Playlist saved = world.playlists.save(craig, Optional.empty(), "", List.of(song("Air", "Sexy Boy")))
+                .playlist();
+        world.tidal.failing = true;
+
+        assertThat(world.playlists.delete(craig, saved.id()))
+                .isEqualTo("Deleted here, but AI Picks 1 is still in tidal: tidal is not connected");
+        assertThat(world.playlistRepository.find(saved.id())).isEmpty();
+    }
+
+    @Test
+    void cannotDeleteSomeoneElsesPlaylist() {
+        Person craig = world.tidalUser("Craig");
+        Person robin = world.tidalUser("Robin");
+        Playlist theirs = Playlist.create(robin.id(), Optional.empty(), "",
+                List.of(world.tidal.carryTrack("tr-1", "Air", "Sexy Boy", "Moon Safari")), NOW);
+        world.playlistRepository.save(theirs);
+
+        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> world.playlists.delete(craig, theirs.id()));
+        assertThat(world.playlistRepository.find(theirs.id())).isPresent();
+    }
 }

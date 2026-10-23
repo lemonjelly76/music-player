@@ -17,10 +17,13 @@ import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @WebMvcTest(MusicController.class)
 @Import({SecurityConfiguration.class, ApiErrors.class})
@@ -225,5 +229,28 @@ class MusicControllerTest {
     @WithAnonymousUser
     void needsTheHouseholdLogin() {
         assertThat(mvc.get().uri("/api/people/{id}/library", CRAIG.id())).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void deletesAListOfAlbumsToTryOrOnePickFromIt() {
+        RecommendationListId list = RecommendationListId.random();
+        RecommendationId pick = RecommendationId.random();
+
+        assertThat(mvc.delete().uri("/api/people/{id}/lists/{list}", CRAIG.id(), list)).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().uri("/api/people/{id}/lists/{list}/picks/{pick}", CRAIG.id(), list, pick))
+                .hasStatus(HttpStatus.NO_CONTENT);
+
+        then(recommendations).should().delete(CRAIG, list);
+        then(recommendations).should().removePick(CRAIG, list, pick);
+    }
+
+    @Test
+    void removesAnAlbumFromTheLibrary() {
+        LibraryAlbumId album = LibraryAlbumId.random();
+
+        assertThat(mvc.delete().uri("/api/people/{id}/library/{album}", CRAIG.id(), album))
+                .hasStatus(HttpStatus.NO_CONTENT);
+
+        then(library).should().remove(CRAIG.id(), album);
     }
 }

@@ -14,6 +14,8 @@ public interface PlaylistRepository {
 
     Optional<Playlist> find(PlaylistId id);
 
+    void delete(PlaylistId id);
+
     /**
      * The person's playlists for the activity that are in their account now, newest first.
      */

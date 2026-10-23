@@ -14,6 +14,8 @@ public interface RecommendationRepository {
 
     Optional<RecommendationList> findById(RecommendationListId id);
 
+    void delete(RecommendationListId id);
+
     /**
      * A person's lists, newest first; with a category, only that category's lists, else every list.
      */

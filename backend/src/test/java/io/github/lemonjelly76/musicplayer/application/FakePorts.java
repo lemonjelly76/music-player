@@ -226,6 +226,11 @@ final class FakePorts {
         }
 
         @Override
+        public void delete(RecommendationListId id) {
+            saved.remove(id);
+        }
+
+        @Override
         public List<RecommendationList> findByPerson(PersonId person, Optional<CategoryId> category, int limit) {
             return saved.values().stream()
                     .filter(list -> list.person().equals(person))
@@ -384,6 +389,11 @@ final class FakePorts {
         }
 
         @Override
+        public void delete(PlaylistId id) {
+            saved.remove(id.toString());
+        }
+
+        @Override
         public List<Playlist> inAccount(PersonId person, Optional<CategoryId> activity) {
             return latest(person, activity, Integer.MAX_VALUE).stream()
                     .filter(playlist -> playlist.slot().isPresent())
@@ -536,6 +546,12 @@ final class FakePorts {
         public void renamePlaylist(PersonId person, String playlistId, String newName) {
             requireConnected(person);
             renamedPlaylists.add(playlistId + " " + newName);
+        }
+
+        @Override
+        public void deletePlaylist(PersonId person, String playlistId) {
+            requireConnected(person);
+            deletedPlaylists.add(playlistId);
         }
 
         @Override

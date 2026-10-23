@@ -33,6 +33,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.havingExactly;
+import static com.github.tomakehurst.wiremock.client.WireMock.noContent;
 import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.patch;
@@ -166,6 +167,18 @@ class TidalMusicProviderTest {
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items"))
                 .withRequestBody(equalToJson("""
                         {"data":[{"id":"t21","type":"tracks"}]}""")));
+    }
+
+    @Test
+    void deletesAPlaylistAndToleratesOneAlreadyGone() {
+        tidal.stubFor(delete(urlPathEqualTo("/v2/playlists/pl-1")).willReturn(noContent()));
+        tidal.stubFor(delete(urlPathEqualTo("/v2/playlists/gone")).willReturn(notFound()));
+
+        provider.deletePlaylist(CRAIG, "pl-1");
+        provider.deletePlaylist(CRAIG, "gone");
+
+        tidal.verify(deleteRequestedFor(urlPathEqualTo("/v2/playlists/pl-1"))
+                .withHeader("Authorization", equalTo("Bearer user-token")));
     }
 
     @Test

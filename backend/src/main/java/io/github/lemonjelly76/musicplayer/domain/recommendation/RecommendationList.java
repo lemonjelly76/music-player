@@ -45,6 +45,11 @@ public record RecommendationList(RecommendationListId id, PersonId person, Optio
         return new RecommendationList(id, person, category, name, createdAt, Optional.of(synced), picks);
     }
 
+    public RecommendationList without(RecommendationId pickId) {
+        return new RecommendationList(id, person, category, name, createdAt, playlist,
+                picks.stream().filter(pick -> !pick.id().equals(pickId)).toList());
+    }
+
     public Optional<Recommendation> pick(RecommendationId pickId) {
         return picks.stream().filter(pick -> pick.id().equals(pickId)).findFirst();
     }

@@ -117,4 +117,18 @@ class JdbcPlaylistRepositoryTest {
         assertThat(playlists.inAccount(craig.id(), Optional.of(running.id()))).containsExactly(inAccount);
         assertThat(playlists.inAccount(craig.id(), Optional.empty())).containsExactly(general);
     }
+
+    @Test
+    void deletesAPlaylistWithItsSongs() {
+        Playlist kept = playlist(Optional.of(running), NOW.minus(Duration.ofDays(1)), "A");
+        Playlist deleted = playlist(Optional.of(running), NOW, "B", "C");
+        playlists.save(kept);
+        playlists.save(deleted);
+
+        playlists.delete(deleted.id());
+
+        assertThat(playlists.find(deleted.id())).isEmpty();
+        assertThat(playlists.latest(craig.id(), Optional.of(running.id()), 5)).extracting(Playlist::id)
+                .containsExactly(kept.id());
+    }
 }

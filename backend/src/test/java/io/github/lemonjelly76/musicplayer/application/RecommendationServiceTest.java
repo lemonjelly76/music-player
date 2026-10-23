@@ -8,6 +8,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Optional;
 
 import static io.github.lemonjelly76.musicplayer.application.World.album;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 class RecommendationServiceTest {
@@ -91,5 +93,47 @@ class RecommendationServiceTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> world.recommendations.save(craig, Optional.empty(), List.of(pick("Made Up — Never Was"))))
                 .withMessageContaining("Made Up — Never Was");
+    }
+
+    @Test
+    void deletesAList() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
+        RecommendationList list = world.recommendations.save(craig, Optional.empty(), List.of(pick("tidal:t-1"))).list();
+
+        world.recommendations.delete(craig, list.id());
+
+        assertThat(world.recommendations.history(craig, 10)).isEmpty();
+    }
+
+    @Test
+    void removesOnePickAndTheListWithItsLast() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
+        world.tidal.carry("t-2", album("Portishead", "Dummy"));
+        RecommendationList list = world.recommendations.save(craig, Optional.empty(),
+                List.of(pick("tidal:t-1"), pick("tidal:t-2"))).list();
+
+        world.recommendations.removePick(craig, list.id(), list.picks().getFirst().id());
+
+        assertThat(world.recommendations.history(craig, 10)).singleElement()
+                .satisfies(left -> assertThat(left.picks()).extracting(found -> found.album().title())
+                        .containsExactly("Dummy"));
+
+        world.recommendations.removePick(craig, list.id(), list.picks().getLast().id());
+
+        assertThat(world.recommendations.history(craig, 10)).isEmpty();
+    }
+
+    @Test
+    void cannotDeleteSomeoneElsesList() {
+        Person craig = world.tidalUser("Craig");
+        Person robin = world.tidalUser("Robin");
+        world.tidal.carry("t-1", album("Massive Attack", "Mezzanine"));
+        RecommendationList theirs = world.recommendations.save(robin, Optional.empty(), List.of(pick("tidal:t-1"))).list();
+
+        assertThatExceptionOfType(NotFoundException.class)
+                .isThrownBy(() -> world.recommendations.delete(craig, theirs.id()));
+        assertThat(world.recommendations.history(robin, 10)).hasSize(1);
     }
 }

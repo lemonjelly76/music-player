@@ -18,6 +18,7 @@ import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
 import io.github.lemonjelly76.musicplayer.domain.playlist.PlaylistId;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -95,6 +96,14 @@ class PlaylistController {
         Playlist placed = playlists.putInSlot(person, PlaylistId.of(playlistId), request.slot());
         return PlaylistResponse.from(placed, providers::link, songs.bySong(person.id()),
                 Links.forPerson(person, providers));
+    }
+
+    /**
+     * Deletes the playlist here and from the person's account, and says how that went.
+     */
+    @DeleteMapping("/people/{id}/playlists/{playlistId}")
+    StatusResponse delete(@PathVariable String id, @PathVariable String playlistId) {
+        return new StatusResponse(playlists.delete(people.get(PersonId.of(id)), PlaylistId.of(playlistId)));
     }
 
     @GetMapping("/people/{id}/playlist-copies")

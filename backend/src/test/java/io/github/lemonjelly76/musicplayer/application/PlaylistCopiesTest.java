@@ -120,4 +120,42 @@ class PlaylistCopiesTest {
 
         assertThat(world.spotify.renamedPlaylists).containsExactly("playlist-1 AI Picks — Jogging");
     }
+
+    @Test
+    void deletingTheNewestPlaylistCopiesTheOneBeforeIt() {
+        world.copies.keep(craig, Optional.of(running), Provider.SPOTIFY);
+        save("Sexy Boy", "Only On Tidal");
+        Saved newest = save("Only On Tidal");
+
+        String done = world.playlists.delete(craig, newest.playlist().id());
+
+        assertThat(done).isEqualTo("Deleted AI Picks — Running 2 here and from tidal; copied to spotify as "
+                + "AI Picks — Running, 1 of 2 songs");
+        assertThat(world.spotify.playlistCalls).last().isEqualTo("AI Picks — Running [sp-1]");
+    }
+
+    @Test
+    void deletingTheLastPlaylistTakesItsCopyAwayButKeepsCopying() {
+        world.copies.keep(craig, Optional.of(running), Provider.SPOTIFY);
+        Saved only = save("Sexy Boy");
+
+        String done = world.playlists.delete(craig, only.playlist().id());
+
+        assertThat(done).isEqualTo("Deleted AI Picks — Running 1 here and from tidal, and its copy from spotify");
+        assertThat(world.spotify.deletedPlaylists).containsExactly("playlist-1");
+        assertThat(world.copies.of(craig)).containsExactly(
+                new PlaylistCopy(craig.id(), Optional.of(running.id()), Provider.SPOTIFY, Optional.empty()));
+    }
+
+    @Test
+    void deletingAnOlderPlaylistLeavesTheCopyAlone() {
+        world.copies.keep(craig, Optional.of(running), Provider.SPOTIFY);
+        Saved older = save("Sexy Boy");
+        save("Sexy Boy", "Only On Tidal");
+        int written = world.spotify.playlistCalls.size();
+
+        world.playlists.delete(craig, older.playlist().id());
+
+        assertThat(world.spotify.playlistCalls).hasSize(written);
+    }
 }

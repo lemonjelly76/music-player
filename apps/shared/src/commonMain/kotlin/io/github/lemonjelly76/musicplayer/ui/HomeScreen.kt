@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.Playlist
+import io.github.lemonjelly76.musicplayer.data.serviceLabel
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 import io.ktor.http.encodeURLParameter
 
@@ -63,7 +69,14 @@ fun HomeScreen(
         item {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 itemsIndexed(ui.playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
-                    PlaylistCard(playlist, newest = index == 0, show = { showPlaylist(playlist.id) }, open = open)
+                    val actions = listOfNotNull(
+                        playlist.link?.let { link -> MenuAction("Play in ${serviceOfLink(link)}") { open(link) } },
+                        MenuAction("Delete playlist",
+                            deletePlaylistQuestion(playlist, ui.playlists, person.service, ui.copy?.service)) {
+                            viewModel.deletePlaylist(playlist)
+                        },
+                    )
+                    PlaylistCard(playlist, newest = index == 0, actions, show = { showPlaylist(playlist.id) }, open = open)
                 }
                 item {
                     AskClaudeCard("Make a playlist", "${Playlist.SIZE} songs for ${ui.activityName}") {
@@ -108,24 +121,34 @@ fun HomeScreen(
         if (latest == null) {
             item { Hint("Ask Claude for albums to try for ${ui.activityName}; they show here to open and rate.") }
         } else {
-            items(latest.picks, key = { "pick-${it.id}" }) { pick -> PickRow(pick, viewModel, open) }
+            items(latest.picks, key = { "pick-${it.id}" }) { pick -> PickRow(pick, latest, viewModel, open) }
         }
         val earlier = ui.lists.drop(1)
         if (earlier.isNotEmpty()) {
             item { SectionTitle("Earlier albums to try") }
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(earlier, key = { it.id }) { list -> AlbumListCard(list) { showList(list.id) } }
+                    items(earlier, key = { it.id }) { list ->
+                        AlbumListCard(list, show = { showList(list.id) }, delete = { viewModel.deleteList(list) })
+                    }
                 }
             }
         }
     }
 }
 
-/** A playlist's card: its covers, and its number and a play button while it is in the person's streaming app. */
+/**
+ * A playlist's card: its covers, and its number and a play button while it is in the person's streaming app. Holding
+ * it offers its [actions], such as deleting it.
+ */
 @Composable
-private fun PlaylistCard(playlist: Playlist, newest: Boolean, show: () -> Unit, open: (String) -> Unit) {
-    Column(Modifier.width(150.dp).clickable(onClick = show), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun PlaylistCard(playlist: Playlist, newest: Boolean, actions: List<MenuAction>, show: () -> Unit,
+    open: (String) -> Unit) {
+    var held by remember { mutableStateOf(false) }
+    HeldActions(held, { held = false }, playlist.slot?.let { "${playlist.name} $it" } ?: playlist.name,
+        playlistDetails(playlist), actions) { CoverMosaic(playlist.covers, Modifier.fillMaxSize()) }
+    Column(Modifier.width(150.dp).holdable("Play or delete", onHold = { held = true }, onClick = show),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box {
             CoverMosaic(playlist.covers, Modifier.size(150.dp))
             playlist.slot?.let { slot ->
@@ -153,10 +176,18 @@ private fun PlaylistCard(playlist: Playlist, newest: Boolean, show: () -> Unit, 
     }
 }
 
-/** An earlier list of albums to try, by date. */
+/** An earlier list of albums to try, by date; holding it offers to delete it. */
 @Composable
-private fun AlbumListCard(list: PickList, show: () -> Unit) {
-    Column(Modifier.width(150.dp).clickable(onClick = show), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun AlbumListCard(list: PickList, show: () -> Unit, delete: () -> Unit) {
+    var held by remember { mutableStateOf(false) }
+    val date = shortDate(list.createdAt)
+    HeldActions(held, { held = false }, "Albums to try", "${list.picks.size} albums · $date", listOf(
+        MenuAction("Open", run = show),
+        MenuAction("Delete these albums to try", Confirm("Delete these albums to try?", "The ${list.picks.size} " +
+            "albums from $date go from here. Any ratings you gave them stay.", "Delete"), delete),
+    )) { CoverMosaic(list.picks.map { it.album }, Modifier.fillMaxSize()) }
+    Column(Modifier.width(150.dp).holdable("Delete", onHold = { held = true }, onClick = show),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
         CoverMosaic(list.picks.map { it.album }, Modifier.size(150.dp))
         Text(shortDate(list.createdAt), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
         Text("${list.picks.size} albums", style = MaterialTheme.typography.bodySmall,
@@ -210,6 +241,20 @@ fun Empty(text: String) {
 }
 
 private const val ALBUMS_ON_HOME = 20
+
+/**
+ * What deleting the playlist does: it goes from the streaming app too when it is there, and when it is the newest of
+ * an activity copied to [copiedTo], the copy there becomes the playlist before it, or goes with the last.
+ */
+fun deletePlaylistQuestion(playlist: Playlist, playlists: List<Playlist>, service: String?, copiedTo: String?): Confirm {
+    val where = serviceName(service?.let(::serviceLabel))
+    val here = playlist.slot?.let { "It goes from here and from $where, where it's ${playlist.name} $it." }
+        ?: "It isn't in $where, so it only goes from here."
+    val copy = copiedTo?.takeIf { playlists.firstOrNull()?.id == playlist.id }?.let { other ->
+        " Its copy in ${serviceLabel(other)} " + if (playlists.size > 1) "becomes the playlist before it." else "goes too."
+    }
+    return Confirm("Delete this playlist?", here + copy.orEmpty(), "Delete")
+}
 
 /** A new conversation in Claude with the request written out; the person still sends it. */
 fun askClaudeForPicks(person: String, activity: String?): String =

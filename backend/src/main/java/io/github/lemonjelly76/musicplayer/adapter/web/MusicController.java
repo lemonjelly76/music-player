@@ -18,16 +18,22 @@ import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryFilter;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -145,6 +151,31 @@ class MusicController {
                 .map(album -> FoundResponse.from(album, Optional.ofNullable(rated.get(album.key())), activity,
                         links(person)))
                 .toList();
+    }
+
+    @DeleteMapping("/people/{id}/lists/{listId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteList(@PathVariable String id, @PathVariable String listId) {
+        recommendations.delete(people.get(PersonId.of(id)), RecommendationListId.of(listId));
+    }
+
+    /**
+     * Takes one album out of a list of albums to try; the list goes with its last.
+     */
+    @DeleteMapping("/people/{id}/lists/{listId}/picks/{pickId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void removePick(@PathVariable String id, @PathVariable String listId, @PathVariable String pickId) {
+        recommendations.removePick(people.get(PersonId.of(id)), RecommendationListId.of(listId),
+                RecommendationId.of(pickId));
+    }
+
+    /**
+     * Takes an album out of the person's library, with its ratings for every activity.
+     */
+    @DeleteMapping("/people/{id}/library/{albumId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void removeFromLibrary(@PathVariable String id, @PathVariable String albumId) {
+        library.remove(people.get(PersonId.of(id)).id(), LibraryAlbumId.of(albumId));
     }
 
     /**

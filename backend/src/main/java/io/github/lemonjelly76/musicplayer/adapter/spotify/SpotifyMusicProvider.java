@@ -170,6 +170,11 @@ class SpotifyMusicProvider implements MusicProvider {
     }
 
     @Override
+    public void deletePlaylist(PersonId person, String playlistId) {
+        unfollow(playlistId, authorization.accessToken(person));
+    }
+
+    @Override
     public void renamePlaylist(PersonId person, String playlistId, String newName) {
         api.send(HttpMethod.PUT, api.url("/playlists/" + playlistId), Map.of("name", newName),
                 authorization.accessToken(person));

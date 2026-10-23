@@ -77,6 +77,25 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         Json.playlist(send(HttpMethod.Put, "api/people/$personId/playlists/$playlistId/slot",
             buildJsonObject { put("slot", slot) }))
 
+    /** Deletes the playlist here and from the person's streaming app, and says how that went. */
+    suspend fun deletePlaylist(personId: String, playlistId: String): String =
+        Json.status(send(HttpMethod.Delete, "api/people/$personId/playlists/$playlistId", null))
+
+    /** Deletes a list of albums to try. */
+    suspend fun deleteList(personId: String, listId: String) {
+        send(HttpMethod.Delete, "api/people/$personId/lists/$listId", null)
+    }
+
+    /** Takes one album out of a list of albums to try; the list goes with its last. */
+    suspend fun removePick(personId: String, listId: String, pickId: String) {
+        send(HttpMethod.Delete, "api/people/$personId/lists/$listId/picks/$pickId", null)
+    }
+
+    /** Takes an album out of the person's library, with its ratings for every activity. */
+    suspend fun removeFromLibrary(personId: String, albumId: String) {
+        send(HttpMethod.Delete, "api/people/$personId/library/$albumId", null)
+    }
+
     /** What the person loves or rates OK for the activity, loved first. */
     suspend fun library(personId: String, category: String): List<LibraryAlbum> =
         Json.library(get("api/people/$personId/library", "category" to category))

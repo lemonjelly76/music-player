@@ -184,6 +184,11 @@ class TidalMusicProvider implements MusicProvider {
     }
 
     @Override
+    public void deletePlaylist(PersonId person, String playlistId) {
+        deletePlaylist(playlistId, authorization.accessToken(person));
+    }
+
+    @Override
     public void renamePlaylist(PersonId person, String playlistId, String newName) {
         ObjectNode playlist = jsonMapper.createObjectNode();
         ObjectNode data = playlist.putObject("data").put("id", playlistId).put("type", "playlists");

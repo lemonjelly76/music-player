@@ -81,6 +81,21 @@ class ApiClientTest {
     }
 
     @Test
+    fun deletesPlaylistsListsPicksAndLibraryAlbums() = runTest {
+        val api = client { json("""{"status":"Deleted AI Picks 1 here and from tidal"}""") }
+
+        val status = api.deletePlaylist("1", "p1")
+        api.deleteList("1", "l1")
+        api.removePick("1", "l1", "k1")
+        api.removeFromLibrary("1", "a1")
+
+        assertEquals("Deleted AI Picks 1 here and from tidal", status)
+        assertEquals(List(4) { HttpMethod.Delete }, requests.map { it.method })
+        assertEquals(listOf("/api/people/1/playlists/p1", "/api/people/1/lists/l1", "/api/people/1/lists/l1/picks/k1",
+            "/api/people/1/library/a1"), requests.map { it.url.encodedPath })
+    }
+
+    @Test
     fun renamesAnActivity() = runTest {
         val renamed = client { json("""{"id":"c1","name":"Focus","rules":"Instrumental"}""") }
             .renameCategory("c1", "Focus")

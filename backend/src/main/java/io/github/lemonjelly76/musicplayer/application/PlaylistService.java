@@ -126,8 +126,7 @@ public class PlaylistService {
         if (number < 1 || number > Playlist.SLOTS) {
             throw new IllegalArgumentException("A playlist slot is 1 to " + Playlist.SLOTS + ", not " + number);
         }
-        Playlist chosen = repository.find(id).filter(found -> found.person().equals(person.id()))
-                .orElseThrow(() -> new NotFoundException("No playlist " + id + " for " + person.name()));
+        Playlist chosen = owned(person, id);
         MusicProvider service = providers.forPerson(person).orElseThrow(() -> new MusicProviderUnavailableException(
                 person.name() + " has no streaming service set up"));
         boolean inAccount = chosen.inAccountOn(service.name());
@@ -144,6 +143,35 @@ public class PlaylistService {
         repository.save(placed);
         renameMisnamed(person.id(), chosen.category());
         return placed;
+    }
+
+    /**
+     * Deletes the playlist here and from the account it is in. One whose service cannot be reached is still deleted
+     * here, and the answer says it was left there. When it was the activity's newest, its copy follows the one before.
+     */
+    public String delete(Person person, PlaylistId id) {
+        Playlist playlist = owned(person, id);
+        boolean newest = latest(person, playlist.category(), 1).getFirst().id().equals(id);
+        repository.delete(id);
+        String deleted = playlist.slot().isPresent() ? removeFromAccount(person, playlist) : "Playlist deleted";
+        return newest ? deleted + copies.followNewest(person, playlist.category()).orElse("") : deleted;
+    }
+
+    private String removeFromAccount(Person person, Playlist playlist) {
+        SyncedPlaylist synced = playlist.synced().orElseThrow();
+        String name = playlist.slot().orElseThrow().nameInAccount();
+        String where = synced.provider().prefix();
+        try {
+            providers.get(synced.provider()).deletePlaylist(person.id(), synced.playlistId());
+            return "Deleted " + name + " here and from " + where;
+        } catch (MusicProviderUnavailableException e) {
+            return "Deleted here, but " + name + " is still in " + where + ": " + e.getMessage();
+        }
+    }
+
+    private Playlist owned(Person person, PlaylistId id) {
+        return repository.find(id).filter(found -> found.person().equals(person.id()))
+                .orElseThrow(() -> new NotFoundException("No playlist " + id + " for " + person.name()));
     }
 
     /**

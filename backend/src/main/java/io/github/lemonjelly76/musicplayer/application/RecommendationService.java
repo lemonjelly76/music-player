@@ -11,7 +11,9 @@ import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableEx
 import io.github.lemonjelly76.musicplayer.domain.port.RecommendationRepository;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.Recommendation;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationId;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
+import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationListId;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -124,6 +126,30 @@ public class RecommendationService {
      */
     public List<RecommendationList> history(Person person, int limit) {
         return repository.findByPerson(person.id(), Optional.empty(), limit);
+    }
+
+    /**
+     * Deletes one of the person's lists of albums to try; its albums may be suggested again.
+     */
+    public void delete(Person person, RecommendationListId id) {
+        repository.delete(owned(person, id).id());
+    }
+
+    /**
+     * Takes one album out of a list of albums to try; the list goes with its last.
+     */
+    public void removePick(Person person, RecommendationListId id, RecommendationId pick) {
+        RecommendationList left = owned(person, id).without(pick);
+        if (left.picks().isEmpty()) {
+            repository.delete(id);
+        } else {
+            repository.save(left);
+        }
+    }
+
+    private RecommendationList owned(Person person, RecommendationListId id) {
+        return repository.findById(id).filter(list -> list.person().equals(person.id()))
+                .orElseThrow(() -> new NotFoundException("No list " + id + " for " + person.name()));
     }
 
     /**

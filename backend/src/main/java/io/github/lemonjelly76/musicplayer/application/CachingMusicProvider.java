@@ -136,6 +136,11 @@ public class CachingMusicProvider implements MusicProvider {
     }
 
     @Override
+    public void deletePlaylist(PersonId person, String playlistId) {
+        service.deletePlaylist(person, playlistId);
+    }
+
+    @Override
     public URI trackLink(String id) {
         return service.trackLink(id);
     }

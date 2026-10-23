@@ -193,4 +193,15 @@ class PlaylistControllerTest {
     void aLimitOutsideOneToTwentyIsABadRequest() {
         assertThat(mvc.get().uri("/api/people/{id}/playlists?limit=0", CRAIG.id())).hasStatus(HttpStatus.BAD_REQUEST);
     }
+
+    @Test
+    void deletesAPlaylistAndSaysWhereFrom() {
+        PlaylistId id = PlaylistId.random();
+        given(playlists.delete(CRAIG, id)).willReturn("Deleted AI Picks — Running 1 here and from spotify");
+
+        assertThat(mvc.delete().uri("/api/people/{id}/playlists/{playlist}", CRAIG.id(), id))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"status":"Deleted AI Picks — Running 1 here and from spotify"}""");
+    }
 }

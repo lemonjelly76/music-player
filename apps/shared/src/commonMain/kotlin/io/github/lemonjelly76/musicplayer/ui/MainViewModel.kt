@@ -13,6 +13,7 @@ import io.github.lemonjelly76.musicplayer.data.GENERAL
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
+import io.github.lemonjelly76.musicplayer.data.Pick
 import io.github.lemonjelly76.musicplayer.data.PickList
 import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.PlaylistCopy
@@ -415,6 +416,65 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         val personId = state.value.personId ?: return@load
         api.putPlaylistInSlot(personId, playlist.id, slot)
         loadLists()
+    }
+
+    /**
+     * Deletes the playlist here and from the streaming app. It goes at once; the activity's playlists are then
+     * reloaded, as the copy elsewhere follows the newest left.
+     */
+    fun deletePlaylist(playlist: Playlist) = load {
+        val personId = state.value.personId ?: return@load
+        state.update { it.copy(playlists = it.playlists.filter { held -> held.id != playlist.id }) }
+        try {
+            val status = api.deletePlaylist(personId, playlist.id)
+            state.update { it.copy(message = status) }
+        } finally {
+            loadLists()
+            loadCopies(personId)
+        }
+    }
+
+    /** Deletes a list of albums to try; it goes at once, and comes back if the server refuses. */
+    fun deleteList(list: PickList) = load {
+        val personId = state.value.personId ?: return@load
+        state.update { it.copy(lists = it.lists.filter { held -> held.id != list.id }) }
+        try {
+            api.deleteList(personId, list.id)
+            state.update { it.copy(message = "Albums to try from ${shortDate(list.createdAt)} deleted") }
+        } finally {
+            loadLists()
+        }
+    }
+
+    /** Takes one album out of a list of albums to try; the list goes with its last. */
+    fun removePick(list: PickList, pick: Pick) = load {
+        val personId = state.value.personId ?: return@load
+        state.update { current ->
+            current.copy(lists = current.lists.mapNotNull { held ->
+                if (held.id != list.id) held
+                else held.copy(picks = held.picks.filter { it.id != pick.id }).takeIf { it.picks.isNotEmpty() }
+            })
+        }
+        try {
+            api.removePick(personId, list.id, pick.id)
+            state.update { it.copy(message = "${pick.album.title} removed from albums to try") }
+        } finally {
+            loadLists()
+        }
+    }
+
+    /** Takes an album out of the person's library, with its ratings for every activity. */
+    fun removeFromLibrary(entry: LibraryAlbum) = load {
+        val personId = state.value.personId ?: return@load
+        val gone = { albums: List<LibraryAlbum> -> albums.filter { it.id != entry.id } }
+        state.update { it.copy(library = gone(it.library), disliked = gone(it.disliked), toSort = gone(it.toSort)) }
+        try {
+            api.removeFromLibrary(personId, entry.id)
+            state.update { it.copy(message = "${entry.album.title} removed from your albums") }
+        } finally {
+            reloadLibrary(personId)
+            loadLists()
+        }
     }
 
     /** Turns the person's weekly chart playlist on or off. */

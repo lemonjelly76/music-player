@@ -99,6 +99,11 @@ class JdbcPlaylistRepository implements PlaylistRepository {
     }
 
     @Override
+    public void delete(PlaylistId id) {
+        jdbc.sql("delete from playlist where id = :id").param("id", id.value()).update();
+    }
+
+    @Override
     public List<Playlist> inAccount(PersonId person, Optional<CategoryId> activity) {
         return withTracks(jdbc.sql("""
                         select * from playlist

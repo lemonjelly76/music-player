@@ -75,9 +75,9 @@ fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit
     }
 }
 
-private fun albumActions(album: Album, viewModel: MainViewModel, open: (String) -> Unit): List<AlbumAction> = listOfNotNull(
-    album.link?.let { link -> AlbumAction("Open in ${serviceOfLink(link)}") { open(link) } },
-    AlbumAction("More like this") { viewModel.moreLikeThis(album) },
+private fun albumActions(album: Album, viewModel: MainViewModel, open: (String) -> Unit): List<MenuAction> = listOfNotNull(
+    album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
+    MenuAction("More like this") { viewModel.moreLikeThis(album) },
 )
 
 /**
@@ -123,7 +123,7 @@ private fun ChartAlbumTile(entry: ChartAlbum, viewModel: MainViewModel, open: (S
     val album = found.album
     val actions = albumActions(album, viewModel, open) + elsewhereActions(album, open) + Rating.entries
         .reversed().filter { it != found.rating }
-        .map { rating -> AlbumAction(rating.label) { viewModel.rate(album, rating) } }
+        .map { rating -> MenuAction(rating.label) { viewModel.rate(album, rating) } }
     Column(Modifier.width(140.dp).clickable(enabled = album.link != null) { album.link?.let(open) },
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box {

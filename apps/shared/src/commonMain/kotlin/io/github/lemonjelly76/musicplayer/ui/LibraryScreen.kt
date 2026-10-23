@@ -1,10 +1,10 @@
 package io.github.lemonjelly76.musicplayer.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -94,8 +95,8 @@ private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when 
 }
 
 /**
- * An album's cover, title, artist and rating, with a menu to open it, find more like it or rate it here; [details]
- * adds its notes and tags.
+ * An album's cover, title, artist and rating, with a menu to open it, find more like it, rate it here or remove it;
+ * holding it shows the same. [details] adds its notes and tags.
  */
 @Composable
 fun AlbumTile(
@@ -108,13 +109,19 @@ fun AlbumTile(
     val album = entry.album
     val link = album.link
     val ratings = Rating.entries.reversed().filter { it != entry.rating || entry.general }
-        .map { rating -> AlbumAction(rating.label) { viewModel.rate(album, rating) } } +
-        listOfNotNull(AlbumAction("Remove rating") { viewModel.rate(album, null) }.takeIf { !entry.general })
+        .map { rating -> MenuAction(rating.label) { viewModel.rate(album, rating) } } +
+        listOfNotNull(MenuAction("Remove rating") { viewModel.rate(album, null) }.takeIf { !entry.general })
     val actions = listOfNotNull(
-        link?.let { AlbumAction("Open in ${serviceOfLink(it)}") { open(it) } },
-        AlbumAction("More like this") { viewModel.moreLikeThis(album) },
-    ) + elsewhereActions(album, open) + ratings
-    Column(modifier.clickable(enabled = link != null) { link?.let(open) }) {
+        link?.let { MenuAction("Open in ${serviceOfLink(it)}") { open(it) } },
+        MenuAction("More like this") { viewModel.moreLikeThis(album) },
+    ) + elsewhereActions(album, open) + ratings + MenuAction("Remove from your albums", Confirm("Remove ${album.title}?",
+        "It leaves your albums, with its ratings for every activity, so Claude may suggest it again.", "Remove")) {
+        viewModel.removeFromLibrary(entry)
+    }
+    var held by remember { mutableStateOf(false) }
+    HeldActions(held, { held = false }, album.title, album.artist, actions) { AlbumArt(album, Modifier.fillMaxSize()) }
+    Column(modifier.holdable("Show actions for ${album.title}", onHold = { held = true },
+        onClick = link?.let { { open(it) } })) {
         AlbumArt(album, Modifier.fillMaxWidth())
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f).padding(top = 8.dp)) {

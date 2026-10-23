@@ -138,4 +138,19 @@ class JdbcRecommendationsAndPlaysTest {
         return new CategorisedPlay(new Play(album, NOW.minus(Duration.ofHours(hoursAgo)), "spotify", Optional.empty()),
                 category.map(Category::id));
     }
+
+    @Test
+    void deletesAListAndDropsPicksTakenOutOfOne() {
+        RecommendationList kept = list(Optional.of(running), NOW, "A", "B", "C");
+        RecommendationList deleted = list(Optional.empty(), NOW, "D");
+        recommendations.save(kept);
+        recommendations.save(deleted);
+
+        recommendations.save(kept.without(kept.picks().get(1).id()));
+        recommendations.delete(deleted.id());
+
+        assertThat(recommendations.findById(deleted.id())).isEmpty();
+        assertThat(recommendations.findById(kept.id()).orElseThrow().picks())
+                .extracting(pick -> pick.album().title()).containsExactly("A", "C");
+    }
 }

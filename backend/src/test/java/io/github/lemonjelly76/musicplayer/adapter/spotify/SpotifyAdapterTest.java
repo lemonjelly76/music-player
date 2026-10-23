@@ -32,6 +32,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.jsonResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.ok;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -85,6 +86,18 @@ class SpotifyAdapterTest {
                 .withQueryParam("limit", equalTo("10"))
                 .withQueryParam("type", equalTo("album"))
                 .withHeader("Authorization", equalTo("Bearer app-token")));
+    }
+
+    @Test
+    void deletesAPlaylistByUnfollowingItAndToleratesOneAlreadyGone() {
+        spotify.stubFor(delete(urlPathEqualTo("/v1/playlists/pl-1/followers")).willReturn(ok()));
+        spotify.stubFor(delete(urlPathEqualTo("/v1/playlists/gone/followers")).willReturn(notFound()));
+
+        provider.deletePlaylist(CRAIG.id(), "pl-1");
+        provider.deletePlaylist(CRAIG.id(), "gone");
+
+        spotify.verify(deleteRequestedFor(urlPathEqualTo("/v1/playlists/pl-1/followers"))
+                .withHeader("Authorization", equalTo("Bearer user-token")));
     }
 
     @Test

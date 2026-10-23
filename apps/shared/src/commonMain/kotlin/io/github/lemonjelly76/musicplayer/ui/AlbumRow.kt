@@ -2,7 +2,6 @@ package io.github.lemonjelly76.musicplayer.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,12 +81,9 @@ fun CoverMosaic(albums: List<Album>, modifier: Modifier = Modifier) {
     }
 }
 
-/** Something to do with an album from its ⋯ menu. */
-data class AlbumAction(val label: String, val run: () -> Unit)
-
 /** "Open in Spotify" and the like, for the person's services other than their own. */
-fun elsewhereActions(album: Album, open: (String) -> Unit): List<AlbumAction> =
-    album.elsewhere.map { AlbumAction(it.label) { open(it.link) } }
+fun elsewhereActions(album: Album, open: (String) -> Unit): List<MenuAction> =
+    album.elsewhere.map { MenuAction(it.label) { open(it.link) } }
 
 /** The album's quality badges on a line of their own, for tiles too narrow to put them beside the artist. */
 @Composable
@@ -104,22 +95,25 @@ fun QualityBadges(album: Album) {
 
 /**
  * A row with the album's cover, title and artist, then whatever the screen adds below. Tapping it opens the album in
- * the person's streaming app; its ⋯ menu also opens it on their other services.
+ * the person's streaming app; its ⋯ menu, or holding it, also opens it on their other services.
  */
 @Composable
 fun AlbumRow(
     album: Album,
     open: (String) -> Unit,
-    actions: List<AlbumAction> = emptyList(),
+    actions: List<MenuAction> = emptyList(),
     badge: String? = null,
     trailing: @Composable RowScope.() -> Unit = {},
     below: @Composable ColumnScope.() -> Unit = {},
 ) {
     val link = album.link
     val menu = actions + elsewhereActions(album, open)
+    var held by remember { mutableStateOf(false) }
+    HeldActions(held, { held = false }, album.title, album.artist, menu) { AlbumArt(album, Modifier.fillMaxSize()) }
     Column(
         Modifier.fillMaxWidth()
-            .clickable(enabled = link != null) { link?.let(open) }
+            .holdable("Show actions for ${album.title}", onHold = { held = true }.takeIf { menu.isNotEmpty() },
+                onClick = link?.let { { open(it) } })
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -157,23 +151,4 @@ private fun Badge(text: String) {
 fun QualityBadge(text: String) {
     Text(text, Modifier.padding(end = 6.dp).border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
         .padding(horizontal = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-}
-
-@Composable
-fun ActionsMenu(actions: List<AlbumAction>) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "More options",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            actions.forEach { action ->
-                DropdownMenuItem(text = { Text(action.label) }, onClick = {
-                    expanded = false
-                    action.run()
-                })
-            }
-        }
-    }
 }

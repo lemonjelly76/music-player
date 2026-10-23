@@ -27,15 +27,17 @@ fun PickListScreen(list: PickList, personName: String?, viewModel: MainViewModel
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items(list.picks, key = { it.id }) { pick -> PickRow(pick, viewModel, open) }
+        items(list.picks, key = { it.id }) { pick -> PickRow(pick, list, viewModel, open) }
     }
 }
 
+/** A pick with Claude's reason and rating pills; its menu can also take it out of [list]. */
 @Composable
-fun PickRow(pick: Pick, viewModel: MainViewModel, open: (String) -> Unit) {
+fun PickRow(pick: Pick, list: PickList, viewModel: MainViewModel, open: (String) -> Unit) {
     val actions = listOfNotNull(
-        pick.album.link?.let { link -> AlbumAction("Open in ${serviceOfLink(link)}") { open(link) } },
-        AlbumAction("More like this") { viewModel.moreLikeThis(pick.album) },
+        pick.album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
+        MenuAction("More like this") { viewModel.moreLikeThis(pick.album) },
+        MenuAction("Remove from albums to try") { viewModel.removePick(list, pick) },
     )
     AlbumRow(pick.album, open, actions, badge = if (pick.wildcard) "WILDCARD" else null) {
         Text(pick.reason, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic,
