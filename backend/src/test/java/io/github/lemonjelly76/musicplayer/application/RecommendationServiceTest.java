@@ -136,4 +136,18 @@ class RecommendationServiceTest {
                 .isThrownBy(() -> world.recommendations.delete(craig, theirs.id()));
         assertThat(world.recommendations.history(robin, 10)).hasSize(1);
     }
+
+    @Test
+    void dropsPicksByArtistsTurnedDownForTheActivity() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carry("t-1", album("Paramore", "Riot!"));
+        world.tidal.carry("t-2", album("Portishead", "Dummy"));
+        world.artists.rate(craig, "Paramore", Optional.of(running), Optional.of(Rating.DISLIKE), "");
+
+        Saved saved = world.recommendations.save(craig, Optional.of(running), List.of(
+                pick("Paramore — Riot!"), pick("tidal:t-2")));
+
+        assertThat(saved.list().picks()).extracting(found -> found.album().title()).containsExactly("Dummy");
+        assertThat(saved.dropped()).containsExactly(new Dropped("Paramore — Riot!", "they turned down Paramore for this"));
+    }
 }

@@ -373,4 +373,19 @@ class PlaylistServiceTest {
         assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> world.playlists.delete(craig, theirs.id()));
         assertThat(world.playlistRepository.find(theirs.id())).isPresent();
     }
+
+    @Test
+    void dropsSongsByArtistsTurnedDownForTheActivityEvenWithOthers() {
+        Person craig = world.tidalUser("Craig");
+        world.tidal.carryTrack("tr-1", "Paramore", "Misery Business", "Riot!");
+        world.tidal.carryTrack("tr-2", "Sam Fender & Paramore", "Made Up", "Single");
+        world.tidal.carryTrack("tr-3", "Air", "Sexy Boy", "Moon Safari");
+        world.artists.rate(craig, "paramore", Optional.of(running), Optional.of(Rating.DISLIKE), "");
+
+        Saved saved = world.playlists.save(craig, Optional.of(running), "", List.of(
+                song("Paramore", "Misery Business"), song("Sam Fender & Paramore", "Made Up"), song("Air", "Sexy Boy")));
+
+        assertThat(saved.playlist().tracks()).extracting(Track::title).containsExactly("Sexy Boy");
+        assertThat(saved.dropped()).extracting(Dropped::why).containsOnly("they turned down paramore for this");
+    }
 }

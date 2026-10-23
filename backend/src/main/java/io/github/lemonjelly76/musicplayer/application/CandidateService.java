@@ -44,9 +44,13 @@ public class CandidateService {
 
     static final int MAX_SEEDS = 8;
     /**
-     * Seeds kept for what is on repeat and for the albums of loved songs, however many albums are loved.
+     * Seeds of each other kind at most: loved artists, what is on repeat and the albums of loved songs.
      */
     static final int OTHER_SEEDS = 2;
+    /**
+     * Seeds kept for the other kinds, however many albums are loved.
+     */
+    static final int RESERVED_SEEDS = 3;
     /**
      * The most recent albums turned down for the activity whose similar albums count against the pool.
      */
@@ -64,17 +68,19 @@ public class CandidateService {
     private final LibraryService library;
     private final PlayService plays;
     private final SongService songs;
+    private final ArtistService artists;
     private final RecommendationService recommendations;
     private final List<SimilaritySource> sources;
     private final MusicProviders providers;
     private final Clock clock;
 
-    public CandidateService(LibraryService library, PlayService plays, SongService songs,
+    public CandidateService(LibraryService library, PlayService plays, SongService songs, ArtistService artists,
             RecommendationService recommendations, List<SimilaritySource> sources, MusicProviders providers,
             Clock clock) {
         this.library = library;
         this.plays = plays;
         this.songs = songs;
+        this.artists = artists;
         this.recommendations = recommendations;
         this.sources = List.copyOf(sources);
         this.providers = providers;
@@ -90,8 +96,8 @@ public class CandidateService {
                 .limit(TURNED_DOWN_SEEDS)
                 .map(entry -> Seed.of(entry.album()))
                 .toList();
-        TurnedDown turnedDown = new TurnedDown(turnedDownArtists(person, activity),
-                suggestions(person, turnedDownSeeds));
+        TurnedDown turnedDown = new TurnedDown(artists.turnedDown(person.id(), activity).keySet(),
+                albumArtistsTurnedDown(person, activity), suggestions(person, turnedDownSeeds));
         return playable(person, CandidatePool.rank(suggestions(person, seeds), excluded(person, category), turnedDown),
                 limit);
     }
@@ -102,7 +108,9 @@ public class CandidateService {
     public List<Candidate> moreLikeThis(Person person, AlbumRef album, Optional<Category> category, int limit) {
         Set<AlbumKey> excluded = excluded(person, category);
         excluded.add(album.key());
-        TurnedDown turnedDown = new TurnedDown(turnedDownArtists(person, category.map(Category::id)), List.of());
+        Optional<CategoryId> activity = category.map(Category::id);
+        TurnedDown turnedDown = new TurnedDown(artists.turnedDown(person.id(), activity).keySet(),
+                albumArtistsTurnedDown(person, activity), List.of());
         return playable(person, CandidatePool.rank(suggestions(person, List.of(Seed.of(album))), excluded, turnedDown),
                 limit);
     }
@@ -121,9 +129,9 @@ public class CandidateService {
 
     /**
      * What the search starts from, all of it the activity's own, as each activity's taste is: the albums loved
-     * there, most played first when counting is on, then up to {@value #OTHER_SEEDS} albums on repeat there that
-     * are not rated there and albums of songs loved there. One with nothing of the kind has no seeds, and its picks
-     * come from its rules alone.
+     * there, most played first when counting is on, then up to {@value #OTHER_SEEDS} each of the artists loved there,
+     * albums on repeat there that are not rated there and albums of songs loved there. One with nothing of the kind
+     * has no seeds, and its picks come from its rules alone.
      */
     List<Seed> seeds(Person person, Optional<Category> category) {
         Optional<CategoryId> activity = category.map(Category::id);
@@ -140,6 +148,10 @@ public class CandidateService {
                 .toList();
         Set<AlbumKey> taken = new HashSet<>(rated);
         List<Seed> others = new ArrayList<>();
+        artists.lovedFor(person.id(), activity).stream()
+                .limit(OTHER_SEEDS)
+                .forEach(artist -> others.add(new Seed(AlbumRef.of(artist.name(), ANY_ALBUM), 0,
+                        Seed.Origin.LOVED_ARTIST)));
         plays.stats(person, category, PLAY_WINDOW_DAYS).orElse(List.of()).stream()
                 .sorted(Comparator.comparingInt(AlbumPlays::plays).reversed())
                 .filter(total -> taken.add(total.album().key()))
@@ -153,13 +165,13 @@ public class CandidateService {
                 .limit(OTHER_SEEDS)
                 .forEach(album -> others.add(new Seed(album, playCounts.getOrDefault(album.key(), 0),
                         Seed.Origin.LOVED_SONG)));
-        int otherSeeds = Math.min(others.size(), Math.max(OTHER_SEEDS, MAX_SEEDS - loved.size()));
+        int otherSeeds = Math.min(others.size(), Math.max(RESERVED_SEEDS, MAX_SEEDS - loved.size()));
         List<Seed> seeds = new ArrayList<>(loved.subList(0, Math.min(loved.size(), MAX_SEEDS - otherSeeds)));
         seeds.addAll(others.subList(0, otherSeeds));
         return seeds;
     }
 
-    private Set<String> turnedDownArtists(Person person, Optional<CategoryId> activity) {
+    private Set<String> albumArtistsTurnedDown(Person person, Optional<CategoryId> activity) {
         Set<String> artists = new HashSet<>();
         library.dislikedFor(person.id(), activity).forEach(entry -> artists.add(entry.album().artist()));
         return artists;

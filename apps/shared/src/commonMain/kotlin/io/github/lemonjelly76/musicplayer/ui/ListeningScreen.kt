@@ -137,6 +137,7 @@ private fun RankedAlbum(rank: Int, played: PlayedAlbum, viewModel: MainViewModel
     val actions = listOfNotNull(
         album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
         MenuAction("More like this") { viewModel.moreLikeThis(album) },
+        rateArtistAction(album.artist, viewModel),
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(rank.toString(), Modifier.padding(start = 16.dp).width(24.dp), style = MaterialTheme.typography.bodyLarge,

@@ -112,6 +112,23 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun search(personId: String, query: String, category: String): List<Found> =
         Json.found(get("api/people/$personId/search", "q" to query, "category" to category))
 
+    /** The artists the person rated for the activity: loved first, then OK, then those turned down. */
+    suspend fun artists(personId: String, category: String): List<RatedArtist> =
+        Json.artists(get("api/people/$personId/artists", "category" to category))
+
+    /**
+     * Rates an artist for the activity; null takes the rating away. Loving one leads Claude's picks to them and
+     * artists like them; turning one down keeps everything of theirs out of the activity.
+     */
+    suspend fun rateArtist(personId: String, artist: String, category: String, rating: Rating?, comment: String? = null) {
+        send(HttpMethod.Post, "api/people/$personId/artist-ratings", buildJsonObject {
+            put("artist", artist)
+            put("categoryId", category)
+            put("rating", rating?.let { JsonPrimitive(it.value) } ?: JsonNull)
+            comment?.let { put("comment", it) }
+        })
+    }
+
     /** The person's songs with a rating that applies to the activity, loved first. */
     suspend fun songs(personId: String, category: String): List<Track> =
         Json.songs(get("api/people/$personId/songs", "category" to category))

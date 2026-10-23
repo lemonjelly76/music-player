@@ -5,6 +5,7 @@ import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtist;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProvider;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
@@ -19,6 +20,8 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,14 +36,16 @@ public class RecommendationService {
     private final RecommendationRepository repository;
     private final AlbumResolver resolver;
     private final LibraryService library;
+    private final ArtistService artists;
     private final MusicProviders providers;
     private final Clock clock;
 
     public RecommendationService(RecommendationRepository repository, AlbumResolver resolver, LibraryService library,
-            MusicProviders providers, Clock clock) {
+            ArtistService artists, MusicProviders providers, Clock clock) {
         this.repository = repository;
         this.resolver = resolver;
         this.library = library;
+        this.artists = artists;
         this.providers = providers;
         this.clock = clock;
     }
@@ -55,12 +60,13 @@ public class RecommendationService {
                 .filter(entry -> entry.knownFor(activity))
                 .map(entry -> entry.album().key())
                 .collect(Collectors.toSet());
+        Map<String, String> artistsTurnedDown = artists.turnedDown(person.id(), activity);
         Set<AlbumKey> inList = new HashSet<>();
         List<Recommendation> picks = new ArrayList<>();
         List<Dropped> dropped = new ArrayList<>();
         for (PickRequest request : requests) {
             Optional<String> repeat = resolver.named(request.albumRef())
-                    .flatMap(named -> whyNotOffered(named.key(), known, inList));
+                    .flatMap(named -> whyNotOffered(named, known, inList, artistsTurnedDown));
             if (repeat.isPresent()) {
                 dropped.add(new Dropped(request.albumRef(), repeat.get()));
                 continue;
@@ -71,7 +77,7 @@ public class RecommendationService {
                 continue;
             }
             AlbumRef album = resolution.album().get();
-            Optional<String> why = whyNotOffered(album.key(), known, inList);
+            Optional<String> why = whyNotOffered(album, known, inList, artistsTurnedDown);
             if (why.isPresent()) {
                 dropped.add(new Dropped(request.albumRef(), why.get()));
             } else {
@@ -155,14 +161,19 @@ public class RecommendationService {
     /**
      * Checked by name before any lookup too, so a repeat costs no catalogue call and gets the right reason.
      */
-    private static Optional<String> whyNotOffered(AlbumKey key, Set<AlbumKey> known, Set<AlbumKey> inList) {
-        if (known.contains(key)) {
+    private static Optional<String> whyNotOffered(AlbumRef album, Set<AlbumKey> known, Set<AlbumKey> inList,
+            Map<String, String> artistsTurnedDown) {
+        if (known.contains(album.key())) {
             return Optional.of("already rated");
         }
-        if (inList.contains(key)) {
+        if (inList.contains(album.key())) {
             return Optional.of("already in this list");
         }
-        return Optional.empty();
+        return LibraryArtist.credited(album.artist()).stream()
+                .map(artistsTurnedDown::get)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(artist -> "they turned down " + artist + " for this");
     }
 
     public record PickRequest(String albumRef, String reason, PickSource source) {

@@ -181,6 +181,15 @@ data class LibraryAlbum(
 /** A catalogue search result with the person's [rating] of it for the activity, when it is in their library. */
 data class Found(val album: Album, val rating: Rating?)
 
+/** An artist the person rated, with their [rating] for the activity shown. */
+data class RatedArtist(val id: String, val name: String, val rating: Rating?) {
+    /** "The Strokes" and "strokes" are one artist, as the server matches them. */
+    fun isCalled(artist: String): Boolean = artistKey(name) == artistKey(artist)
+}
+
+private fun artistKey(name: String): String =
+    name.lowercase().replace("&", " and ").replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim().removePrefix("the ")
+
 data class Candidate(val album: Album, val score: Double, val sources: List<String>, val seeds: List<String>)
 
 /** An album the person played [plays] tracks from. */
@@ -268,6 +277,9 @@ object Json {
     )
 
     fun songs(text: String): List<Track> = array(text).map(::track)
+
+    fun artists(text: String): List<RatedArtist> =
+        array(text).map { RatedArtist(it.string("id"), it.string("name"), it.rating()) }
 
     fun charts(text: String): Charts = obj(text).let { json ->
         Charts(

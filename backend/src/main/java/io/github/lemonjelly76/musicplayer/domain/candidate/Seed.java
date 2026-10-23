@@ -6,12 +6,13 @@ import java.util.Objects;
 
 /**
  * An album the search for new music starts from, with how often the person plays it: one they love for the
- * activity, the album of a song they love there, or one they keep playing there.
+ * activity, the album of a song they love there, or one they keep playing there; or an artist they love there,
+ * with no album in particular.
  */
 public record Seed(AlbumRef album, int plays, Origin origin) {
 
     public enum Origin {
-        LOVED(""), LOVED_SONG(" (a loved song's album)"), ON_REPEAT(" (on repeat)");
+        LOVED(""), LOVED_ARTIST(" (a loved artist)"), LOVED_SONG(" (a loved song's album)"), ON_REPEAT(" (on repeat)");
 
         private final String note;
 
@@ -37,9 +38,9 @@ public record Seed(AlbumRef album, int plays, Origin origin) {
     }
 
     /**
-     * "Air — Moon Safari", and where it came from when it is not a loved album.
+     * "Air — Moon Safari", or "Air" for an artist, and where it came from when it is not a loved album.
      */
     public String label() {
-        return album.label() + origin.note;
+        return (origin == Origin.LOVED_ARTIST ? album.artist() : album.label()) + origin.note;
     }
 }

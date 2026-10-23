@@ -223,4 +223,18 @@ class CandidateServiceTest {
         return new CategorisedPlay(new Play(album, NOW.minusSeconds(3600), "spotify", Optional.empty()),
                 Optional.of(activity.id()));
     }
+
+    @Test
+    void seedsFromArtistsLovedThereAndLeavesOutThoseTurnedDown() {
+        Person craig = world.withoutService("Craig");
+        world.artists.rate(craig, "Radiohead", Optional.of(running), Optional.of(Rating.LOVE), "");
+        world.artists.rate(craig, "Massive Attack", Optional.of(running), Optional.of(Rating.DISLIKE), "");
+        world.lastFm.suggest(AlbumRef.of("Radiohead", CandidateService.ANY_ALBUM), mezzanine, dummy,
+                album("Massive Attack & Tricky", "Collab"));
+
+        assertThat(world.candidates.seeds(craig, Optional.of(running))).extracting(Seed::label)
+                .containsExactly("Radiohead (a loved artist)");
+        assertThat(world.candidates.candidates(craig, Optional.of(running), 10)).extracting(Candidate::album)
+                .containsExactly(dummy);
+    }
 }

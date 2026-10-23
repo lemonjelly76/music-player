@@ -1,5 +1,6 @@
 package io.github.lemonjelly76.musicplayer.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Rating
+import io.github.lemonjelly76.musicplayer.data.RatedArtist
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 /**
@@ -38,11 +40,15 @@ import io.github.lemonjelly76.musicplayer.data.serviceOfLink
  */
 @Composable
 fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) {
-    var kind by rememberSaveable { mutableStateOf(MusicKind.ALBUMS) }
+    var kind by rememberSaveable { mutableStateOf(LibraryKind.ALBUMS) }
     var filter by rememberSaveable { mutableStateOf(LibraryFilter.ALL) }
-    val anything = if (kind == MusicKind.ALBUMS) ui.library.isNotEmpty() || ui.disliked.isNotEmpty() else ui.songs.isNotEmpty()
+    val anything = when (kind) {
+        LibraryKind.ALBUMS -> ui.library.isNotEmpty() || ui.disliked.isNotEmpty()
+        LibraryKind.SONGS -> ui.songs.isNotEmpty()
+        LibraryKind.ARTISTS -> ui.artists.isNotEmpty()
+    }
     Column {
-        KindPills(kind) { kind = it }
+        KindPills(LibraryKind.entries, kind, LibraryKind::label) { kind = it }
         if (anything) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -53,13 +59,22 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
                 }
             }
         }
-        if (kind == MusicKind.SONGS) {
+        if (kind == LibraryKind.SONGS) {
             val songs = filter.applyToSongs(ui.songs)
             if (songs.isEmpty()) Empty(emptySongsText(ui, filter))
             LazyColumn(Modifier.fillMaxWidth()) {
                 items(songs, key = { it.ref }) { track ->
-                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open)
+                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open,
+                        rateArtist = { viewModel.openArtistRating(track.artist) })
                 }
+            }
+            return@Column
+        }
+        if (kind == LibraryKind.ARTISTS) {
+            val artists = filter.applyToArtists(ui.artists)
+            if (artists.isEmpty()) Empty(emptyArtistsText(ui, filter))
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(artists, key = { it.id }) { artist -> ArtistRow(artist, viewModel) }
             }
             return@Column
         }
@@ -79,16 +94,45 @@ fun LibraryScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit)
     }
 }
 
+/** Albums, songs or artists, as Library shows one or another. */
+enum class LibraryKind(val label: String) { ALBUMS("Albums"), SONGS("Songs"), ARTISTS("Artists") }
+
+/** An artist rated for the activity; tapping opens their rating sheet. */
+@Composable
+private fun ArtistRow(artist: RatedArtist, viewModel: MainViewModel) {
+    Row(Modifier.fillMaxWidth().clickable { viewModel.openArtistRating(artist.name) }
+        .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Initial(artist.name, 48.dp)
+        Column(Modifier.weight(1f)) {
+            Text(artist.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            artist.rating?.let { RatingLabel(it) }
+        }
+    }
+}
+
+/** "Robin loves", or "you love" when no one is chosen. */
+private fun whoLoves(ui: UiState): String = ui.person?.name?.let { "$it loves" } ?: "you love"
+
+private fun emptyArtistsText(ui: UiState, filter: LibraryFilter): String = when (filter) {
+    LibraryFilter.ALL -> "No artists loved for ${ui.activityName} yet. Rate an artist from any album's or song's " +
+        "menu, or tell Claude who ${whoLoves(ui)}."
+    LibraryFilter.NOT_FOR_ME -> "No artists turned down for ${ui.activityName}. Nothing of an artist turned down " +
+        "here is picked or played for it."
+    else -> "No artists rated ${filter.label} for ${ui.activityName}."
+}
+
 private fun emptySongsText(ui: UiState, filter: LibraryFilter): String = when (filter) {
     LibraryFilter.ALL -> "No songs loved for ${ui.activityName} yet. Rate songs in a playlist or from Search, or " +
-        "tell Claude which songs ${ui.person?.name ?: "you"} love."
+        "tell Claude which songs ${whoLoves(ui)}."
     LibraryFilter.NOT_FOR_ME -> "No songs turned down for ${ui.activityName}. Claude leaves them out of its playlists."
     else -> "No songs rated ${filter.label} for ${ui.activityName}."
 }
 
 private fun emptyLibraryText(ui: UiState, filter: LibraryFilter): String = when (filter) {
     LibraryFilter.ALL -> "Nothing loved for ${ui.activityName} yet. Rate picks on Home, or tell Claude which albums " +
-        "${ui.person?.name ?: "you"} love."
+        "${whoLoves(ui)}."
     LibraryFilter.NOT_FOR_ME -> "Nothing turned down for ${ui.activityName}. Albums rated Not for me show here, " +
         "so you can change your mind."
     else -> "No albums rated ${filter.label} for ${ui.activityName}."
@@ -114,6 +158,7 @@ fun AlbumTile(
     val actions = listOfNotNull(
         link?.let { MenuAction("Open in ${serviceOfLink(it)}") { open(it) } },
         MenuAction("More like this") { viewModel.moreLikeThis(album) },
+        rateArtistAction(album.artist, viewModel),
     ) + elsewhereActions(album, open) + ratings + MenuAction("Remove from your albums", Confirm("Remove ${album.title}?",
         "It leaves your albums, with its ratings for every activity, so Claude may suggest it again.", "Remove")) {
         viewModel.removeFromLibrary(entry)

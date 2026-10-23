@@ -127,13 +127,13 @@ class CandidatePoolTest {
                 new Suggestion(AlbumRef.of("Fall Out Boy", "Infinity on High"), "lastfm", LOVED),
                 new Suggestion(AlbumRef.of("Jimmy Eat World", "Futures"), "lastfm", LOVED),
                 new Suggestion(DUMMY, "lastfm", LOVED)), Set.of(),
-                new TurnedDown(Set.of("Jimmy Eat World"),
+                new TurnedDown(Set.of(), Set.of("Jimmy Eat World"),
                         List.of(new Suggestion(AlbumRef.of("Fall Out Boy", "Infinity on High"), "lastfm", turnedDown))));
 
         assertThat(ranked).extracting(candidate -> candidate.album().title())
                 .containsExactly("Dummy", "Infinity on High", "Futures");
         assertThat(ranked.get(1).cautions()).containsExactly("like Paramore — Riot!, turned down here");
-        assertThat(ranked.get(2).cautions()).containsExactly("by an artist turned down here");
+        assertThat(ranked.get(2).cautions()).containsExactly("by an artist with an album turned down here");
     }
 
     @Test

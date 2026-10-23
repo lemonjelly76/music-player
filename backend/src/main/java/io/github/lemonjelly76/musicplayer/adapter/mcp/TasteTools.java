@@ -2,6 +2,7 @@ package io.github.lemonjelly76.musicplayer.adapter.mcp;
 
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.AlbumView;
 import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.CategoryView;
+import io.github.lemonjelly76.musicplayer.application.ArtistService;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.LibraryService;
@@ -11,6 +12,7 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtist;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.taste.TasteProfile;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -41,20 +43,23 @@ class TasteTools {
     private final CategoryService categories;
     private final LibraryService library;
     private final SongService songs;
+    private final ArtistService artists;
 
     TasteTools(PersonService people, TasteService taste, CategoryService categories, LibraryService library,
-            SongService songs) {
+            SongService songs, ArtistService artists) {
         this.people = people;
         this.taste = taste;
         this.categories = categories;
         this.library = library;
         this.songs = songs;
+        this.artists = artists;
     }
 
     @McpTool(name = "get_taste_profile",
             description = "A person's taste for one activity (Mainstream when none is given): the summary you wrote "
                     + "for it last time, its 'never recommend' rules, their most recent ratings for it (love, ok or "
-                    + "dislike) with what they said, how many albums and songs they have rated for it since the "
+                    + "dislike) and the artists they rated for it, with what they said, how many albums, songs and "
+                    + "artists they have rated for it since the "
                     + "summary was written, and the activity's rules. Each activity's taste is its own: "
                     + "never carry what they like for one over to another. Read this before choosing for them.",
             annotations = @McpAnnotations(title = "Taste profile", readOnlyHint = true, destructiveHint = false,
@@ -72,7 +77,8 @@ class TasteTools {
                     activity.map(Category::rules).orElse(null), profile.summary(),
                     profile.carriedOver() ? CARRIED_OVER : null, profile.neverRecommend(),
                     profile.updatedAt().orElse(null), ratingsSince(who, id, profile.updatedAt()),
-                    recentRatings(who, id)));
+                    recentRatings(who, id), artists.artistsFor(who.id(), id).stream()
+                            .map(artist -> RatedArtistView.from(artist, id)).toList()));
         });
     }
 
@@ -119,12 +125,16 @@ class TasteTools {
     }
 
     /**
-     * The activity's album and song ratings given after the summary was written, or all of them before there was one.
+     * The activity's album, song and artist ratings given after the summary was written, or all of them before there
+     * was one.
      */
     private long ratingsSince(Person person, Optional<CategoryId> activity, Optional<Instant> since) {
-        return Stream.concat(
+        return Stream.of(
                         library.entries(person.id()).stream().flatMap(entry -> entry.own(activity).stream()),
-                        songs.songsFor(person.id(), activity).stream().flatMap(song -> song.own(activity).stream()))
+                        songs.songsFor(person.id(), activity).stream().flatMap(song -> song.own(activity).stream()),
+                        artists.artistsFor(person.id(), activity).stream()
+                                .flatMap(artist -> artist.own(activity).stream()))
+                .flatMap(ratings -> ratings)
                 .filter(rating -> since.map(rating.ratedAt()::isAfter).orElse(true))
                 .count();
     }
@@ -143,7 +153,15 @@ class TasteTools {
 
     record ProfileView(String person, String activity, String rules, String summary, String note,
                        List<String> neverRecommend, Instant updatedAt, long ratingsSinceSummary,
-                       List<RatedView> recentRatings) {
+                       List<RatedView> recentRatings, List<RatedArtistView> artists) {
+    }
+
+    record RatedArtistView(String name, String rating, String comment) {
+
+        static RatedArtistView from(LibraryArtist artist, Optional<CategoryId> activity) {
+            ActivityRating rating = artist.own(activity).orElseThrow();
+            return new RatedArtistView(artist.name(), rating.rating().word(), rating.comment());
+        }
     }
 
     record RatedView(AlbumView album, String rating, String comment, Instant at) {

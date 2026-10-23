@@ -38,6 +38,13 @@ final class Requests {
     }
 
     /**
+     * An artist rated from the app, by name, 1 (dislike) to 3 (love) for an activity; no category, or "none", is
+     * Mainstream, and no rating removes the activity's own rating.
+     */
+    record ArtistRatingRequest(String artist, String categoryId, Integer rating, String comment) {
+    }
+
+    /**
      * Every activity's id, in the order wanted.
      */
     record CategoryOrderRequest(List<String> ids) {

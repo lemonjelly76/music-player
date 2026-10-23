@@ -232,6 +232,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     }
 
     ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
+    ui.ratingArtist?.let { ArtistRatingSheet(it, ui, viewModel) }
     ui.askWhy?.let { asked ->
         WhyNotSheet(asked, ui.categories.firstOrNull { it.id == asked.category }?.name ?: MAINSTREAM_NAME, viewModel)
     }

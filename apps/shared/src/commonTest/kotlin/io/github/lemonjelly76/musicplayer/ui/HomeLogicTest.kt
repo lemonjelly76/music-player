@@ -6,6 +6,7 @@ import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Person
 import io.github.lemonjelly76.musicplayer.data.Playlist
 import io.github.lemonjelly76.musicplayer.data.Rating
+import io.github.lemonjelly76.musicplayer.data.RatedArtist
 import io.github.lemonjelly76.musicplayer.data.Service
 import io.github.lemonjelly76.musicplayer.data.Track
 import kotlin.test.Test
@@ -153,5 +154,18 @@ class HomeLogicTest {
     fun offersQuickReasonsForNotForMeNamingTheActivity() {
         assertEquals(listOf("Too slow", "Too intense", "Wrong for Running", "Not keen on the vocals", "Not my style"),
             dislikeReasons("Running"))
+    }
+
+    @Test
+    fun filtersArtistsByRatingAndSaysWhatEachRatingDoes() {
+        val loved = RatedArtist("a1", "Air", Rating.LOVE)
+        val turnedDown = RatedArtist("a2", "Paramore", Rating.DISLIKE)
+
+        assertEquals(listOf(loved), LibraryFilter.ALL.applyToArtists(listOf(loved, turnedDown)))
+        assertEquals(listOf(turnedDown), LibraryFilter.NOT_FOR_ME.applyToArtists(listOf(loved, turnedDown)))
+        assertEquals("Their albums, and artists like them, lead Claude's picks for Running.",
+            artistRatingMeaning(Rating.LOVE, "Running"))
+        assertEquals("Nothing of theirs is picked or put in a playlist for Running, even made with others.",
+            artistRatingMeaning(Rating.DISLIKE, "Running"))
     }
 }

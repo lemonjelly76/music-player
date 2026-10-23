@@ -71,7 +71,7 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { viewModel.search(text); focus.clearFocus() }),
         )
-        KindPills(ui.search.kind, viewModel::chooseSearchKind)
+        KindPills(MusicKind.entries, ui.search.kind, MusicKind::label, viewModel::chooseSearchKind)
         val search = ui.search
         val whoLoves = ui.person?.name?.let { "$it already loves" } ?: "you already love"
         when {
@@ -89,7 +89,8 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
             }
             search.kind == MusicKind.SONGS && search.songs.orEmpty().isNotEmpty() -> LazyColumn(Modifier.fillMaxWidth()) {
                 items(search.songs.orEmpty(), key = { it.ref }) { track ->
-                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open)
+                    SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open,
+                        rateArtist = { viewModel.openArtistRating(track.artist) })
                 }
             }
             else -> Empty("Nothing found for \"${search.query}\".")
@@ -104,17 +105,18 @@ private fun FoundRow(found: Found, activity: String, viewModel: MainViewModel, o
     val actions = listOfNotNull(
         album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
         MenuAction("More like this") { viewModel.moreLikeThis(album) },
+        rateArtistAction(album.artist, viewModel),
     )
     AlbumRow(album, open, actions) {
         RatingPills(found.rating) { viewModel.rate(album, it) }
     }
 }
 
-/** Albums or songs, as pills, for Search and Library. */
+/** What a screen lists, as pills: albums or songs in Search, and artists too in Library. */
 @Composable
-fun KindPills(chosen: MusicKind, choose: (MusicKind) -> Unit) {
+fun <T> KindPills(kinds: List<T>, chosen: T, label: (T) -> String, choose: (T) -> Unit) {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        MusicKind.entries.forEach { kind -> Pill(kind.label, null, selected = kind == chosen) { choose(kind) } }
+        kinds.forEach { kind -> Pill(label(kind), null, selected = kind == chosen) { choose(kind) } }
     }
 }
 

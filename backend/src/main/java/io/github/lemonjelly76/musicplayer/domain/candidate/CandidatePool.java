@@ -23,8 +23,9 @@ import java.util.stream.Stream;
  * should not be offered and what is no new album (mixes, outtakes, live albums, best-ofs), and ranks the rest on
  * simple signals.
  * <p>
- * Score = 2 per source that suggests the album + 1 per seed that leads to it + half the log2 of those seeds' play
- * counts, less {@value #ARTIST_TURNED_DOWN} for an artist turned down for the activity and {@value #NEAR_TURNED_DOWN}
+ * Albums by an artist turned down for the activity are left out. Score = 2 per source that suggests the album + 1 per
+ * seed that leads to it + half the log2 of those seeds' play counts, less {@value #ARTIST_TURNED_DOWN} for an artist
+ * with an album turned down for the activity and {@value #NEAR_TURNED_DOWN}
  * for an album the sources also suggest for one turned down there. Several sources agreeing counts most; several
  * seeds agreeing comes next.
  * <p>
@@ -50,7 +51,7 @@ public final class CandidatePool {
         Map<AlbumKey, List<String>> near = new HashMap<>();
         turnedDown.near().forEach(suggestion -> near.computeIfAbsent(suggestion.album().key(),
                 ignored -> new ArrayList<>()).add(suggestion.seed().album().label()));
-        return varied(tally(suggestions, excluded).stream()
+        return varied(tally(suggestions, excluded, turnedDown).stream()
                 .map(tally -> tally.toCandidate(turnedDown, near.getOrDefault(tally.key, List.of())))
                 .sorted(Comparator.comparingDouble(Candidate::score).reversed())
                 .toList());
@@ -59,12 +60,13 @@ public final class CandidatePool {
     /**
      * One tally per album, matched by name or by an id on any service, as when two titles of one album resolve to it.
      */
-    private static Collection<Tally> tally(Collection<Suggestion> suggestions, Set<AlbumKey> excluded) {
+    private static Collection<Tally> tally(Collection<Suggestion> suggestions, Set<AlbumKey> excluded,
+            TurnedDown turnedDown) {
         Map<AlbumKey, Tally> tallies = new LinkedHashMap<>();
         Map<String, AlbumKey> byId = new HashMap<>();
         for (Suggestion suggestion : suggestions) {
             AlbumRef album = suggestion.album();
-            if (excluded.contains(album.key()) || Filler.is(album.title())) {
+            if (excluded.contains(album.key()) || Filler.is(album.title()) || turnedDown.leftOut(album.artist())) {
                 continue;
             }
             AlbumKey key = ids(album.ids()).map(byId::get).filter(tallies::containsKey).findFirst()
@@ -130,9 +132,9 @@ public final class CandidatePool {
             int plays = seeds.values().stream().mapToInt(Seed::plays).sum();
             double score = 2.0 * sources.size() + seeds.size() + 0.5 * log2(1 + plays);
             List<String> cautions = new ArrayList<>();
-            if (turnedDown.artist(album.artist())) {
+            if (turnedDown.albumArtist(album.artist())) {
                 score -= ARTIST_TURNED_DOWN;
-                cautions.add("by an artist turned down here");
+                cautions.add("by an artist with an album turned down here");
             }
             Set<String> like = new LinkedHashSet<>(nearTurnedDown);
             if (!like.isEmpty()) {

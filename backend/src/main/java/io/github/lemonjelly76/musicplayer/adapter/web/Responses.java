@@ -11,6 +11,7 @@ import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
 import io.github.lemonjelly76.musicplayer.domain.chart.ResolvedChart;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtist;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
@@ -217,6 +218,20 @@ final class Responses {
     }
 
     record SongRatingResponse(String ref, Integer rating) {
+    }
+
+    /**
+     * An artist with the person's rating of them for the activity.
+     */
+    record RatedArtistResponse(String id, String name, Integer rating) {
+
+        static RatedArtistResponse from(LibraryArtist artist, Optional<CategoryId> activity) {
+            return new RatedArtistResponse(artist.id().toString(), artist.name(),
+                    artist.own(activity).map(found -> found.rating().value()).orElse(null));
+        }
+    }
+
+    record ArtistRatingResponse(String artist, Integer rating) {
     }
 
     /**

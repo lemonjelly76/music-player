@@ -37,7 +37,14 @@ import io.github.lemonjelly76.musicplayer.data.Track
  * to rate it for the activity or open it on another service. Tapping the row plays it; a song turned down is dimmed.
  */
 @Composable
-fun SongRow(track: Track, activity: String, rate: (Rating?) -> Unit, open: (String) -> Unit, number: Int? = null) {
+fun SongRow(
+    track: Track,
+    activity: String,
+    rate: (Rating?) -> Unit,
+    open: (String) -> Unit,
+    number: Int? = null,
+    rateArtist: (() -> Unit)? = null,
+) {
     val link = track.link
     Row(
         Modifier.fillMaxWidth().clickable(enabled = link != null) { link?.let(open) }
@@ -61,7 +68,7 @@ fun SongRow(track: Track, activity: String, rate: (Rating?) -> Unit, open: (Stri
                 }
             }
         }
-        SongRatingButton(track, activity, rate, open)
+        SongRatingButton(track, activity, rate, open, rateArtist)
     }
 }
 
@@ -70,7 +77,13 @@ fun SongRow(track: Track, activity: String, rate: (Rating?) -> Unit, open: (Stri
  * then opening it on the person's other services.
  */
 @Composable
-private fun SongRatingButton(track: Track, activity: String, rate: (Rating?) -> Unit, open: (String) -> Unit) {
+private fun SongRatingButton(
+    track: Track,
+    activity: String,
+    rate: (Rating?) -> Unit,
+    open: (String) -> Unit,
+    rateArtist: (() -> Unit)?,
+) {
     var expanded by remember { mutableStateOf(false) }
     val own = track.rating
     val tint = when {
@@ -97,6 +110,9 @@ private fun SongRatingButton(track: Track, activity: String, rate: (Rating?) -> 
             }
             if (own != null) {
                 DropdownMenuItem(text = { Text("Remove rating") }, onClick = { expanded = false; rate(null) })
+            }
+            rateArtist?.let { rateIt ->
+                DropdownMenuItem(text = { Text("Rate ${track.artist}") }, onClick = { expanded = false; rateIt() })
             }
             track.elsewhere.forEach { other ->
                 DropdownMenuItem(text = { Text(other.label) }, onClick = { expanded = false; open(other.link) })

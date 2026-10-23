@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.application;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtist;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
 import io.github.lemonjelly76.musicplayer.domain.person.PersonId;
 import io.github.lemonjelly76.musicplayer.domain.playlist.Playlist;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -42,16 +44,18 @@ public class PlaylistService {
     private final RecommendationRepository albumLists;
     private final LibraryService library;
     private final SongService songs;
+    private final ArtistService artists;
     private final MusicProviders providers;
     private final PlaylistCopies copies;
     private final Clock clock;
 
     public PlaylistService(PlaylistRepository repository, RecommendationRepository albumLists, LibraryService library,
-            SongService songs, MusicProviders providers, PlaylistCopies copies, Clock clock) {
+            SongService songs, ArtistService artists, MusicProviders providers, PlaylistCopies copies, Clock clock) {
         this.repository = repository;
         this.albumLists = albumLists;
         this.library = library;
         this.songs = songs;
+        this.artists = artists;
         this.providers = providers;
         this.copies = copies;
         this.clock = clock;
@@ -68,6 +72,7 @@ public class PlaylistService {
                 .collect(Collectors.toMap(entry -> entry.album().key(), entry -> entry.album().title(),
                         (first, second) -> first));
         Set<String> songsTurnedDown = songs.turnedDown(person.id(), activity);
+        Map<String, String> artistsTurnedDown = artists.turnedDown(person.id(), activity);
         List<Track> tracks = new ArrayList<>();
         Set<String> songs = new HashSet<>();
         Set<String> ids = new HashSet<>();
@@ -80,7 +85,7 @@ public class PlaylistService {
             Optional<Track> found = service.findTrack(request.artist(), request.title());
             Optional<String> why = found.isEmpty()
                     ? Optional.of("not on " + service.name().prefix())
-                    : whyLeftOut(found.get(), songs, ids, songsTurnedDown, turnedDown::get);
+                    : whyLeftOut(found.get(), songs, ids, songsTurnedDown, artistsTurnedDown, turnedDown::get);
             if (why.isPresent()) {
                 dropped.add(new Dropped(request.label(), why.get()));
             } else {
@@ -232,12 +237,19 @@ public class PlaylistService {
     }
 
     private static Optional<String> whyLeftOut(Track track, Set<String> songs, Set<String> ids,
-            Set<String> songsTurnedDown, Function<AlbumKey, String> turnedDown) {
+            Set<String> songsTurnedDown, Map<String, String> artistsTurnedDown, Function<AlbumKey, String> turnedDown) {
         if (songs.contains(track.songKey()) || ids.contains(track.id())) {
             return Optional.of("already in this playlist");
         }
         if (songsTurnedDown.contains(track.songKey())) {
             return Optional.of("they turned this song down for this");
+        }
+        Optional<String> artist = LibraryArtist.credited(track.artist()).stream()
+                .map(artistsTurnedDown::get)
+                .filter(Objects::nonNull)
+                .findFirst();
+        if (artist.isPresent()) {
+            return Optional.of("they turned down " + artist.get() + " for this");
         }
         return Optional.ofNullable(turnedDown.apply(track.albumKey()))
                 .map(album -> "from " + album + ", which they turned down for this");

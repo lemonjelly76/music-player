@@ -46,7 +46,7 @@ class McpEndpointTest {
                 "update_album", "remove_album", "get_library", "get_taste_profile", "update_taste_profile",
                 "list_categories", "upsert_category", "get_play_stats", "set_play_tracking", "get_candidates",
                 "get_similar", "save_recommendations", "rate_album", "send_to_lidarr", "import_favourites",
-                "get_recommendations", "save_playlist", "get_playlists", "sync_playlist", "rate_song", "get_songs");
+                "get_recommendations", "save_playlist", "get_playlists", "sync_playlist", "rate_song", "get_songs", "rate_artist");
     }
 
     @Test
@@ -122,16 +122,20 @@ class McpEndpointTest {
         claude.callTool("rate_album", """
                 {"person":"Sam","albumRef":"Boards of Canada — Music Has the Right to Children","rating":"ok",
                  "category":"Dinner"}""");
+        JsonNode artist = claude.callTool("rate_artist", """
+                {"person":"Sam","artist":"Metallica","rating":"dislike","category":"Dinner","comment":"Too loud"}""");
         String dinner = McpClient.text(claude.callTool("get_taste_profile", """
                 {"person":"Sam","category":"Dinner"}"""));
         String mainstream = McpClient.text(claude.callTool("get_taste_profile", """
                 {"person":"Sam","category":"Mainstream"}"""));
 
-        assertThat(dinner).contains("\"activity\":\"Dinner\"", "\"ratingsSinceSummary\":1", "Relaxed, with vocals",
+        assertThat(McpClient.text(artist)).contains("Metallica", "dislike");
+        assertThat(dinner).contains("\"activity\":\"Dinner\"", "\"ratingsSinceSummary\":2", "Relaxed, with vocals",
+                "{\"name\":\"Metallica\",\"rating\":\"dislike\",\"comment\":\"Too loud\"",
                 "Soft vocals", "No metal",
                 "Music Has the Right to Children").doesNotContain("Big pop hooks");
         assertThat(mainstream).contains("\"activity\":\"Mainstream\"", "\"ratingsSinceSummary\":0", "Big pop hooks")
-                .doesNotContain("Soft vocals", "No metal", "Music Has the Right to Children");
+                .doesNotContain("Soft vocals", "No metal", "Music Has the Right to Children", "Metallica");
     }
 
     @Test

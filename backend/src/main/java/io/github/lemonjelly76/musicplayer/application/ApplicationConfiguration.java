@@ -3,6 +3,7 @@ package io.github.lemonjelly76.musicplayer.application;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumWishlist;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
+import io.github.lemonjelly76.musicplayer.domain.port.ArtistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ChartSource;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
@@ -69,8 +70,13 @@ class ApplicationConfiguration {
 
     @Bean
     RecommendationService recommendationService(RecommendationRepository recommendations, AlbumResolver resolver,
-            LibraryService library, MusicProviders providers, Clock clock) {
-        return new RecommendationService(recommendations, resolver, library, providers, clock);
+            LibraryService library, ArtistService artists, MusicProviders providers, Clock clock) {
+        return new RecommendationService(recommendations, resolver, library, artists, providers, clock);
+    }
+
+    @Bean
+    ArtistService artistService(ArtistRepository artists, Clock clock) {
+        return new ArtistService(artists, clock);
     }
 
     @Bean
@@ -86,8 +92,9 @@ class ApplicationConfiguration {
 
     @Bean
     PlaylistService playlistService(PlaylistRepository playlists, RecommendationRepository recommendations,
-            LibraryService library, SongService songs, MusicProviders providers, PlaylistCopies copies, Clock clock) {
-        return new PlaylistService(playlists, recommendations, library, songs, providers, copies, clock);
+            LibraryService library, SongService songs, ArtistService artists, MusicProviders providers,
+            PlaylistCopies copies, Clock clock) {
+        return new PlaylistService(playlists, recommendations, library, songs, artists, providers, copies, clock);
     }
 
     @Bean
@@ -105,9 +112,9 @@ class ApplicationConfiguration {
 
     @Bean
     CandidateService candidateService(LibraryService library, PlayService plays, SongService songs,
-            RecommendationService recommendations, List<SimilaritySource> sources, MusicProviders providers,
-            Clock clock) {
-        return new CandidateService(library, plays, songs, recommendations, sources, providers, clock);
+            ArtistService artists, RecommendationService recommendations, List<SimilaritySource> sources,
+            MusicProviders providers, Clock clock) {
+        return new CandidateService(library, plays, songs, artists, recommendations, sources, providers, clock);
     }
 
     @Bean

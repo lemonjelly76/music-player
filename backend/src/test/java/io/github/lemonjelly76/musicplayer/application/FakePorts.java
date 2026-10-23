@@ -8,6 +8,8 @@ import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
 import io.github.lemonjelly76.musicplayer.domain.chart.ResolvedChart;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtist;
+import io.github.lemonjelly76.musicplayer.domain.library.LibraryArtistId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbumId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySongId;
@@ -21,6 +23,7 @@ import io.github.lemonjelly76.musicplayer.domain.playlist.TrackMatch;
 import io.github.lemonjelly76.musicplayer.domain.plays.AlbumPlays;
 import io.github.lemonjelly76.musicplayer.domain.plays.PlayBatch;
 import io.github.lemonjelly76.musicplayer.domain.port.AlbumCatalogue;
+import io.github.lemonjelly76.musicplayer.domain.port.ArtistRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.CategoryRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.ChartRepository;
 import io.github.lemonjelly76.musicplayer.domain.port.LibraryRepository;
@@ -316,6 +319,26 @@ final class FakePorts {
 
         @Override
         public void delete(LibrarySongId id) {
+            saved.remove(id);
+        }
+    }
+
+    static final class Artists implements ArtistRepository {
+
+        final Map<LibraryArtistId, LibraryArtist> saved = new LinkedHashMap<>();
+
+        @Override
+        public List<LibraryArtist> findByPerson(PersonId person) {
+            return saved.values().stream().filter(artist -> artist.person().equals(person)).toList();
+        }
+
+        @Override
+        public void save(LibraryArtist artist) {
+            saved.put(artist.id(), artist);
+        }
+
+        @Override
+        public void delete(LibraryArtistId id) {
             saved.remove(id);
         }
     }

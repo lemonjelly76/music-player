@@ -48,7 +48,8 @@ fun PlaylistScreen(playlist: Playlist, ui: UiState, viewModel: MainViewModel, op
             item { CopySwitch(playlist, ui, other, viewModel) }
         }
         itemsIndexed(playlist.tracks) { index, track ->
-            SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open, number = index + 1)
+            SongRow(track, ui.activityName, rate = { viewModel.rateSong(track, it) }, open = open, number = index + 1,
+                rateArtist = { viewModel.openArtistRating(track.artist) })
         }
     }
 }

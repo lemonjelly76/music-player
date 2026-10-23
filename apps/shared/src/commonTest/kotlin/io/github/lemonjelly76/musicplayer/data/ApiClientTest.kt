@@ -277,4 +277,23 @@ class ApiClientTest {
 
         assertEquals("The server address \"https://exa mple:99999\" is not a web address; check Settings", error.message)
     }
+
+    @Test
+    fun ratesArtistsAndReadsThoseRatedForAnActivity() = runTest {
+        val api = client { request ->
+            json(if (request.method == HttpMethod.Get) """[{"id":"a1","name":"Air","rating":3}]""" else "{}")
+        }
+
+        api.rateArtist("1", "Paramore", "c1", Rating.DISLIKE, comment = "Too intense")
+        api.rateArtist("1", "Air", MAINSTREAM, null)
+        val artists = api.artists("1", "c1")
+
+        val (dislike, removal, list) = requests
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/artist-ratings", dislike.url.toString())
+        assertEquals("""{"artist":"Paramore","categoryId":"c1","rating":1,"comment":"Too intense"}""",
+            dislike.body.toByteArray().decodeToString())
+        assertEquals("""{"artist":"Air","categoryId":"none","rating":null}""", removal.body.toByteArray().decodeToString())
+        assertEquals("https://pc.tailnet.ts.net:8444/api/people/1/artists?category=c1", list.url.toString())
+        assertEquals(listOf("Air"), artists.map { it.name })
+    }
 }

@@ -27,6 +27,7 @@ final class World {
     final FakePorts.Playlists playlistRepository = new FakePorts.Playlists();
     final FakePorts.Songs songRepository = new FakePorts.Songs();
     final FakePorts.Copies copyRepository = new FakePorts.Copies();
+    final FakePorts.Artists artistRepository = new FakePorts.Artists();
     final FakePorts.FakeProvider tidal = new FakePorts.FakeProvider(Provider.TIDAL);
     final FakePorts.FakeProvider spotify = new FakePorts.FakeProvider(Provider.SPOTIFY);
     final FakePorts.Catalogue catalogue = new FakePorts.Catalogue();
@@ -37,15 +38,16 @@ final class World {
     final MusicProviders providers = new MusicProviders(List.of(tidal, spotify));
     final AlbumResolver resolver = new AlbumResolver(providers, catalogue);
     final LibraryService library = new LibraryService(libraryRepository, resolver, providers, clock);
+    final ArtistService artists = new ArtistService(artistRepository, clock);
     final RecommendationService recommendations = new RecommendationService(recommendationRepository, resolver,
-            library, providers, clock);
+            library, artists, providers, clock);
     final SongService songs = new SongService(songRepository, providers, clock);
     final PlaylistCopies copies = new PlaylistCopies(copyRepository, playlistRepository, providers);
     final PlaylistService playlists = new PlaylistService(playlistRepository, recommendationRepository, library,
-            songs, providers, copies, clock);
+            songs, artists, providers, copies, clock);
     final PlayService plays = new PlayService(playRepository, peopleRepository, playlistRepository,
             recommendationRepository, copyRepository, List.of(), clock);
-    final CandidateService candidates = new CandidateService(library, plays, songs, recommendations, List.of(lastFm),
+    final CandidateService candidates = new CandidateService(library, plays, songs, artists, recommendations, List.of(lastFm),
             providers, clock);
 
     Person tidalUser(String name) {

@@ -62,7 +62,7 @@ fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit
         }
         items(charts.songs, key = { "song-${it.position}" }) { entry ->
             SongRow(entry.song, MAINSTREAM_NAME, rate = { viewModel.rateSong(entry.song, it) }, open = open,
-                number = entry.position)
+                number = entry.position, rateArtist = { viewModel.openArtistRating(entry.song.artist) })
         }
         if (charts.albums.isNotEmpty()) {
             item { SectionTitle("Top albums") }
@@ -79,6 +79,7 @@ fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit
 private fun albumActions(album: Album, viewModel: MainViewModel, open: (String) -> Unit): List<MenuAction> = listOfNotNull(
     album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
     MenuAction("More like this") { viewModel.moreLikeThis(album) },
+    rateArtistAction(album.artist, viewModel),
 )
 
 /**

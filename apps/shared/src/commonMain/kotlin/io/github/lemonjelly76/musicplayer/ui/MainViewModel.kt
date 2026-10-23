@@ -24,6 +24,7 @@ import io.github.lemonjelly76.musicplayer.data.SettingsStore
 import io.github.lemonjelly76.musicplayer.data.Track
 import io.github.lemonjelly76.musicplayer.data.Tracking
 import io.github.lemonjelly76.musicplayer.data.Rating
+import io.github.lemonjelly76.musicplayer.data.RatedArtist
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -44,9 +45,9 @@ fun List<Category>.moved(id: String, by: Int): List<Category> {
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
 
-/** An album or song just turned down for the activity [category], so the person can say why in a tap. */
-data class AskWhy(val category: String, val album: Album? = null, val track: Track? = null) {
-    val title: String get() = album?.title ?: track?.title.orEmpty()
+/** An album, song or artist just turned down for the activity [category], so the person can say why in a tap. */
+data class AskWhy(val category: String, val album: Album? = null, val track: Track? = null, val artist: String? = null) {
+    val title: String get() = album?.title ?: track?.title ?: artist.orEmpty()
 }
 
 /** Albums or songs, as Search and Library each show one or the other. */
@@ -83,6 +84,10 @@ data class UiState(
     val toSort: List<LibraryAlbum> = emptyList(),
     /** Songs with a rating that applies to the activity, loved first. */
     val songs: List<Track> = emptyList(),
+    /** Artists rated for the activity, loved first. */
+    val artists: List<RatedArtist> = emptyList(),
+    /** The artist whose rating sheet is open. */
+    val ratingArtist: String? = null,
     val search: Search = Search(),
     val sorting: SortSession? = null,
     /** The week's chart, for Home on Mainstream; null until it comes or if the server has none. */
@@ -209,7 +214,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     }
 
     private fun UiState.withoutActivityAlbums() = copy(lists = emptyList(), playlists = emptyList(),
-        library = emptyList(), disliked = emptyList(), toSort = emptyList(), songs = emptyList(),
+        library = emptyList(), disliked = emptyList(), toSort = emptyList(), songs = emptyList(), artists = emptyList(),
         search = search.copy(results = null, songs = null))
 
     private fun UiState.withoutListening() = copy(onRepeat = null, listening = listening?.copy(stats = null))
@@ -327,10 +332,31 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         load {
             asked.album?.let { api.rate(personId, it.ref, asked.category, Rating.DISLIKE, reason) }
             asked.track?.let { api.rateSong(personId, it, asked.category, Rating.DISLIKE, reason) }
+            asked.artist?.let { api.rateArtist(personId, it, asked.category, Rating.DISLIKE, reason) }
         }
     }
 
     fun skipWhy() = state.update { it.copy(askWhy = null) }
+
+    fun openArtistRating(artist: String) = state.update { it.copy(ratingArtist = artist) }
+
+    fun closeArtistRating() = state.update { it.copy(ratingArtist = null) }
+
+    /** Rates an artist for the chosen activity; null takes the rating away. A Not for me asks why. */
+    fun rateArtist(artist: String, rating: Rating?) {
+        val personId = state.value.personId ?: return
+        val category = state.value.category
+        state.update { it.copy(ratingArtist = null) }
+        load {
+            api.rateArtist(personId, artist, category, rating)
+            reloadLibrary(personId)
+            state.update {
+                if (rating == Rating.DISLIKE) it.copy(askWhy = AskWhy(category, artist = artist))
+                else it.copy(message = rating?.let { given -> "$artist: ${given.label} for ${it.activityName}" }
+                    ?: "Rating for $artist taken away")
+            }
+        }
+    }
 
     /** Goes through the albums to sort for the chosen activity, one at a time. */
     fun startSorting() = state.update { it.copy(sorting = SortSession(it.category, it.toSort)) }
@@ -549,8 +575,8 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     }
 
     /**
-     * The activity's library: albums kept and turned down there, albums still to sort, and rated songs, which any
-     * rating can change.
+     * The activity's library: albums kept and turned down there, albums still to sort, and rated songs and artists,
+     * which any rating can change.
      */
     private suspend fun reloadLibrary(personId: String) = coroutineScope {
         val category = state.value.category
@@ -558,11 +584,15 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         val disliked = async { api.disliked(personId, category) }
         val toSort = async { api.toSort(personId, category) }
         val songs = async { api.songs(personId, category) }
+        // Only the artist sheet and Library's Artists need these, so a server without them still shows the rest.
+        val artists = async { runCatching { api.artists(personId, category) }.getOrDefault(emptyList()) }
         val answers = Triple(library.await(), disliked.await(), toSort.await())
         val rated = songs.await()
+        val ratedArtists = artists.await()
         state.update {
             if (it.personId == personId && it.category == category) {
-                it.copy(library = answers.first, disliked = answers.second, toSort = answers.third, songs = rated)
+                it.copy(library = answers.first, disliked = answers.second, toSort = answers.third, songs = rated,
+                    artists = ratedArtists)
             } else it
         }
     }

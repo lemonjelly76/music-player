@@ -37,6 +37,7 @@ fun PickRow(pick: Pick, list: PickList, viewModel: MainViewModel, open: (String)
     val actions = listOfNotNull(
         pick.album.link?.let { link -> MenuAction("Open in ${serviceOfLink(link)}") { open(link) } },
         MenuAction("More like this") { viewModel.moreLikeThis(pick.album) },
+        rateArtistAction(pick.album.artist, viewModel),
         MenuAction("Remove from albums to try") { viewModel.removePick(list, pick) },
     )
     AlbumRow(pick.album, open, actions, badge = if (pick.wildcard) "WILDCARD" else null) {

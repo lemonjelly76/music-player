@@ -250,4 +250,14 @@ class JsonTest {
         assertEquals("Tidal", serviceOfLink("https://tidal.com/browse/album/1"))
         assertEquals("app", serviceOfLink("https://example.com/album/1"))
     }
+
+    @Test
+    fun readsTheArtistsRatedForAnActivity() {
+        val (loved, unrated) = Json.artists("""
+            [{"id":"a1","name":"Arctic Monkeys","rating":3},{"id":"a2","name":"Paramore","rating":null}]
+        """.trimIndent())
+
+        assertEquals(RatedArtist("a1", "Arctic Monkeys", Rating.LOVE), loved)
+        assertNull(unrated.rating)
+    }
 }
