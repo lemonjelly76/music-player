@@ -13,7 +13,7 @@ final class Requests {
     }
 
     /**
-     * A rating of 1 (dislike) to 3 (love) for an activity; no category, or "none", is General, and no rating
+     * A rating of 1 (dislike) to 3 (love) for an activity; no category, or "none", is Mainstream, and no rating
      * removes the activity's own rating.
      */
     record RatingRequest(String albumRef, String categoryId, Integer rating, String comment) {
@@ -21,7 +21,7 @@ final class Requests {
 
     /**
      * A song rated from the app, which sends it as it showed it, with a rating of 1 (dislike) to 3 (love) for an
-     * activity; no category, or "none", is General, and no rating removes the activity's own rating.
+     * activity; no category, or "none", is Mainstream, and no rating removes the activity's own rating.
      */
     record SongRatingRequest(String ref, String artist, String title, String album, String cover, String categoryId,
                              Integer rating) {

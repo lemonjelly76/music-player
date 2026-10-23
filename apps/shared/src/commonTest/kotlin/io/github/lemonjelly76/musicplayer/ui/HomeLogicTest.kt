@@ -15,23 +15,23 @@ import kotlin.test.assertTrue
 
 class HomeLogicTest {
 
-    private fun entry(title: String, rating: Rating, general: Boolean = false) =
-        LibraryAlbum(title, Album("tidal:$title", "Artist", title, null, null), rating, general, "", emptyList(), "")
+    private fun entry(title: String, rating: Rating) =
+        LibraryAlbum(title, Album("tidal:$title", "Artist", title, null, null), rating, "", emptyList(), "")
 
     private val library = listOf(
         entry("Loved here", Rating.LOVE),
-        entry("Loved in General", Rating.LOVE, general = true),
+        entry("Loved too", Rating.LOVE),
         entry("OK here", Rating.OK),
         entry("Not for me here", Rating.DISLIKE),
-        entry("Not for me in General", Rating.DISLIKE, general = true),
+        entry("Not for me too", Rating.DISLIKE),
     )
 
     @Test
     fun filtersTheLibraryByRating() {
-        assertEquals(listOf("Loved here", "Loved in General", "OK here"), LibraryFilter.ALL.apply(library).map { it.album.title })
-        assertEquals(listOf("Loved here", "Loved in General"), LibraryFilter.LOVED.apply(library).map { it.album.title })
+        assertEquals(listOf("Loved here", "Loved too", "OK here"), LibraryFilter.ALL.apply(library).map { it.album.title })
+        assertEquals(listOf("Loved here", "Loved too"), LibraryFilter.LOVED.apply(library).map { it.album.title })
         assertEquals(listOf("OK here"), LibraryFilter.OK.apply(library).map { it.album.title })
-        assertEquals(listOf("Not for me here", "Not for me in General"),
+        assertEquals(listOf("Not for me here", "Not for me too"),
             LibraryFilter.NOT_FOR_ME.apply(library).map { it.album.title })
     }
 
@@ -43,7 +43,7 @@ class HomeLogicTest {
         val done = afterLove.next(rated = false)
 
         assertEquals("Loved here", session.current?.album?.title)
-        assertEquals("Loved in General", afterLove.current?.album?.title)
+        assertEquals("Loved too", afterLove.current?.album?.title)
         assertEquals(2, afterLove.number)
         assertTrue(done.finished)
         assertNull(done.current)
@@ -112,11 +112,11 @@ class HomeLogicTest {
     @Test
     fun filtersSongsByRatingAsAlbumsAre() {
         val loved = Track("t1", "Air", "Sexy Boy", "", null, null, rating = Rating.LOVE)
-        val general = Track("t2", "Air", "All I Need", "", null, null, rating = Rating.OK, general = true)
+        val ok = Track("t2", "Air", "All I Need", "", null, null, rating = Rating.OK)
         val turnedDown = Track("t3", "Air", "Talisman", "", null, null, rating = Rating.DISLIKE)
-        val songs = listOf(loved, general, turnedDown)
+        val songs = listOf(loved, ok, turnedDown)
 
-        assertEquals(listOf(loved, general), LibraryFilter.ALL.applyToSongs(songs))
+        assertEquals(listOf(loved, ok), LibraryFilter.ALL.applyToSongs(songs))
         assertEquals(listOf(loved), LibraryFilter.LOVED.applyToSongs(songs))
         assertEquals(listOf(turnedDown), LibraryFilter.NOT_FOR_ME.applyToSongs(songs))
     }

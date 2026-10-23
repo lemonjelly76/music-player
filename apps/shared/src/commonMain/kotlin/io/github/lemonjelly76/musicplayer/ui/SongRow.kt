@@ -66,26 +66,26 @@ fun SongRow(track: Track, activity: String, rate: (Rating?) -> Unit, open: (Stri
 }
 
 /**
- * Shows the song's rating for the activity, outlined when it is General's standing in, and opens the choices: Love,
- * OK, Not for me, or taking the activity's own rating away; then opening it on the person's other services.
+ * Shows the song's rating for the activity and opens the choices: Love, OK, Not for me, or taking the rating away;
+ * then opening it on the person's other services.
  */
 @Composable
 private fun SongRatingButton(track: Track, activity: String, rate: (Rating?) -> Unit, open: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val own = track.rating.takeIf { !track.general }
+    val own = track.rating
     val tint = when {
-        track.rating == null || track.general -> MaterialTheme.colorScheme.onSurfaceVariant
+        own == null -> MaterialTheme.colorScheme.onSurfaceVariant
         track.rating == Rating.LOVE -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val described = track.rating?.let { if (track.general) "${it.label} in General" else it.label } ?: "Not rated"
+    val described = own?.label ?: "Not rated"
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(track.rating?.icon ?: Icons.Outlined.FavoriteBorder, contentDescription = "$described; rate for $activity",
+            Icon(own?.icon ?: Icons.Outlined.FavoriteBorder, contentDescription = "$described; rate for $activity",
                 tint = tint)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(text = { Text(if (track.general) "$described · rate for $activity" else "Rate for $activity") },
+            DropdownMenuItem(text = { Text("Rate for $activity") },
                 onClick = {}, enabled = false)
             Rating.entries.reversed().forEach { rating ->
                 DropdownMenuItem(

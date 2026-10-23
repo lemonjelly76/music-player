@@ -45,7 +45,7 @@ data class ListeningPage(val period: Period = Period.MONTH, val stats: Listening
 fun playCount(plays: Int): String = if (plays == 1) "1 play" else "$plays plays"
 
 /**
- * What the person has played most, as streaming apps show top artists and albums: everything in General, or only
+ * What the person has played most, as streaming apps show top artists and albums: everything in Mainstream, or only
  * plays from an activity's pick playlists.
  */
 @Composable

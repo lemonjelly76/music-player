@@ -28,7 +28,7 @@ class RecommendationTest {
         Category running = Category.create("Running", "High energy");
 
         assertThat(RecommendationList.create(PersonId.random(), Optional.empty(), List.of(), NOW).name())
-                .isEqualTo("AI Picks");
+                .isEqualTo("AI Picks — Mainstream");
         assertThat(RecommendationList.create(PersonId.random(), Optional.of(running), List.of(), NOW).name())
                 .isEqualTo("AI Picks — Running");
     }

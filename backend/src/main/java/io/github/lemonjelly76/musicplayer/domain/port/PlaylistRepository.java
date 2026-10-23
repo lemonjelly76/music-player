@@ -22,7 +22,7 @@ public interface PlaylistRepository {
     List<Playlist> inAccount(PersonId person, Optional<CategoryId> activity);
 
     /**
-     * The activity's playlists, newest first; no activity means the person's General ones only.
+     * The activity's playlists, newest first; no activity means the person's Mainstream ones only.
      */
     List<Playlist> latest(PersonId person, Optional<CategoryId> activity, int limit);
 

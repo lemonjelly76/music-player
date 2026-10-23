@@ -24,17 +24,15 @@ import java.util.SortedSet;
 
 /**
  * What the tools return. Every album carries a {@code ref} the other tools accept back, and every activity is named,
- * with General for ratings that are not for one activity.
+ * with Mainstream for ratings that are not for one activity.
  */
 final class Views {
-
-    static final String GENERAL = "General";
 
     private Views() {
     }
 
     static String activityName(Optional<CategoryId> category, Map<CategoryId, String> names) {
-        return category.map(id -> names.getOrDefault(id, "?")).orElse(GENERAL);
+        return category.map(id -> names.getOrDefault(id, "?")).orElse(Category.MAINSTREAM);
     }
 
     record PersonView(String id, String name, String service, Boolean connected, boolean playTracking,

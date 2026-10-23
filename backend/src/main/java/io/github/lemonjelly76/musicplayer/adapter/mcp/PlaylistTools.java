@@ -47,15 +47,15 @@ class PlaylistTools {
 
     @McpTool(name = "save_playlist",
             description = "Saves a playlist of single songs (not albums) for a person, optionally for one category, "
-                    + "and writes it to their streaming service as 'AI Picks — <Category> 1', 2 or 3 ('AI Picks 1' "
-                    + "for general): each category keeps " + Playlist.SLOTS + " there, a new one taking a free number "
+                    + "and writes it to their streaming service as 'AI Picks — <Category> 1', 2 or 3 ('AI Picks "
+                    + "— Mainstream 1' without one): each category keeps " + Playlist.SLOTS + " there, a new one taking a free number "
                     + "or replacing the oldest, and the person chooses which in the app. It keeps the first " + Playlist.SIZE + " songs found, so give about 60 in "
                     + "play order. Songs their service does not have, repeats, and songs or albums they turned down "
                     + "for the category are dropped and listed with the reason.",
             annotations = @McpAnnotations(title = "Save playlist", destructiveHint = false, openWorldHint = true))
     CallToolResult savePlaylist(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Category name; leave out for their general playlist", required = false)
+            @McpToolParam(description = "Category name; leave out for Mainstream", required = false)
             String category,
             @McpToolParam(description = "One line on the playlist's mood or arc, shown with it") String description,
             @McpToolParam(description = "The songs in play order, about 60") List<TrackInput> tracks) {
@@ -73,14 +73,14 @@ class PlaylistTools {
     }
 
     @McpTool(name = "get_playlists",
-            description = "A person's latest playlists for a category (or their general ones), newest first, with "
+            description = "A person's latest playlists for a category (or Mainstream), newest first, with "
                     + "every song and their rating of it there (love, ok, dislike) where they gave one. Read it "
                     + "before a new playlist so songs are not all repeated, and to learn from the ratings.",
             annotations = @McpAnnotations(title = "Playlists", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getPlaylists(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Category name; leave out for their general playlists", required = false)
+            @McpToolParam(description = "Category name; leave out for Mainstream", required = false)
             String category,
             @McpToolParam(description = "How many playlists, default 1", required = false) Integer limit) {
         return attempt(() -> {
@@ -89,8 +89,8 @@ class PlaylistTools {
             Map<String, LibrarySong> rated = songs.bySong(who.id());
             return json(playlists.latest(who, forCategory.map(Category::id),
                             ToolInputs.limit(limit, PLAYLISTS_DEFAULT, PLAYLISTS_MAX)).stream()
-                    .map(playlist -> PlaylistView.from(playlist, forCategory.map(Category::name).orElse("General"),
-                            rated))
+                    .map(playlist -> PlaylistView.from(playlist,
+                            forCategory.map(Category::name).orElse(Category.MAINSTREAM), rated))
                     .toList());
         });
     }
@@ -101,7 +101,7 @@ class PlaylistTools {
             annotations = @McpAnnotations(title = "Sync playlist", idempotentHint = true, openWorldHint = true))
     CallToolResult syncPlaylist(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Category name; leave out for their general playlist", required = false)
+            @McpToolParam(description = "Category name; leave out for Mainstream", required = false)
             String category) {
         return attempt(() -> {
             Saved saved = playlists.resync(people.find(person), categories.findOptional(category));

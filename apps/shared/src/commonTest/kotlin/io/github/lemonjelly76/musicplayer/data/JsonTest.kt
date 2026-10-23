@@ -90,17 +90,14 @@ class JsonTest {
 
     @Test
     fun readsSongsWithTheirRatingForTheActivity() {
-        val (loved, general) = Json.songs("""
-            [{"ref":"spotify:t1","id":"t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari","rating":3,
-              "general":false},
-             {"ref":"spotify:t2","id":"t2","artist":"Air","title":"Talisman","album":"Moon Safari","rating":1,
-              "general":true}]
+        val (loved, unrated) = Json.songs("""
+            [{"ref":"spotify:t1","id":"t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari","rating":3},
+             {"ref":"spotify:t2","id":"t2","artist":"Air","title":"Talisman","album":"Moon Safari","rating":null}]
         """.trimIndent())
 
         assertEquals("spotify:t1", loved.ref)
         assertEquals(Rating.LOVE, loved.rating)
-        assertEquals(Rating.DISLIKE, general.rating)
-        assertTrue(general.general)
+        assertNull(unrated.rating)
     }
 
     @Test
@@ -109,9 +106,9 @@ class JsonTest {
             {"country":"gb","updatedAt":"2026-10-21T09:00:00Z","playlistWanted":true,
              "playlistLink":"https://open.spotify.com/playlist/p9",
              "songs":[{"position":1,"song":{"ref":"spotify:t1","id":"t1","artist":"Tate McRae","title":"Housewife",
-               "album":"Housewife","cover":"https://i/1","rating":3,"general":false}}],
+               "album":"Housewife","cover":"https://i/1","rating":3}}],
              "albums":[{"position":2,"album":{"album":{"ref":"spotify:a1","artist":"Fontaines D.C.",
-               "title":"Dopamine Chamber"},"rating":null,"general":false}}]}
+               "title":"Dopamine Chamber"},"rating":null}}]}
         """.trimIndent())
 
         assertEquals("https://open.spotify.com/playlist/p9", charts.playlistLink)
@@ -138,24 +135,22 @@ class JsonTest {
     }
 
     @Test
-    fun readsALibraryAlbumsRatingAndWhetherItIsTheGeneralOne() {
+    fun readsALibraryAlbumsRating() {
         val entry = Json.library("""
-            [{"id":"a1","album":{"ref":"tidal:1","artist":"Joni Mitchell","title":"Blue"},"rating":3,"general":true}]
+            [{"id":"a1","album":{"ref":"tidal:1","artist":"Joni Mitchell","title":"Blue"},"rating":3 }]
         """.trimIndent()).single()
 
         assertEquals(Rating.LOVE, entry.rating)
-        assertTrue(entry.general)
     }
 
     @Test
     fun readsSearchResultsWithThePersonsRating() {
         val (known, new) = Json.found("""
-            [{"album":{"ref":"tidal:1","artist":"Talk Talk","title":"Spirit of Eden"},"rating":3,"general":true},
-             {"album":{"ref":"tidal:2","artist":"Talk Talk","title":"Laughing Stock"},"rating":null,"general":false}]
+            [{"album":{"ref":"tidal:1","artist":"Talk Talk","title":"Spirit of Eden"},"rating":3 },
+             {"album":{"ref":"tidal:2","artist":"Talk Talk","title":"Laughing Stock"},"rating":null}]
         """.trimIndent())
 
         assertEquals(Rating.LOVE, known.rating)
-        assertTrue(known.general)
         assertEquals("Laughing Stock", new.album.title)
         assertNull(new.rating)
     }
@@ -191,7 +186,6 @@ class JsonTest {
         """.trimIndent()).single()
 
         assertNull(entry.rating)
-        assertEquals(false, entry.general)
         assertEquals(listOf("folk"), entry.tags)
         assertEquals("", entry.notes)
     }

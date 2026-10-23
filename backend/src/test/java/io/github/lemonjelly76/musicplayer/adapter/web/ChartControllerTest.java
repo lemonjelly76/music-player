@@ -77,7 +77,7 @@ class ChartControllerTest {
                 List.of(new ResolvedChart.Album(2, new AlbumRef("Fontaines D.C.", "Dopamine Chamber", Optional.empty(),
                         ProviderIds.of(Provider.SPOTIFY, "a1"), Optional.empty()))))));
         given(songs.bySong(CRAIG.id())).willReturn(Map.of(HOUSEWIFE.songKey(), LibrarySong.create(CRAIG.id(), HOUSEWIFE,
-                ActivityRating.general(Rating.LOVE, NOW), LocalDate.of(2026, 10, 21))));
+                ActivityRating.mainstream(Rating.LOVE, NOW), LocalDate.of(2026, 10, 21))));
         given(library.byKey(CRAIG.id())).willReturn(Map.of());
         given(charts.playlistFor(CRAIG)).willReturn(ChartPlaylist.wantedBy(CRAIG.id())
                 .writtenTo(new SyncedPlaylist(Provider.SPOTIFY, "p9"), NOW));

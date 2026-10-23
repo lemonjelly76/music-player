@@ -20,13 +20,13 @@ class LibraryAlbumTest {
     private static final PersonId CRAIG = PersonId.random();
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 20);
     private static final Instant NOW = Instant.parse("2026-10-20T18:00:00Z");
-    private static final Optional<CategoryId> GENERAL = Optional.empty();
+    private static final Optional<CategoryId> MAINSTREAM = Optional.empty();
     private static final Optional<CategoryId> RUNNING = Optional.of(CategoryId.random());
     private static final Optional<CategoryId> DINNER = Optional.of(CategoryId.random());
 
     private static LibraryAlbum album(String artist, String title, Integer year, String... tags) {
         return LibraryAlbum.create(CRAIG, new AlbumRef(artist, title, Optional.ofNullable(year), ProviderIds.NONE),
-                ActivityRating.general(Rating.LOVE, NOW), "", List.of(tags), TODAY);
+                ActivityRating.mainstream(Rating.LOVE, NOW), "", List.of(tags), TODAY);
     }
 
     private static ActivityRating rating(Optional<CategoryId> activity, Rating rating) {
@@ -54,12 +54,12 @@ class LibraryAlbumTest {
     }
 
     @Test
-    void anActivityHasOnlyItsOwnRatingWithGeneralsOnHandAsAHint() {
+    void anActivityHasOnlyItsOwnRating() {
         LibraryAlbum entry = album("Air", "Moon Safari", 1998).rated(rating(RUNNING, Rating.DISLIKE));
 
         assertThat(entry.own(DINNER)).isEmpty();
-        assertThat(entry.ownOrGeneral(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
-        assertThat(entry.ownOrGeneral(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
+        assertThat(entry.own(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
+        assertThat(entry.own(MAINSTREAM)).map(ActivityRating::rating).contains(Rating.LOVE);
     }
 
     @Test
@@ -68,27 +68,25 @@ class LibraryAlbumTest {
                 .rated(rating(RUNNING, Rating.DISLIKE))
                 .rated(rating(DINNER, Rating.OK));
 
-        assertThat(entry.keptFor(GENERAL)).isTrue();
+        assertThat(entry.keptFor(MAINSTREAM)).isTrue();
         assertThat(entry.keptFor(DINNER)).isTrue();
         assertThat(entry.keptFor(RUNNING)).isFalse();
         assertThat(entry.keptFor(Optional.of(CategoryId.random()))).isFalse();
     }
 
     @Test
-    void notForMeInGeneralKeepsItAwayFromActivitiesWithoutTheirOwnRating() {
-        LibraryAlbum entry = album("Air", "Moon Safari", 1998)
-                .rated(rating(GENERAL, Rating.DISLIKE))
-                .rated(rating(DINNER, Rating.LOVE));
+    void notForMeInMainstreamKeepsItOutOfMainstreamOnly() {
+        LibraryAlbum entry = album("Air", "Moon Safari", 1998).rated(rating(MAINSTREAM, Rating.DISLIKE));
 
-        assertThat(entry.avoidedFor(RUNNING)).isTrue();
-        assertThat(entry.knownFor(RUNNING)).isTrue();
-        assertThat(entry.avoidedFor(DINNER)).isFalse();
+        assertThat(entry.avoidedFor(MAINSTREAM)).isTrue();
+        assertThat(entry.avoidedFor(RUNNING)).isFalse();
+        assertThat(entry.knownFor(RUNNING)).isFalse();
     }
 
     @Test
     void anAlbumDislikedForOneActivityCanStillBeNewsForAnother() {
         LibraryAlbum disliked = album("Air", "Moon Safari", 1998)
-                .unrated(GENERAL)
+                .unrated(MAINSTREAM)
                 .rated(rating(DINNER, Rating.DISLIKE));
 
         assertThat(disliked.knownFor(DINNER)).isTrue();
@@ -97,7 +95,7 @@ class LibraryAlbumTest {
 
     @Test
     void ratingAgainForAnActivityReplacesTheOldRating() {
-        LibraryAlbum entry = album("Air", "Moon Safari", 1998).rated(rating(GENERAL, Rating.OK));
+        LibraryAlbum entry = album("Air", "Moon Safari", 1998).rated(rating(MAINSTREAM, Rating.OK));
 
         assertThat(entry.ratings()).singleElement().extracting(ActivityRating::rating).isEqualTo(Rating.OK);
         assertThatIllegalArgumentException().isThrownBy(() -> new LibraryAlbum(entry.id(), CRAIG, entry.album(),

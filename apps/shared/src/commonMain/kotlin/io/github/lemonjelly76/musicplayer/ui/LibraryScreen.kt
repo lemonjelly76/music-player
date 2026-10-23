@@ -108,9 +108,9 @@ fun AlbumTile(
 ) {
     val album = entry.album
     val link = album.link
-    val ratings = Rating.entries.reversed().filter { it != entry.rating || entry.general }
+    val ratings = Rating.entries.reversed().filter { it != entry.rating }
         .map { rating -> MenuAction(rating.label) { viewModel.rate(album, rating) } } +
-        listOfNotNull(MenuAction("Remove rating") { viewModel.rate(album, null) }.takeIf { !entry.general })
+        listOfNotNull(MenuAction("Remove rating") { viewModel.rate(album, null) }.takeIf { entry.rating != null })
     val actions = listOfNotNull(
         link?.let { MenuAction("Open in ${serviceOfLink(it)}") { open(it) } },
         MenuAction("More like this") { viewModel.moreLikeThis(album) },
@@ -130,7 +130,7 @@ fun AlbumTile(
                 Text(album.artist, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 QualityBadges(album)
-                entry.rating?.let { RatingLabel(it, entry.general) }
+                entry.rating?.let { RatingLabel(it) }
                 val notes = listOf(entry.notes, entry.tags.joinToString(" · ")).filter { details && it.isNotBlank() }
                 if (notes.isNotEmpty()) {
                     Text(notes.joinToString(" — "), style = MaterialTheme.typography.bodySmall,
@@ -143,13 +143,13 @@ fun AlbumTile(
     }
 }
 
-/** Loved in green, OK and Not for me in grey; "in General" when no rating was given for this activity itself. */
+/** Loved in green, OK and Not for me in grey. */
 @Composable
-fun RatingLabel(rating: Rating, general: Boolean) {
+fun RatingLabel(rating: Rating) {
     val colour = if (rating == Rating.LOVE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(rating.icon, contentDescription = null, Modifier.size(14.dp), tint = colour)
-        Text(if (general) "${rating.label} in General" else rating.label, style = MaterialTheme.typography.bodySmall,
+        Text(rating.label, style = MaterialTheme.typography.bodySmall,
             color = colour)
     }
 }

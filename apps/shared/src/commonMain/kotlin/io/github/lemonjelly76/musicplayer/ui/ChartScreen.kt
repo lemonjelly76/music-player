@@ -43,7 +43,7 @@ fun chartPlace(country: String?): String = when (country?.lowercase()) {
 
 /**
  * The week's top 50 songs, to play straight through or one by one and rate, then the top albums; everything here is
- * rated for General, as the chart is not about any one activity.
+ * rated for Mainstream, as the chart is not about any one activity.
  */
 @Composable
 fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit) {
@@ -60,7 +60,7 @@ fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit
             }
         }
         items(charts.songs, key = { "song-${it.position}" }) { entry ->
-            SongRow(entry.song, "General", rate = { viewModel.rateSong(entry.song, it) }, open = open,
+            SongRow(entry.song, "Mainstream", rate = { viewModel.rateSong(entry.song, it) }, open = open,
                 number = entry.position)
         }
         if (charts.albums.isNotEmpty()) {
@@ -81,7 +81,7 @@ private fun albumActions(album: Album, viewModel: MainViewModel, open: (String) 
 )
 
 /**
- * Home's chart shelf on General: the top 50 songs as a playlist card, then the top albums by chart place.
+ * Home's chart shelf on Mainstream: the top 50 songs as a playlist card, then the top albums by chart place.
  */
 @Composable
 fun ChartShelf(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit, showChart: () -> Unit) {
@@ -140,7 +140,7 @@ private fun ChartAlbumTile(entry: ChartAlbum, viewModel: MainViewModel, open: (S
                 Text(album.artist, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 QualityBadges(album)
-                found.rating?.let { RatingLabel(it, general = false) }
+                found.rating?.let { RatingLabel(it) }
             }
             ActionsMenu(actions)
         }

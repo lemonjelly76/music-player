@@ -39,7 +39,7 @@ public class SongService {
     }
 
     /**
-     * Rates a song for an activity (General when none), adding it when new; the same song found on another service
+     * Rates a song for an activity (Mainstream when none), adding it when new; the same song found on another service
      * or in another edition is the same entry. An empty rating takes the activity's own rating away, and a song left
      * with none leaves the library.
      */
@@ -94,8 +94,7 @@ public class SongService {
     }
 
     /**
-     * Songs to leave out of the activity's playlists, by song key: turned down there, or in General with no rating
-     * there.
+     * Songs to leave out of the activity's playlists, by song key: those turned down there.
      */
     public Set<String> turnedDown(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream()

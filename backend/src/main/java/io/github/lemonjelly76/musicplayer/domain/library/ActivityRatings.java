@@ -9,9 +9,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * What albums and songs share about their ratings: at most one per activity, and each activity holding only what
- * was rated for it (ADR-015). General's rating is on hand as a hint, and its Not for me keeps an album or song away
- * from activities that have no rating of their own for it.
+ * What albums and songs share about their ratings: at most one per activity, and each activity, Mainstream among
+ * them, holding only what was rated for it (ADR-015). No activity's rating counts for another.
  */
 final class ActivityRatings {
 
@@ -30,16 +29,12 @@ final class ActivityRatings {
         return ratings.stream().filter(rating -> rating.category().equals(category)).findFirst();
     }
 
-    static Optional<ActivityRating> ownOrGeneral(List<ActivityRating> ratings, Optional<CategoryId> category) {
-        return own(ratings, category).or(() -> own(ratings, Optional.empty()));
-    }
-
     static boolean keptFor(List<ActivityRating> ratings, Optional<CategoryId> category) {
         return own(ratings, category).map(found -> found.rating().keeps()).orElse(false);
     }
 
     static boolean avoidedFor(List<ActivityRating> ratings, Optional<CategoryId> category) {
-        return ownOrGeneral(ratings, category).map(found -> found.rating() == Rating.DISLIKE).orElse(false);
+        return own(ratings, category).map(found -> found.rating() == Rating.DISLIKE).orElse(false);
     }
 
     static List<ActivityRating> with(List<ActivityRating> ratings, ActivityRating rating) {

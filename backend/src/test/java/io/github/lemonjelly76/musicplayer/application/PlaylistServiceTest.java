@@ -129,7 +129,7 @@ class PlaylistServiceTest {
         assertThat(world.playlists.latest(craig, Optional.empty(), 5)).hasSize(1);
 
         world.tidal.connectedPeople.add(craig.id());
-        assertThat(world.playlists.resync(craig, Optional.empty()).sync()).isEqualTo("synced to tidal as AI Picks 1");
+        assertThat(world.playlists.resync(craig, Optional.empty()).sync()).isEqualTo("synced to tidal as AI Picks — Mainstream 1");
     }
 
     @Test
@@ -196,7 +196,7 @@ class PlaylistServiceTest {
 
         assertThat(world.tidal.playlistCalls).containsExactly("AI Picks — Running 1 [tr-1]",
                 "AI Picks — Running 2 [tr-1]", "AI Picks — Running 3 [tr-1]", "AI Picks — Running 1 [tr-1]",
-                "AI Picks 1 [tr-1]");
+                "AI Picks — Mainstream 1 [tr-1]");
         assertThat(world.tidal.deletedPlaylists).containsExactly("playlist-1");
         assertThat(slots(craig, Optional.of(running))).containsExactly("playlist-4 in 1", "playlist-3 in 3",
                 "playlist-2 in 2", "none");
@@ -242,7 +242,7 @@ class PlaylistServiceTest {
 
         world.playlists.putInSlot(craig, only, 3);
 
-        assertThat(world.tidal.renamedPlaylists).containsExactly("playlist-1 AI Picks 3");
+        assertThat(world.tidal.renamedPlaylists).containsExactly("playlist-1 AI Picks — Mainstream 3");
         assertThat(slots(craig, Optional.empty())).containsExactly("playlist-1 in 3");
     }
 
@@ -358,7 +358,7 @@ class PlaylistServiceTest {
         world.tidal.failing = true;
 
         assertThat(world.playlists.delete(craig, saved.id()))
-                .isEqualTo("Deleted here, but AI Picks 1 is still in tidal: tidal is not connected");
+                .isEqualTo("Deleted here, but AI Picks — Mainstream 1 is still in tidal: tidal is not connected");
         assertThat(world.playlistRepository.find(saved.id())).isEmpty();
     }
 

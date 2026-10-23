@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * At most one copy per person and activity; no activity means General.
+ * At most one copy per person and activity; no activity means Mainstream.
  */
 public interface PlaylistCopyRepository {
 

@@ -66,11 +66,11 @@ class JdbcPeopleAndLibraryTest {
         AlbumRef blue = new AlbumRef("Joni Mitchell", "Blue", Optional.of(1971),
                 new ProviderIds(Optional.of("t-1"), Optional.empty(), Optional.of("mb-1")),
                 Optional.of("https://covers.example/blue.jpg"), Set.of(AudioFormat.LOSSLESS, AudioFormat.HI_RES));
-        LibraryAlbum blueEntry = LibraryAlbum.create(craig.id(), blue, ActivityRating.general(Rating.LOVE, ratedAt),
+        LibraryAlbum blueEntry = LibraryAlbum.create(craig.id(), blue, ActivityRating.mainstream(Rating.LOVE, ratedAt),
                 "Perfect", List.of("folk", "70s"), LocalDate.of(2026, 10, 20))
                 .rated(new ActivityRating(Optional.of(running.id()), Rating.DISLIKE, "Too slow", ratedAt.plusSeconds(1)));
         LibraryAlbum moonSafari = LibraryAlbum.create(craig.id(), AlbumRef.of("Air", "Moon Safari"),
-                ActivityRating.general(Rating.OK, ratedAt), "", List.of(), LocalDate.of(2026, 10, 21));
+                ActivityRating.mainstream(Rating.OK, ratedAt), "", List.of(), LocalDate.of(2026, 10, 21));
 
         library.save(blueEntry);
         library.save(moonSafari);
@@ -97,18 +97,25 @@ class JdbcPeopleAndLibraryTest {
     }
 
     @Test
-    void keepsTasteProfilesAndCategories() {
+    void keepsATasteProfilePerActivityAndCategories() {
         Person craig = Person.create("Craig", Optional.empty());
         people.save(craig);
-        TasteProfile profile = TasteProfile.empty(craig.id()).rewritten("Warm soul", Optional.of(List.of("No jazz fusion")),
-                Instant.parse("2026-10-20T18:00:00Z"));
         Category running = Category.create("Running", "Fast");
-
-        profiles.save(profile);
         categories.save(running);
+        Instant at = Instant.parse("2026-10-20T18:00:00Z");
+        TasteProfile mainstream = TasteProfile.empty(craig.id(), Optional.empty())
+                .rewritten("Warm soul", Optional.of(List.of("No jazz fusion")), at);
+        TasteProfile forRunning = TasteProfile.empty(craig.id(), Optional.of(running.id()))
+                .rewritten("Swaggering indie", Optional.empty(), at);
+
+        profiles.save(mainstream);
+        profiles.save(forRunning);
+        profiles.save(forRunning.rewritten("Swaggering indie and funk", Optional.empty(), at.plusSeconds(60)));
         categories.save(running.withRules("Fast and steady"));
 
-        assertThat(profiles.find(craig.id())).contains(profile);
+        assertThat(profiles.find(craig.id(), Optional.empty())).contains(mainstream);
+        assertThat(profiles.find(craig.id(), Optional.of(running.id()))).map(TasteProfile::summary)
+                .contains("Swaggering indie and funk");
         assertThat(categories.findAll()).containsExactly(running.withRules("Fast and steady"));
     }
 }

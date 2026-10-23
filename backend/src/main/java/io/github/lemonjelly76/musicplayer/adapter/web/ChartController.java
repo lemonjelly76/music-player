@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The week's most played songs and albums, with the person's General ratings of them and their chart playlist.
+ * The week's most played songs and albums, with the person's Mainstream ratings of them and their chart playlist.
  */
 @RestController
 @RequestMapping("/api")

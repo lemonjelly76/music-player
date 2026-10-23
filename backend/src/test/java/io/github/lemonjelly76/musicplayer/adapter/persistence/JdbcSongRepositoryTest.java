@@ -46,7 +46,7 @@ class JdbcSongRepositoryTest {
         Category running = Category.create("Running", "");
         categories.save(running);
         LibrarySong song = LibrarySong.create(craig.id(), new Track(Provider.SPOTIFY, "t1", "Air", "Sexy Boy",
-                "Moon Safari", Optional.of("https://i/300"), Set.of(AudioFormat.HI_RES)), ActivityRating.general(Rating.LOVE, NOW),
+                "Moon Safari", Optional.of("https://i/300"), Set.of(AudioFormat.HI_RES)), ActivityRating.mainstream(Rating.LOVE, NOW),
                 LocalDate.of(2026, 10, 21));
         LibrarySong rerated = song.rated(new ActivityRating(Optional.of(running.id()), Rating.DISLIKE, "", NOW.plusSeconds(1)));
 

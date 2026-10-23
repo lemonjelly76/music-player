@@ -28,7 +28,7 @@ class ApiException(message: String, val unauthorized: Boolean = false) : IOExcep
 
 /**
  * The server's REST API, signed in with the household login. The apps only read what the model wrote and record
- * ratings; they never talk to the model itself. [category] is always a category id, or [GENERAL]. The login is read
+ * ratings; they never talk to the model itself. [category] is always a category id, or [MAINSTREAM]. The login is read
  * for each call, so a change in Settings applies at once.
  */
 class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) {
@@ -64,7 +64,7 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         send(HttpMethod.Delete, "api/categories/$categoryId", null)
     }
 
-    /** The person's latest lists of albums to try; [category] is a category id, or "none" for their general list. */
+    /** The person's latest lists of albums to try; [category] is a category id, or "none" for Mainstream's. */
     suspend fun lists(personId: String, category: String, limit: Int = 1): List<PickList> =
         Json.lists(get("api/people/$personId/lists", "category" to category, "limit" to limit.toString()))
 
@@ -100,7 +100,7 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
     suspend fun library(personId: String, category: String): List<LibraryAlbum> =
         Json.library(get("api/people/$personId/library", "category" to category))
 
-    /** What the person turned down for the activity, there or in General. */
+    /** What the person turned down for the activity, there or in Mainstream. */
     suspend fun disliked(personId: String, category: String): List<LibraryAlbum> =
         Json.library(get("api/people/$personId/library/disliked", "category" to category))
 
@@ -146,7 +146,7 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         Json.candidates(get("api/people/$personId/more-like-this",
             "artist" to artist, "title" to title, "category" to category))
 
-    /** What the person played over the last [days], all of it in General or from the activity's picks. */
+    /** What the person played over the last [days], all of it in Mainstream or from the activity's picks. */
     suspend fun listening(personId: String, category: String, days: Int): Listening =
         Json.listening(get("api/people/$personId/plays", "category" to category, "days" to days.toString()))
 
@@ -177,11 +177,11 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
 
     /**
      * Copies the activity's newest playlist to [service] from now on, or stops when it is null; [categoryId] null is
-     * General. Says how the first copy went.
+     * Mainstream. Says how the first copy went.
      */
     suspend fun copyPlaylists(personId: String, categoryId: String?, service: String?): String =
         Json.status(send(HttpMethod.Put, "api/people/$personId/playlist-copy",
-            buildJsonObject { put("service", service) }, "category" to (categoryId ?: GENERAL)))
+            buildJsonObject { put("service", service) }, "category" to (categoryId ?: MAINSTREAM)))
 
     private suspend fun get(path: String, vararg query: Pair<String, String>): String =
         send(HttpMethod.Get, path, null, *query)

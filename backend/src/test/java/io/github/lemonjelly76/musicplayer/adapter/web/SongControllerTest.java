@@ -68,21 +68,19 @@ class SongControllerTest {
     }
 
     private static LibrarySong lovedInGeneral(Track track) {
-        return LibrarySong.create(CRAIG.id(), track, ActivityRating.general(Rating.LOVE, NOW), LocalDate.of(2026, 10, 21));
+        return LibrarySong.create(CRAIG.id(), track, ActivityRating.mainstream(Rating.LOVE, NOW), LocalDate.of(2026, 10, 21));
     }
 
     @Test
-    void listsTheActivitysSongsWithWhetherTheRatingIsGenerals() {
+    void listsTheActivitysSongsWithTheirRatingThere() {
         given(songs.songsFor(CRAIG.id(), Optional.of(RUNNING.id()))).willReturn(List.of(
-                lovedInGeneral(SEXY_BOY).rated(new ActivityRating(Optional.of(RUNNING.id()), Rating.OK, "", NOW)),
-                lovedInGeneral(KELLY)));
+                lovedInGeneral(SEXY_BOY).rated(new ActivityRating(Optional.of(RUNNING.id()), Rating.OK, "", NOW))));
 
         assertThat(mvc.get().uri("/api/people/{id}/songs?category={c}", CRAIG.id(), RUNNING.id()))
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
                         [{"ref":"spotify:t1","title":"Sexy Boy","album":"Moon Safari","cover":"https://i/300",
-                          "link":"https://open.spotify.com/track/t1","rating":2,"general":false},
-                         {"ref":"spotify:t2","rating":3,"general":true}]""");
+                          "link":"https://open.spotify.com/track/t1","rating":2}]""");
     }
 
     @Test
@@ -93,7 +91,7 @@ class SongControllerTest {
         assertThat(mvc.get().uri("/api/people/{id}/songs/search?q=air&category=none", CRAIG.id()))
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
-                        [{"ref":"spotify:t1","rating":3,"general":false},{"ref":"spotify:t2","rating":null}]""");
+                        [{"ref":"spotify:t1","rating":3},{"ref":"spotify:t2","rating":null}]""");
     }
 
     @Test

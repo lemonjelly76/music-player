@@ -76,7 +76,7 @@ class SongServiceTest {
         assertThat(world.songs.songsFor(craig.id(), Optional.empty()))
                 .extracting(song -> song.track().title()).containsExactly("All I Need", "Remember");
         assertThat(world.songs.turnedDown(craig.id(), Optional.of(running.id())))
-                .containsExactlyInAnyOrder("air|talisman", "air|remember");
+                .containsExactly("air|talisman");
     }
 
     @Test

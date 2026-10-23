@@ -102,7 +102,7 @@ class RecommendationTools {
             annotations = @McpAnnotations(title = "Save recommendations", destructiveHint = false, openWorldHint = true))
     CallToolResult saveRecommendations(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Category name; leave out for their general list", required = false)
+            @McpToolParam(description = "Category name; leave out for Mainstream", required = false)
             String category,
             @McpToolParam(description = "The picks, about 7 from the pool and up to 3 wildcards") List<PickInput> items) {
         return attempt(() -> {

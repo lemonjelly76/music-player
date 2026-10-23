@@ -97,7 +97,7 @@ fun SearchScreen(ui: UiState, viewModel: MainViewModel, open: (String) -> Unit) 
     }
 }
 
-/** A search result with pills to rate it for the activity; a General rating standing in is named beneath. */
+/** A search result with pills to rate it for the activity. */
 @Composable
 private fun FoundRow(found: Found, activity: String, viewModel: MainViewModel, open: (String) -> Unit) {
     val album = found.album
@@ -106,12 +106,7 @@ private fun FoundRow(found: Found, activity: String, viewModel: MainViewModel, o
         MenuAction("More like this") { viewModel.moreLikeThis(album) },
     )
     AlbumRow(album, open, actions) {
-        val general = found.rating?.takeIf { found.general }
-        general?.let {
-            Text("${it.label} in General; rate it for $activity too", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        RatingPills(found.rating.takeIf { !found.general }) { viewModel.rate(album, it) }
+        RatingPills(found.rating) { viewModel.rate(album, it) }
     }
 }
 

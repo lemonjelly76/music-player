@@ -34,7 +34,7 @@ import io.github.lemonjelly76.musicplayer.data.Rating
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
 /**
- * Albums kept for other activities, or in General, shown one at a time with one tap to say whether each suits this
+ * Albums kept for other activities, or in Mainstream, shown one at a time with one tap to say whether each suits this
  * activity too, so activities soon differ from one another.
  */
 @Composable
@@ -80,10 +80,6 @@ private fun AlbumToSort(entry: LibraryAlbum, activity: String, open: (String) ->
         Text(album.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(listOfNotNull(album.artist, album.year?.toString()).joinToString(" · "),
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        entry.rating?.let {
-            Text(if (entry.general) "${it.label} in General" else it.label, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
         album.link?.let { link ->
             TextButton(onClick = { open(link) }, contentPadding = ButtonDefaults.TextButtonContentPadding) {
                 Text("Listen in ${serviceOfLink(link)}")

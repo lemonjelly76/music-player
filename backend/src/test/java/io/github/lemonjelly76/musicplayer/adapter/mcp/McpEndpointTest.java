@@ -106,6 +106,31 @@ class McpEndpointTest {
     }
 
     @Test
+    void keepsEachActivitysTasteApartWithMainstreamAsOneOfThem() throws Exception {
+        McpClient claude = new McpClient(endpoint(), BEARER).initialize();
+        claude.callTool("add_person", """
+                {"name":"Sam"}""");
+        claude.callTool("upsert_category", """
+                {"name":"Dinner","rules":"Relaxed, with vocals"}""");
+        claude.callTool("add_liked_album", """
+                {"person":"Sam","albumRef":"Boards of Canada — Music Has the Right to Children","category":"Dinner"}""");
+        claude.callTool("update_taste_profile", """
+                {"person":"Sam","category":"Dinner","summary":"Soft vocals","neverRecommend":["No metal"]}""");
+        claude.callTool("update_taste_profile", """
+                {"person":"Sam","summary":"Big pop hooks"}""");
+
+        String dinner = McpClient.text(claude.callTool("get_taste_profile", """
+                {"person":"Sam","category":"Dinner"}"""));
+        String mainstream = McpClient.text(claude.callTool("get_taste_profile", """
+                {"person":"Sam","category":"Mainstream"}"""));
+
+        assertThat(dinner).contains("\"activity\":\"Dinner\"", "Relaxed, with vocals", "Soft vocals", "No metal",
+                "Music Has the Right to Children").doesNotContain("Big pop hooks");
+        assertThat(mainstream).contains("\"activity\":\"Mainstream\"", "Big pop hooks")
+                .doesNotContain("Soft vocals", "No metal", "Music Has the Right to Children");
+    }
+
+    @Test
     void reportsAnUnknownPersonAsAToolError() throws Exception {
         JsonNode result = new McpClient(endpoint(), BASIC).initialize().callTool("get_library", """
                 {"person":"Nobody"}""");

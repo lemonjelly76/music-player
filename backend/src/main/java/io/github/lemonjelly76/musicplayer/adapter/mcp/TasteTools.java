@@ -31,6 +31,8 @@ import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.json;
 class TasteTools {
 
     static final int MAX_RATINGS = 40;
+    static final String CARRIED_OVER = "Copied from the one profile every activity used to share. Rewrite it with "
+            + "update_taste_profile from this activity's own ratings, leaving out what belongs to other activities.";
 
     private final PersonService people;
     private final TasteService taste;
@@ -46,38 +48,47 @@ class TasteTools {
     }
 
     @McpTool(name = "get_taste_profile",
-            description = "A person's taste profile: the summary you wrote last time, their 'never recommend' rules, "
-                    + "their most recent ratings (love, ok or dislike, per activity) with what they said, and, given "
-                    + "a category, its rules. Read this before choosing albums for them.",
+            description = "A person's taste for one activity (Mainstream when none is given): the summary you wrote "
+                    + "for it last time, its 'never recommend' rules, their most recent ratings for it (love, ok or "
+                    + "dislike) with what they said, and the activity's rules. Each activity's taste is its own: "
+                    + "never carry what they like for one over to another. Read this before choosing for them.",
             annotations = @McpAnnotations(title = "Taste profile", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getTasteProfile(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Category name, e.g. Running", required = false) String category) {
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for Mainstream", required = false)
+            String category) {
         return attempt(() -> {
             Person who = people.find(person);
-            Optional<Category> forCategory = categories.findOptional(category);
-            TasteProfile profile = taste.profile(who.id());
-            return json(new ProfileView(who.name(), profile.summary(), profile.neverRecommend(),
-                    profile.updatedAt().orElse(null), forCategory.map(CategoryView::from).orElse(null),
-                    recentRatings(who)));
+            Optional<Category> activity = categories.findOptional(category);
+            Optional<CategoryId> id = activity.map(Category::id);
+            TasteProfile profile = taste.profile(who.id(), id);
+            return json(new ProfileView(who.name(), activity.map(Category::name).orElse(Category.MAINSTREAM),
+                    activity.map(Category::rules).orElse(null), profile.summary(),
+                    profile.carriedOver() ? CARRIED_OVER : null, profile.neverRecommend(),
+                    profile.updatedAt().orElse(null), recentRatings(who, id)));
         });
     }
 
     @McpTool(name = "update_taste_profile",
-            description = "Rewrites a person's taste profile after a conversation or new feedback. Write the whole "
-                    + "summary again, not just what changed. Rules replace the old ones only when given.",
+            description = "Rewrites a person's taste for one activity (Mainstream when none is given) after a "
+                    + "conversation or new ratings for it. Write the whole summary again, from that activity's "
+                    + "ratings and what they said about it only. Rules replace the old ones only when given.",
             annotations = @McpAnnotations(title = "Update taste profile", idempotentHint = true, openWorldHint = false))
     CallToolResult updateTasteProfile(
             @McpToolParam(description = "Name or id from list_people") String person,
             @McpToolParam(description = "The full profile: genres, eras, moods, what they love and dislike, and why")
             String summary,
             @McpToolParam(description = "Hard rules, e.g. ['No Christmas albums', 'Nothing by Coldplay']",
-                    required = false) List<String> neverRecommend) {
+                    required = false) List<String> neverRecommend,
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for Mainstream", required = false)
+            String category) {
         return attempt(() -> {
-            TasteProfile profile = taste.rewrite(people.find(person).id(), ToolInputs.text(summary),
-                    Optional.ofNullable(neverRecommend));
-            return json(Map.of("summary", profile.summary(), "neverRecommend", profile.neverRecommend()));
+            Optional<Category> activity = categories.findOptional(category);
+            TasteProfile profile = taste.rewrite(people.find(person).id(), activity.map(Category::id),
+                    ToolInputs.text(summary), Optional.ofNullable(neverRecommend));
+            return json(Map.of("activity", activity.map(Category::name).orElse(Category.MAINSTREAM),
+                    "summary", profile.summary(), "neverRecommend", profile.neverRecommend()));
         });
     }
 
@@ -101,24 +112,22 @@ class TasteTools {
         return attempt(() -> json(CategoryView.from(categories.upsert(ToolInputs.text(name), ToolInputs.text(rules)))));
     }
 
-    private List<RatedView> recentRatings(Person person) {
-        Map<CategoryId, String> names = categories.names();
+    private List<RatedView> recentRatings(Person person, Optional<CategoryId> activity) {
         record Rated(LibraryAlbum entry, ActivityRating rating) {
         }
         return library.entries(person.id()).stream()
-                .flatMap(entry -> entry.ratings().stream().map(rating -> new Rated(entry, rating)))
+                .flatMap(entry -> entry.own(activity).stream().map(rating -> new Rated(entry, rating)))
                 .sorted(Comparator.comparing((Rated rated) -> rated.rating().ratedAt()).reversed())
                 .limit(MAX_RATINGS)
-                .map(rated -> new RatedView(AlbumView.from(rated.entry().album()),
-                        Views.activityName(rated.rating().category(), names), rated.rating().rating().word(),
+                .map(rated -> new RatedView(AlbumView.from(rated.entry().album()), rated.rating().rating().word(),
                         rated.rating().comment(), rated.rating().ratedAt()))
                 .toList();
     }
 
-    record ProfileView(String person, String summary, List<String> neverRecommend, Instant updatedAt,
-                       CategoryView category, List<RatedView> recentRatings) {
+    record ProfileView(String person, String activity, String rules, String summary, String note,
+                       List<String> neverRecommend, Instant updatedAt, List<RatedView> recentRatings) {
     }
 
-    record RatedView(AlbumView album, String activity, String rating, String comment, Instant at) {
+    record RatedView(AlbumView album, String rating, String comment, Instant at) {
     }
 }

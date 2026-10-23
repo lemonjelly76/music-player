@@ -107,12 +107,12 @@ class SpotifyAdapterTest {
                 {"id":"new-playlist"}""")));
         spotify.stubFor(post(urlPathEqualTo("/v1/playlists/new-playlist/items")).willReturn(okJson("{}")));
 
-        String id = provider.replacePlaylist(CRAIG.id(), Optional.of("old"), "AI Picks", "For Craig", List.of("1", "2"));
+        String id = provider.replacePlaylist(CRAIG.id(), Optional.of("old"), "AI Picks — Mainstream", "For Craig", List.of("1", "2"));
 
         assertThat(id).isEqualTo("new-playlist");
         spotify.verify(deleteRequestedFor(urlPathEqualTo("/v1/playlists/old/followers")));
         spotify.verify(postRequestedFor(urlPathEqualTo("/v1/me/playlists")).withRequestBody(equalToJson("""
-                {"name":"AI Picks","description":"For Craig","public":false}""")));
+                {"name":"AI Picks — Mainstream","description":"For Craig","public":false}""")));
         spotify.verify(postRequestedFor(urlPathEqualTo("/v1/playlists/new-playlist/items")).withRequestBody(equalToJson("""
                 {"uris":["spotify:track:1","spotify:track:2"]}""")));
     }

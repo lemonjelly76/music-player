@@ -35,15 +35,7 @@ public record LibrarySong(LibrarySongId id, PersonId person, Track track, List<A
     }
 
     /**
-     * The activity's own rating, else the General one, as a hint where it has none of its own.
-     */
-    public Optional<ActivityRating> ownOrGeneral(Optional<CategoryId> category) {
-        return ActivityRatings.ownOrGeneral(ratings, category);
-    }
-
-    /**
-     * Whether the person turned it down for the activity, or in General with no rating for the activity to say
-     * otherwise, so it is left out of what is made for it.
+     * Whether the person turned it down for the activity, so it is left out of what is made for it.
      */
     public boolean avoidedFor(Optional<CategoryId> category) {
         return ActivityRatings.avoidedFor(ratings, category);

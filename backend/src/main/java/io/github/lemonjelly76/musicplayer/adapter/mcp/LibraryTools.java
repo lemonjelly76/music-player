@@ -8,6 +8,7 @@ import io.github.lemonjelly76.musicplayer.application.LibraryService;
 import io.github.lemonjelly76.musicplayer.application.MusicProviders;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
+import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryFilter;
@@ -47,10 +48,10 @@ class LibraryTools {
     }
 
     /**
-     * "General" is the rating that is not for one activity.
+     * Mainstream, by its name or as General, is the activity that is no category.
      */
     private Optional<CategoryId> activity(String category) {
-        return category.strip().equalsIgnoreCase(Views.GENERAL)
+        return Category.meansMainstream(category)
                 ? Optional.empty()
                 : Optional.of(categories.find(category).id());
     }
@@ -83,7 +84,7 @@ class LibraryTools {
     }
 
     @McpTool(name = "add_liked_album",
-            description = "Saves an album a person likes to their library, rated for an activity (General when none "
+            description = "Saves an album a person likes to their library, rated for an activity (Mainstream when none "
                     + "is given; love when no rating is given), and to their streaming favourites when loved. An "
                     + "album already there keeps its notes and tags and takes the new rating.",
             annotations = @McpAnnotations(title = "Add liked album", destructiveHint = false, openWorldHint = true))
@@ -92,7 +93,7 @@ class LibraryTools {
             @McpToolParam(description = "A ref from search_catalogue, e.g. spotify:4LH4d3cOWNNsVw41Gqt2kv, or "
                     + "'Artist — Title'") String albumRef,
             @McpToolParam(description = "love (default), ok or dislike", required = false) String rating,
-            @McpToolParam(description = "Activity name, e.g. Running; leave out for General", required = false)
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for Mainstream", required = false)
             String category,
             @McpToolParam(description = "Why they like it, in their words", required = false) String notes,
             @McpToolParam(description = "Tags such as genre, mood or era, e.g. ['britpop', '90s']", required = false)
@@ -111,16 +112,16 @@ class LibraryTools {
     @McpTool(name = "rate_album",
             description = "Records how much a person likes an album for an activity: love (it joins that activity's "
                     + "library and leads to similar albums), ok (kept, not used to find more) or dislike (never "
-                    + "recommended for that activity). Without an activity it is the General rating, which counts "
-                    + "for every activity without its own. 'none' removes the rating. Use it whenever they say what "
-                    + "they think of an album or a pick, with what they said as the comment.",
+                    + "recommended for that activity). Without an activity it is the Mainstream rating, which, like "
+                    + "any activity's, counts for Mainstream only. 'none' removes the rating. Use it whenever they "
+                    + "say what they think of an album or a pick, with what they said as the comment.",
             annotations = @McpAnnotations(title = "Rate album", idempotentHint = true, openWorldHint = true))
     CallToolResult rateAlbum(
             @McpToolParam(description = "Name or id from list_people") String person,
             @McpToolParam(description = "A ref from get_recommendations, get_library or search_catalogue, or "
                     + "'Artist — Title'") String albumRef,
             @McpToolParam(description = "love, ok, dislike, or none to remove") String rating,
-            @McpToolParam(description = "Activity name, e.g. Running; leave out for General", required = false)
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for Mainstream", required = false)
             String category,
             @McpToolParam(description = "What they said about it", required = false) String comment) {
         return attempt(() -> {
@@ -161,13 +162,13 @@ class LibraryTools {
 
     @McpTool(name = "get_library",
             description = "Lists a person's albums with their ratings per activity, notes, tags and date added. With "
-                    + "an activity, only albums they love or rate ok for it (or in General), loved first; without, "
+                    + "an activity, only albums they love or rate ok for it, loved first; without, "
                     + "every album they have rated, disliked ones included.",
             annotations = @McpAnnotations(title = "Library", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getLibrary(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Activity name, or General", required = false) String category,
+            @McpToolParam(description = "Activity name, or Mainstream", required = false) String category,
             @McpToolParam(description = "Only albums with this tag", required = false) String tag,
             @McpToolParam(description = "Only albums from this decade, e.g. 1990", required = false) Integer decade,
             @McpToolParam(description = "Only albums by artists whose name contains this", required = false)

@@ -22,7 +22,7 @@ class LibrarySongTest {
             Optional.empty());
 
     private static LibrarySong lovedInGeneral() {
-        return LibrarySong.create(PersonId.random(), SEXY_BOY, ActivityRating.general(Rating.LOVE, NOW),
+        return LibrarySong.create(PersonId.random(), SEXY_BOY, ActivityRating.mainstream(Rating.LOVE, NOW),
                 LocalDate.of(2026, 10, 21));
     }
 
@@ -32,10 +32,19 @@ class LibrarySongTest {
 
         assertThat(song.own(RUNNING)).map(ActivityRating::rating).contains(Rating.DISLIKE);
         assertThat(song.own(DINNER)).isEmpty();
-        assertThat(song.ownOrGeneral(DINNER)).map(ActivityRating::rating).contains(Rating.LOVE);
+        assertThat(song.avoidedFor(DINNER)).isFalse();
         assertThat(song.keptFor(RUNNING)).isFalse();
         assertThat(song.keptFor(DINNER)).isFalse();
         assertThat(song.keptFor(Optional.empty())).isTrue();
+    }
+
+    @Test
+    void notForMeInMainstreamKeepsASongOutOfMainstreamOnly() {
+        LibrarySong song = LibrarySong.create(PersonId.random(), SEXY_BOY, ActivityRating.mainstream(Rating.DISLIKE, NOW),
+                LocalDate.of(2026, 10, 21));
+
+        assertThat(song.avoidedFor(Optional.empty())).isTrue();
+        assertThat(song.avoidedFor(RUNNING)).isFalse();
     }
 
     @Test

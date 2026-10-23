@@ -82,7 +82,7 @@ class JdbcCategoryRemovalTest {
         onlyForExplore = LibraryAlbum.create(craig.id(), AlbumRef.of("Stan Getz", "Getz/Gilberto"),
                 new ActivityRating(Optional.of(explore.id()), Rating.LOVE, "", NOW), "", List.of(), LocalDate.of(2026, 10, 21));
         alsoInGeneral = LibraryAlbum.create(craig.id(), AlbumRef.of("Air", "Moon Safari"),
-                ActivityRating.general(Rating.LOVE, NOW), "", List.of(), LocalDate.of(2026, 10, 21))
+                ActivityRating.mainstream(Rating.LOVE, NOW), "", List.of(), LocalDate.of(2026, 10, 21))
                 .rated(new ActivityRating(Optional.of(explore.id()), Rating.OK, "", NOW));
         library.save(onlyForExplore);
         library.save(alsoInGeneral);
@@ -93,7 +93,7 @@ class JdbcCategoryRemovalTest {
                 NOW));
         songs.save(LibrarySong.create(craig.id(), IPANEMA, new ActivityRating(Optional.of(explore.id()), Rating.LOVE,
                 "", NOW), LocalDate.of(2026, 10, 21)));
-        songs.save(LibrarySong.create(craig.id(), SEXY_BOY, ActivityRating.general(Rating.OK, NOW),
+        songs.save(LibrarySong.create(craig.id(), SEXY_BOY, ActivityRating.mainstream(Rating.OK, NOW),
                 LocalDate.of(2026, 10, 21)).rated(new ActivityRating(Optional.of(explore.id()), Rating.LOVE, "", NOW)));
         plays.add(craig.id(), List.of(new CategorisedPlay(new Play(AlbumRef.of("Stan Getz", "Getz/Gilberto"), NOW,
                 "spotify", Optional.of("pl")), Optional.of(explore.id()))));

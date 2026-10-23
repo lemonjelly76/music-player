@@ -43,14 +43,14 @@ import java.util.Optional;
 
 /**
  * The app's picks, library, ratings and "More like this". The app never talks to the model; it reads what the model
- * wrote (ADR-004). Activities are category ids; "none", or leaving one out, is General.
+ * wrote (ADR-004). Activities are category ids; "none", or leaving one out, is Mainstream.
  */
 @RestController
 @RequestMapping("/api")
 class MusicController {
 
     static final int MAX_LIMIT = 50;
-    static final String GENERAL = ActivityParameter.GENERAL;
+    static final String MAINSTREAM = ActivityParameter.MAINSTREAM;
     /**
      * Albums looked up on the person's service each time a screen opens, so ids and covers fill in a few at a time.
      */
@@ -84,7 +84,7 @@ class MusicController {
         List<RecommendationList> lists;
         if (category == null || category.isBlank()) {
             lists = recommendations.history(person, limit(limit));
-        } else if (category.equals(GENERAL)) {
+        } else if (category.equals(MAINSTREAM)) {
             lists = recommendations.history(person, MAX_LIMIT).stream()
                     .filter(list -> list.category().isEmpty()).limit(limit(limit)).toList();
         } else {
@@ -98,7 +98,7 @@ class MusicController {
     }
 
     /**
-     * The person's library for the activity: albums they love or rate OK there (or in General), loved first.
+     * The person's library for the activity: albums they love or rate OK there, loved first.
      */
     @GetMapping("/people/{id}/library")
     List<LibraryAlbumResponse> library(@PathVariable String id, @RequestParam(required = false) String category) {
@@ -123,7 +123,7 @@ class MusicController {
     }
 
     /**
-     * Albums kept for other activities, or in General, that the person has not yet rated for this one.
+     * Albums kept for other activities that the person has not yet rated for this one.
      */
     @GetMapping("/people/{id}/library/to-sort")
     List<LibraryAlbumResponse> toSort(@PathVariable String id, @RequestParam(required = false) String category) {

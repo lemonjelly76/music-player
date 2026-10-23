@@ -10,7 +10,6 @@ import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
 import io.github.lemonjelly76.musicplayer.domain.chart.ChartPlaylist;
 import io.github.lemonjelly76.musicplayer.domain.chart.ResolvedChart;
-import io.github.lemonjelly76.musicplayer.domain.library.ActivityRating;
 import io.github.lemonjelly76.musicplayer.domain.library.LibraryAlbum;
 import io.github.lemonjelly76.musicplayer.domain.library.LibrarySong;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
@@ -138,18 +137,15 @@ final class Responses {
     }
 
     /**
-     * An album in the library for one activity, with its rating there; {@code general} when that rating is the
-     * General one standing in for the activity's own.
+     * An album in the library, with its rating for the activity, when it has one there.
      */
-    record LibraryAlbumResponse(String id, AlbumResponse album, Integer rating, boolean general, String notes,
+    record LibraryAlbumResponse(String id, AlbumResponse album, Integer rating, String notes,
                                 SortedSet<String> tags, LocalDate addedOn) {
 
         static LibraryAlbumResponse from(LibraryAlbum entry, Optional<CategoryId> activity,
                 Links links) {
-            Optional<ActivityRating> rating = entry.ownOrGeneral(activity);
             return new LibraryAlbumResponse(entry.id().toString(), AlbumResponse.from(entry.album(), links),
-                    rating.map(found -> found.rating().value()).orElse(null),
-                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false), entry.notes(),
+                    entry.own(activity).map(found -> found.rating().value()).orElse(null), entry.notes(),
                     entry.tags(), entry.addedOn());
         }
     }
@@ -157,14 +153,12 @@ final class Responses {
     /**
      * A catalogue search result with the person's rating of it for the activity, when the album is in their library.
      */
-    record FoundResponse(AlbumResponse album, Integer rating, boolean general) {
+    record FoundResponse(AlbumResponse album, Integer rating) {
 
         static FoundResponse from(AlbumRef album, Optional<LibraryAlbum> entry, Optional<CategoryId> activity,
                 Links links) {
-            Optional<ActivityRating> rating = entry.flatMap(found -> found.ownOrGeneral(activity));
             return new FoundResponse(AlbumResponse.from(album, links),
-                    rating.map(found -> found.rating().value()).orElse(null),
-                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false));
+                    entry.flatMap(found -> found.own(activity)).map(found -> found.rating().value()).orElse(null));
         }
     }
 
@@ -207,19 +201,17 @@ final class Responses {
 
     /**
      * A song as {@code ref} ({@code spotify:<id>} or {@code tidal:<id>}), with the person's rating of it (1 to 3) for
-     * the activity; {@code general} when that is the General rating standing in for the activity's own.
+     * the activity, when it has one there.
      */
     record TrackResponse(String ref, String id, String artist, String title, String album, String cover, String link,
-                         Integer rating, boolean general, List<String> formats, List<LinkResponse> elsewhere) {
+                         Integer rating, List<String> formats, List<LinkResponse> elsewhere) {
 
         static TrackResponse from(Track track, Optional<LibrarySong> song, Optional<CategoryId> activity,
                 Links links) {
-            Optional<ActivityRating> rating = song.flatMap(found -> found.ownOrGeneral(activity));
             return new TrackResponse(track.provider().prefix() + ":" + track.id(), track.id(), track.artist(),
                     track.title(), track.album(), track.cover().orElse(null),
                     links.track().apply(track).map(URI::toString).orElse(null),
-                    rating.map(found -> found.rating().value()).orElse(null),
-                    activity.isPresent() && rating.map(ActivityRating::isGeneral).orElse(false),
+                    song.flatMap(found -> found.own(activity)).map(found -> found.rating().value()).orElse(null),
                     names(track.formats()), LinkResponse.all(links.trackElsewhere().apply(track)));
         }
     }
@@ -228,7 +220,7 @@ final class Responses {
     }
 
     /**
-     * The week's chart, its songs and albums at their chart places with the person's General rating of each, and
+     * The week's chart, its songs and albums at their chart places with the person's Mainstream rating of each, and
      * their chart playlist; {@code updatedAt} is null, and the lists empty, until the chart is first fetched.
      */
     record ChartResponse(String country, Instant updatedAt, boolean playlistWanted, String playlistLink,
@@ -237,17 +229,17 @@ final class Responses {
         static ChartResponse from(Optional<ResolvedChart> chart, ChartPlaylist playlist, Optional<URI> playlistLink,
                 Map<String, LibrarySong> songs, Map<AlbumKey, LibraryAlbum> albums,
                 Links links) {
-            Optional<CategoryId> general = Optional.empty();
+            Optional<CategoryId> mainstream = Optional.empty();
             return new ChartResponse(chart.map(ResolvedChart::country).orElse(null),
                     chart.map(ResolvedChart::fetchedAt).orElse(null), playlist.wanted(),
                     playlistLink.map(URI::toString).orElse(null),
                     chart.map(ResolvedChart::songs).orElse(List.of()).stream()
                             .map(song -> new ChartSongResponse(song.position(), TrackResponse.from(song.track(),
-                                    Optional.ofNullable(songs.get(song.track().songKey())), general, links)))
+                                    Optional.ofNullable(songs.get(song.track().songKey())), mainstream, links)))
                             .toList(),
                     chart.map(ResolvedChart::albums).orElse(List.of()).stream()
                             .map(found -> new ChartAlbumResponse(found.position(), FoundResponse.from(found.album(),
-                                    Optional.ofNullable(albums.get(found.album().key())), general, links)))
+                                    Optional.ofNullable(albums.get(found.album().key())), mainstream, links)))
                             .toList());
         }
     }

@@ -49,7 +49,7 @@ public class LibraryService {
     }
 
     /**
-     * The person's library for one activity (none for General): albums rated love or OK there, loved first.
+     * The person's library for one activity (none for Mainstream): albums rated love or OK there, loved first.
      */
     public List<LibraryAlbum> libraryFor(PersonId person, Optional<CategoryId> activity, LibraryFilter filter) {
         return repository.findByPerson(person).stream()
@@ -75,23 +75,26 @@ public class LibraryService {
     }
 
     /**
-     * What to leave out of anything made for the activity: turned down there, or in General with no rating there.
+     * What to leave out of anything made for the activity: what was turned down there.
      */
     public List<LibraryAlbum> avoidedFor(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream().filter(entry -> entry.avoidedFor(activity)).toList();
     }
 
     /**
-     * Albums the person keeps for some activity but has not rated for this one, to sort through quickly: loved in
-     * General first, then OK in General, then those kept only for other activities.
+     * Albums the person keeps for some activity but has not rated for this one, to sort through quickly: those loved
+     * somewhere first.
      */
     public List<LibraryAlbum> toSortFor(PersonId person, Optional<CategoryId> activity) {
         return repository.findByPerson(person).stream()
                 .filter(entry -> entry.own(activity).isEmpty())
                 .filter(entry -> entry.ratings().stream().anyMatch(found -> found.rating().keeps()))
-                .sorted(Comparator.comparing((LibraryAlbum entry) -> entry.ownOrGeneral(activity)
-                        .map(found -> found.rating().value()).orElse(0)).reversed().thenComparing(BY_ARTIST))
+                .sorted(Comparator.comparing(LibraryService::bestRating).reversed().thenComparing(BY_ARTIST))
                 .toList();
+    }
+
+    private static int bestRating(LibraryAlbum entry) {
+        return entry.ratings().stream().mapToInt(found -> found.rating().value()).max().orElse(0);
     }
 
     public List<LibraryAlbum> entries(PersonId person) {
@@ -115,7 +118,7 @@ public class LibraryService {
     }
 
     /**
-     * Adds an album the person likes, rated for the activity (General when none), and saves it to their streaming
+     * Adds an album the person likes, rated for the activity (Mainstream when none), and saves it to their streaming
      * favourites when loved. An album already there keeps its notes and tags and takes the new rating.
      */
     public Added add(Person person, String reference, Optional<Category> activity, Rating rating, String notes,
@@ -130,7 +133,7 @@ public class LibraryService {
     }
 
     /**
-     * Rates an album for an activity (General when none), adding it when new. An empty rating takes the activity's
+     * Rates an album for an activity (Mainstream when none), adding it when new. An empty rating takes the activity's
      * own rating away; an album left with no rating at all leaves the library.
      */
     public Optional<LibraryAlbum> rate(Person person, String reference, Optional<Category> activity,
@@ -192,7 +195,7 @@ public class LibraryService {
         for (AlbumRef album : service.favouriteAlbums(person.id())) {
             if (known.add(album.key())) {
                 repository.save(LibraryAlbum.create(person.id(), album,
-                        ActivityRating.general(Rating.LOVE, clock.instant()), "", List.of("imported"), today));
+                        ActivityRating.mainstream(Rating.LOVE, clock.instant()), "", List.of("imported"), today));
                 added++;
             } else {
                 skipped++;

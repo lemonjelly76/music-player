@@ -33,7 +33,7 @@ class PlaylistTest {
         Playlist general = Playlist.create(PersonId.random(), Optional.empty(), "", tracks(3), NOW);
 
         assertThat(running.name()).isEqualTo("AI Picks — Running");
-        assertThat(general.name()).isEqualTo("AI Picks");
+        assertThat(general.name()).isEqualTo("AI Picks — Mainstream");
     }
 
     @Test

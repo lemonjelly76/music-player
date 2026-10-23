@@ -9,7 +9,7 @@ import io.github.lemonjelly76.musicplayer.data.Candidate
 import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.Charts
 import io.github.lemonjelly76.musicplayer.data.Found
-import io.github.lemonjelly76.musicplayer.data.GENERAL
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
@@ -62,8 +62,8 @@ data class UiState(
     val personId: String? = null,
     val categories: List<Category> = emptyList(),
     val services: List<Service> = emptyList(),
-    /** The chosen category's id, or [GENERAL]. */
-    val category: String = GENERAL,
+    /** The chosen category's id, or [MAINSTREAM]. */
+    val category: String = MAINSTREAM,
     /** Whether the server answered with the saved login, so its settings can fold away. */
     val serverConnected: Boolean = false,
     /** The activity's lists of albums to try, newest first. */
@@ -79,7 +79,7 @@ data class UiState(
     val songs: List<Track> = emptyList(),
     val search: Search = Search(),
     val sorting: SortSession? = null,
-    /** The week's chart, for Home on General; null until it comes or if the server has none. */
+    /** The week's chart, for Home on Mainstream; null until it comes or if the server has none. */
     val charts: Charts? = null,
     /** What the person played most for the activity lately, for Home; null until it comes or if it fails. */
     val onRepeat: Listening? = null,
@@ -96,10 +96,10 @@ data class UiState(
 ) {
     val person: Person? get() = people.firstOrNull { it.id == personId }
     val chosenCategory: Category? get() = categories.firstOrNull { it.id == category }
-    val activityName: String get() = chosenCategory?.name ?: "General"
+    val activityName: String get() = chosenCategory?.name ?: "Mainstream"
     val latest: PickList? get() = lists.firstOrNull()
     /** The chosen activity's copy, when its playlists are copied to another service. */
-    val copy: PlaylistCopy? get() = copies.firstOrNull { (it.categoryId ?: GENERAL) == category }
+    val copy: PlaylistCopy? get() = copies.firstOrNull { (it.categoryId ?: MAINSTREAM) == category }
 }
 
 /** What both apps show and do; [http] is closed with the view model. */
@@ -129,7 +129,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
             Triple(people.await(), categories.await(), services.await())
         }
         val chosen = people.firstOrNull { it.id == state.value.personId } ?: people.firstOrNull()
-        val category = state.value.category.takeIf { id -> id == GENERAL || categories.any { it.id == id } } ?: GENERAL
+        val category = state.value.category.takeIf { id -> id == MAINSTREAM || categories.any { it.id == id } } ?: MAINSTREAM
         state.update {
             it.copy(people = people, categories = categories, services = services, personId = chosen?.id,
                 category = category, serverConnected = true)
@@ -189,7 +189,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
         if (state.value.category == id) loadLists()
     }
 
-    /** Removes the activity for the whole household; showing it, the app goes back to General. */
+    /** Removes the activity for the whole household; showing it, the app goes back to Mainstream. */
     fun removeCategory(id: String) {
         val removed = state.value.categories.firstOrNull { it.id == id } ?: return
         load {
@@ -197,7 +197,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
             state.update {
                 it.copy(categories = it.categories - removed, message = "${removed.name} removed")
             }
-            if (state.value.category == id) chooseCategory(GENERAL)
+            if (state.value.category == id) chooseCategory(MAINSTREAM)
         }
     }
 
@@ -247,9 +247,9 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
                     list.copy(picks = list.picks.map { if (it.album.ref == album.ref) it.copy(rating = rating) else it })
                 },
                 search = current.search.copy(results = current.search.results?.map {
-                    if (it.album.ref == album.ref) it.copy(rating = rating, general = false) else it
+                    if (it.album.ref == album.ref) it.copy(rating = rating) else it
                 }),
-                charts = current.charts?.takeIf { current.category == GENERAL }?.let { charts ->
+                charts = current.charts?.takeIf { current.category == MAINSTREAM }?.let { charts ->
                     charts.copy(albums = charts.albums.map {
                         if (it.album.album.ref == album.ref) it.copy(album = it.album.copy(rating = rating)) else it
                     })
@@ -290,28 +290,22 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
 
     /**
      * Rates a song for the chosen activity; null takes the rating away. Playlists and search show it at once, and
-     * the activity's songs are reloaded, as is everything when a rating is taken away and General may stand in.
+     * the activity's songs are reloaded.
      */
     fun rateSong(track: Track, rating: Rating?) = load {
         val personId = state.value.personId ?: return@load
         api.rateSong(personId, track, state.value.category, rating)
-        val rated = { song: Track -> if (song.ref == track.ref) song.copy(rating = rating, general = false) else song }
+        val rated = { song: Track -> if (song.ref == track.ref) song.copy(rating = rating) else song }
         state.update { current ->
             current.copy(
                 playlists = current.playlists.map { playlist -> playlist.copy(tracks = playlist.tracks.map(rated)) },
                 search = current.search.copy(songs = current.search.songs?.map(rated)),
-                charts = current.charts?.takeIf { current.category == GENERAL }
+                charts = current.charts?.takeIf { current.category == MAINSTREAM }
                     ?.let { charts -> charts.copy(songs = charts.songs.map { it.copy(song = rated(it.song)) }) }
                     ?: current.charts,
             )
         }
-        coroutineScope {
-            launch { reloadLibrary(personId) }
-            if (rating == null) {
-                launch { loadLists() }
-                launch { searchAgain() }
-            }
-        }
+        reloadLibrary(personId)
     }
 
     /** Goes through the albums to sort for the chosen activity, one at a time. */
@@ -372,7 +366,7 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
     /** Copies the activity's newest playlist to [service] from now on, or stops when it is null. */
     fun copyPlaylists(service: String?) = load {
         val personId = state.value.personId ?: return@load
-        val status = api.copyPlaylists(personId, state.value.category.takeUnless { it == GENERAL }, service)
+        val status = api.copyPlaylists(personId, state.value.category.takeUnless { it == MAINSTREAM }, service)
         loadCopies(personId)
         state.update { it.copy(message = status.replaceFirstChar { first -> first.uppercase() }) }
     }

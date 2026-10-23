@@ -113,7 +113,7 @@ class ApiClientTest {
         val song = Track("t1", "Air", "Sexy Boy", "Moon Safari", null, null, ref = "spotify:t1")
 
         api.rateSong("1", song, "c1", Rating.LOVE)
-        api.searchSongs("1", "sexy boy", GENERAL)
+        api.searchSongs("1", "sexy boy", MAINSTREAM)
         api.songs("1", "c1")
 
         val (rate, search, songs) = requests
@@ -193,7 +193,7 @@ class ApiClientTest {
         val api = client { json("[]") }
 
         api.disliked("1", "c1")
-        api.toSort("1", GENERAL)
+        api.toSort("1", MAINSTREAM)
 
         assertEquals(listOf("https://pc.tailnet.ts.net:8444/api/people/1/library/disliked?category=c1",
             "https://pc.tailnet.ts.net:8444/api/people/1/library/to-sort?category=none"),
@@ -205,7 +205,7 @@ class ApiClientTest {
         val api = client { json("{}") }
 
         api.rate("1", "tidal:9", "c1", Rating.LOVE)
-        api.rate("1", "tidal:9", GENERAL, null)
+        api.rate("1", "tidal:9", MAINSTREAM, null)
 
         val (love, removal) = requests
         assertEquals(HttpMethod.Post, love.method)

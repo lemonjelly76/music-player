@@ -38,7 +38,7 @@ public record RecommendationList(RecommendationListId id, PersonId person, Optio
      * Predictable names, so "Hey Google, play AI Picks — Running" finds the list on the streaming service.
      */
     public static String nameFor(Optional<Category> category) {
-        return category.map(found -> BASE_NAME + " — " + found.name()).orElse(BASE_NAME);
+        return BASE_NAME + " — " + category.map(Category::name).orElse(Category.MAINSTREAM);
     }
 
     public RecommendationList syncedTo(SyncedPlaylist synced) {

@@ -112,16 +112,16 @@ final class FakePorts {
 
     static final class Profiles implements TasteProfileRepository {
 
-        final Map<PersonId, TasteProfile> saved = new HashMap<>();
+        final Map<List<Object>, TasteProfile> saved = new HashMap<>();
 
         @Override
-        public Optional<TasteProfile> find(PersonId person) {
-            return Optional.ofNullable(saved.get(person));
+        public Optional<TasteProfile> find(PersonId person, Optional<CategoryId> category) {
+            return Optional.ofNullable(saved.get(List.of(person, category)));
         }
 
         @Override
         public void save(TasteProfile profile) {
-            saved.put(profile.person(), profile);
+            saved.put(List.of(profile.person(), profile.category()), profile);
         }
     }
 

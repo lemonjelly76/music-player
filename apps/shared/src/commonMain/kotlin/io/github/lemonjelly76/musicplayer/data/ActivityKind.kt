@@ -5,7 +5,7 @@ package io.github.lemonjelly76.musicplayer.data
  * Claude creates without the server knowing about icons.
  */
 enum class ActivityKind(private val words: Set<String>) {
-    GENERAL(emptySet()),
+    MAINSTREAM(emptySet()),
     RUNNING(setOf("run", "runs", "running", "jog", "jogging", "marathon")),
     WORKOUT(setOf("workout", "gym", "training", "lifting", "cycling", "ride")),
     CHILL(setOf("chill", "relax", "relaxing", "calm", "unwind", "sunday", "lazy")),

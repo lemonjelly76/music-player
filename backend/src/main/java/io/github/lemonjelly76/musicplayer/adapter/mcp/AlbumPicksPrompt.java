@@ -31,9 +31,10 @@ class AlbumPicksPrompt {
         String text = """
                 Pick about 10 albums %1$s will love%2$s.
 
-                1. Read get_taste_profile (person %1$s%3$s) for their profile, rules, recent ratings and the \
-                category's rules, and get_play_stats for what they keep replaying (if it returns nothing, they \
-                have turned counting off; leave it at that).
+                1. Read get_taste_profile (person %1$s%3$s) for their taste for this activity alone, its rules and \
+                recent ratings: each activity's taste is its own, so carry nothing over from the others. Then read \
+                get_play_stats for what they keep replaying (if it returns nothing, they have turned counting off; \
+                leave it at that).
                 2. Read get_candidates (person %1$s%3$s): the server's filtered, ranked pool.
                 3. Choose about 7 from the pool and up to 3 wildcards of your own: deep cuts and older or less \
                 obvious albums the similarity data misses. Whole albums, not compilations, unless they ask. Follow \
@@ -42,8 +43,8 @@ class AlbumPicksPrompt {
                 something specific in their taste. Use the pool's refs; give wildcards as 'Artist — Title'.
                 5. Tell them the list, and anything dropped and why. Replace a dropped pick if you can. The                 albums show in their app to open and rate; for songs to play straight through, the playlist prompt                 makes a playlist.
                 6. When they say what they think of a pick, record it with rate_album (love, ok or dislike) for \
-                that activity. If what they told you changes your picture of their taste, rewrite it with \
-                update_taste_profile."""
+                that activity. If what they told you changes your picture of their taste for it, rewrite \
+                that activity's profile with update_taste_profile (person %1$s%3$s)."""
                 .formatted(person, scope, categoryArg);
         return new GetPromptResult(DESCRIPTION, List.of(new PromptMessage(Role.USER, new TextContent(text))));
     }

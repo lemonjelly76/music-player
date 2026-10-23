@@ -8,8 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A person's rating of an album for one activity; no category means General, which stands in for every activity
- * without its own rating.
+ * A person's rating of an album or song for one activity; no category means Mainstream, an activity like the others.
  */
 public record ActivityRating(Optional<CategoryId> category, Rating rating, String comment, Instant ratedAt) {
 
@@ -20,11 +19,7 @@ public record ActivityRating(Optional<CategoryId> category, Rating rating, Strin
         Objects.requireNonNull(ratedAt, "ratedAt");
     }
 
-    public static ActivityRating general(Rating rating, Instant ratedAt) {
+    public static ActivityRating mainstream(Rating rating, Instant ratedAt) {
         return new ActivityRating(Optional.empty(), rating, "", ratedAt);
-    }
-
-    public boolean isGeneral() {
-        return category.isEmpty();
     }
 }

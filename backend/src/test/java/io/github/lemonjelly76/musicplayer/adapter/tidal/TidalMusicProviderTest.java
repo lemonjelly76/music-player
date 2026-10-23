@@ -156,12 +156,12 @@ class TidalMusicProviderTest {
         tidal.stubFor(post(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items")).willReturn(okJson("{}")));
         List<String> songs = IntStream.rangeClosed(1, 21).mapToObj(n -> "t" + n).toList();
 
-        String id = provider.replacePlaylist(CRAIG, Optional.of("old"), "AI Picks", "Picked for Craig", songs);
+        String id = provider.replacePlaylist(CRAIG, Optional.of("old"), "AI Picks — Mainstream", "Picked for Craig", songs);
 
         assertThat(id).isEqualTo("new-playlist");
         tidal.verify(deleteRequestedFor(urlPathEqualTo("/v2/playlists/old")));
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists")).withRequestBody(equalToJson("""
-                {"data":{"type":"playlists","attributes":{"name":"AI Picks","description":"Picked for Craig",
+                {"data":{"type":"playlists","attributes":{"name":"AI Picks — Mainstream","description":"Picked for Craig",
                   "accessType":"PUBLIC"}}}""")));
         tidal.verify(2, postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items")));
         tidal.verify(postRequestedFor(urlPathEqualTo("/v2/playlists/new-playlist/relationships/items"))

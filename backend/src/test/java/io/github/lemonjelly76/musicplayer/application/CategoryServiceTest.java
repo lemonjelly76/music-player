@@ -41,13 +41,18 @@ class CategoryServiceTest {
     }
 
     @Test
-    void refusesANameThatIsTakenOrMeansGeneral() {
+    void refusesANameThatIsTakenOrMeansMainstream() {
         world.categories.upsert("Running", "");
         Category working = world.categories.upsert("Working", "");
 
         assertThatIllegalArgumentException().isThrownBy(() -> world.categories.rename("Working", "running"))
                 .withMessageContaining("already an activity called Running");
+        assertThatIllegalArgumentException().isThrownBy(() -> world.categories.rename("Working", "Mainstream"))
+                .withMessage("Mainstream is always there; choose another name");
         assertThatIllegalArgumentException().isThrownBy(() -> world.categories.rename("Working", "General"));
+        assertThatIllegalArgumentException().isThrownBy(() -> world.categories.upsert("mainstream", ""));
+        assertThat(world.categories.findOptional("Mainstream")).isEmpty();
+        assertThat(world.categories.findOptional("General")).isEmpty();
         assertThatIllegalArgumentException().isThrownBy(() -> world.categories.rename("Working", " "));
         assertThat(world.categories.rename("Working", "WORKING").name()).isEqualTo("WORKING");
         assertThat(working.name()).isEqualTo("Working");

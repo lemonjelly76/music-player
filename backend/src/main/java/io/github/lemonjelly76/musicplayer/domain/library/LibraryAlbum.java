@@ -45,15 +45,7 @@ public record LibraryAlbum(LibraryAlbumId id, PersonId person, AlbumRef album, L
     }
 
     /**
-     * The activity's own rating, else the General one, as a hint where it has none of its own.
-     */
-    public Optional<ActivityRating> ownOrGeneral(Optional<CategoryId> category) {
-        return ActivityRatings.ownOrGeneral(ratings, category);
-    }
-
-    /**
-     * Whether the person turned it down for the activity, or in General with no rating for the activity to say
-     * otherwise, so it is left out of what is made for it.
+     * Whether the person turned it down for the activity, so it is left out of what is made for it.
      */
     public boolean avoidedFor(Optional<CategoryId> category) {
         return ActivityRatings.avoidedFor(ratings, category);
@@ -67,12 +59,11 @@ public record LibraryAlbum(LibraryAlbumId id, PersonId person, AlbumRef album, L
     }
 
     /**
-     * Whether recommending it for the activity would be no news: it is rated for the activity, kept for any, or
-     * turned down in General. An album disliked only for Dinner can still be suggested for Running.
+     * Whether recommending it for the activity would be no news: it is rated for the activity, or kept for any. An
+     * album disliked only for Dinner can still be suggested for Running.
      */
     public boolean knownFor(Optional<CategoryId> category) {
-        return own(category).isPresent() || avoidedFor(category)
-                || ratings.stream().anyMatch(found -> found.rating().keeps());
+        return own(category).isPresent() || ratings.stream().anyMatch(found -> found.rating().keeps());
     }
 
     public LibraryAlbum rated(ActivityRating rating) {

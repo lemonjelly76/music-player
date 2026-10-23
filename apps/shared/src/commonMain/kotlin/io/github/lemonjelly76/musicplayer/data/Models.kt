@@ -29,7 +29,7 @@ data class ServiceLink(val service: String, val link: String) {
     val label: String get() = "Open in ${serviceLabel(service)}"
 }
 
-/** Where an activity's newest playlist is copied ([categoryId] null is General); [link] once it is there. */
+/** Where an activity's newest playlist is copied ([categoryId] null is Mainstream); [link] once it is there. */
 data class PlaylistCopy(val categoryId: String?, val service: String, val link: String?)
 
 /**
@@ -46,8 +46,8 @@ fun qualityBadges(formats: List<String>): List<String> = formats.mapNotNull {
 
 data class Category(val id: String, val name: String, val rules: String)
 
-/** Stands for General, the person's activity-free picks and ratings, which the server files under no category. */
-const val GENERAL = "none"
+/** Stands for Mainstream, the person's activity-free picks and ratings, which the server files under no category. */
+const val MAINSTREAM = "none"
 
 /** A streaming service and whether the server is registered with it, so people can connect it. */
 data class Service(val name: String, val configured: Boolean) {
@@ -117,7 +117,7 @@ data class PickList(
 
 /**
  * A song; [link] plays it in the person's streaming app, and [ref] (such as spotify:<id>) names it to the server.
- * [rating] is the person's for the activity it is shown for; [general] when that is the General rating standing in.
+ * [rating] is the person's for the activity it is shown for, when it has one there.
  */
 data class Track(
     val id: String,
@@ -128,7 +128,6 @@ data class Track(
     val link: String?,
     val ref: String = id,
     val rating: Rating? = null,
-    val general: Boolean = false,
     val formats: List<String> = emptyList(),
     val elsewhere: List<ServiceLink> = emptyList(),
 ) {
@@ -165,21 +164,19 @@ data class Playlist(
 }
 
 /**
- * An album in the person's library for one activity, with its [rating] there; [general] when that is the General
- * rating standing in because the activity has none of its own.
+ * An album in the person's library, with its [rating] for the activity shown, when it has one there.
  */
 data class LibraryAlbum(
     val id: String,
     val album: Album,
     val rating: Rating?,
-    val general: Boolean,
     val notes: String,
     val tags: List<String>,
     val addedOn: String,
 )
 
 /** A catalogue search result with the person's [rating] of it for the activity, when it is in their library. */
-data class Found(val album: Album, val rating: Rating?, val general: Boolean)
+data class Found(val album: Album, val rating: Rating?)
 
 data class Candidate(val album: Album, val score: Double, val sources: List<String>, val seeds: List<String>)
 
@@ -206,7 +203,7 @@ data class ChartSong(val position: Int, val song: Track)
 data class ChartAlbum(val position: Int, val album: Found)
 
 /**
- * The week's most played songs and albums at their chart places, with the person's General rating of each, and
+ * The week's most played songs and albums at their chart places, with the person's Mainstream rating of each, and
  * their weekly chart playlist. [updatedAt] is null, and the lists empty, until the server first fetches the chart.
  */
 data class Charts(
@@ -284,7 +281,7 @@ object Json {
 
     fun found(text: String): List<Found> = array(text).map(::found)
 
-    private fun found(json: JsonObject) = Found(album(json.obj("album")), json.rating(), json.boolean("general"))
+    private fun found(json: JsonObject) = Found(album(json.obj("album")), json.rating())
 
     fun candidates(text: String): List<Candidate> = array(text).map {
         Candidate(
@@ -331,7 +328,7 @@ object Json {
         val id = json.string("id")
         return Track(id, json.string("artist"), json.string("title"), json.optString("album"),
             json.stringOrNull("cover"), json.stringOrNull("link"), json.stringOrNull("ref") ?: id, json.rating(),
-            json.boolean("general"), json.strings("formats"), json.links())
+            json.strings("formats"), json.links())
     }
 
     private fun pick(json: JsonObject) = Pick(
@@ -346,7 +343,6 @@ object Json {
         id = json.string("id"),
         album = album(json.obj("album")),
         rating = json.rating(),
-        general = json.boolean("general"),
         notes = json.optString("notes"),
         tags = json.strings("tags"),
         addedOn = json.optString("addedOn"),

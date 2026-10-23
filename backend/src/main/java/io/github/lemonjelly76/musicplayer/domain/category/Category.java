@@ -7,6 +7,12 @@ import java.util.Objects;
  */
 public record Category(CategoryId id, String name, String rules) {
 
+    /**
+     * The activity that is no category: everyday listening, with ratings, picks and a taste of its own.
+     */
+    public static final String MAINSTREAM = "Mainstream";
+    private static final String MAINSTREAM_BEFORE = "General";
+
     public Category {
         Objects.requireNonNull(id, "id");
         name = Objects.requireNonNull(name, "name").strip();
@@ -30,5 +36,13 @@ public record Category(CategoryId id, String name, String rules) {
 
     public boolean isCalled(String text) {
         return name.equalsIgnoreCase(text.strip());
+    }
+
+    /**
+     * Whether the text names Mainstream, or General, as it was called until 23 Oct 2026.
+     */
+    public static boolean meansMainstream(String text) {
+        String name = text.strip();
+        return name.equalsIgnoreCase(MAINSTREAM) || name.equalsIgnoreCase(MAINSTREAM_BEFORE);
     }
 }

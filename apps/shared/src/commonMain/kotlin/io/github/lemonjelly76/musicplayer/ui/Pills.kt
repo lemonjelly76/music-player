@@ -29,15 +29,15 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import io.github.lemonjelly76.musicplayer.data.GENERAL
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM
 import io.github.lemonjelly76.musicplayer.data.Rating
 
 /** One of the activities a person's picks and library can be for, shown as a chip. */
 data class Activity(val id: String, val name: String, val icon: ImageVector)
 
 /**
- * General and each activity, scrolling sideways; every page follows the chosen one. Holding an activity offers to
- * rename or remove it; General stays as it is.
+ * Mainstream and each activity, scrolling sideways; every page follows the chosen one. Holding an activity offers to
+ * rename or remove it; Mainstream stays as it is.
  */
 @Composable
 fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -> Unit, hold: (Activity) -> Unit) {
@@ -47,7 +47,7 @@ fun ActivityChips(activities: List<Activity>, chosen: String, choose: (String) -
     ) {
         items(activities, key = { it.id }) { activity ->
             ActivityChip(activity, selected = activity.id == chosen, choose = { choose(activity.id) },
-                hold = { hold(activity) }.takeIf { activity.id != GENERAL })
+                hold = { hold(activity) }.takeIf { activity.id != MAINSTREAM })
         }
     }
 }

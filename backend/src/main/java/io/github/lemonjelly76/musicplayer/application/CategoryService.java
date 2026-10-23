@@ -12,8 +12,6 @@ import java.util.stream.Collectors;
 
 public class CategoryService {
 
-    private static final String GENERAL = "General";
-
     private final CategoryRepository repository;
 
     public CategoryService(CategoryRepository repository) {
@@ -51,10 +49,11 @@ public class CategoryService {
     }
 
     /**
-     * The category asked for, or none when the text is empty: a list for everything.
+     * The category asked for, or none for Mainstream, whether named or left out.
      */
     public Optional<Category> findOptional(String nameOrId) {
-        return nameOrId == null || nameOrId.isBlank() ? Optional.empty() : Optional.of(find(nameOrId));
+        return nameOrId == null || nameOrId.isBlank() || Category.meansMainstream(nameOrId)
+                ? Optional.empty() : Optional.of(find(nameOrId));
     }
 
     /**
@@ -67,7 +66,7 @@ public class CategoryService {
     }
 
     /**
-     * Gives an activity a new name, keeping its rules; no other activity may have it, and General is not one.
+     * Gives an activity a new name, keeping its rules; no other activity may have it, nor Mainstream's.
      */
     public Category rename(String nameOrId, String newName) {
         Category category = find(nameOrId);
@@ -75,9 +74,7 @@ public class CategoryService {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("An activity needs a name");
         }
-        if (name.equalsIgnoreCase(GENERAL)) {
-            throw new IllegalArgumentException("General is always there; choose another name");
-        }
+        refuseMainstream(name);
         repository.findAll().stream()
                 .filter(other -> !other.id().equals(category.id()) && other.isCalled(name))
                 .findFirst()
@@ -90,6 +87,7 @@ public class CategoryService {
     }
 
     public Category upsert(String name, String rules) {
+        refuseMainstream(name);
         Category category = repository.findAll().stream()
                 .filter(existing -> existing.isCalled(name))
                 .findFirst()
@@ -97,5 +95,11 @@ public class CategoryService {
                 .orElseGet(() -> Category.create(name, rules));
         repository.save(category);
         return category;
+    }
+
+    private static void refuseMainstream(String name) {
+        if (Category.meansMainstream(name)) {
+            throw new IllegalArgumentException(Category.MAINSTREAM + " is always there; choose another name");
+        }
     }
 }

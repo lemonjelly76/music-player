@@ -54,15 +54,15 @@ class CandidateServiceTest {
     }
 
     @Test
-    void anActivitySeedsFromWhatIsLovedThereOrInGeneralWhenNothingIsYet() {
+    void anActivitySeedsOnlyFromWhatIsLovedThere() {
         Person craig = world.withoutService("Craig");
         world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
         world.library.add(craig, dummy, Optional.of(running), Rating.LOVE, "", List.of());
         world.library.rate(craig, okComputer, Optional.of(running), Optional.of(Rating.DISLIKE), "");
 
         assertThat(world.candidates.seeds(craig, Optional.of(running))).extracting(Seed::album).containsExactly(dummy);
-        assertThat(world.candidates.seeds(craig, Optional.of(driving))).extracting(Seed::album)
-                .containsExactly(okComputer);
+        assertThat(world.candidates.seeds(craig, Optional.of(driving))).isEmpty();
+        assertThat(world.candidates.seeds(craig, Optional.empty())).extracting(Seed::album).containsExactly(okComputer);
     }
 
     @Test
@@ -95,6 +95,8 @@ class CandidateServiceTest {
         world.recommendations.save(craig, Optional.of(running), List.of(
                 new PickRequest("Massive Attack — Mezzanine", "Dark", PickSource.POOL)));
         world.library.rate(craig, mezzanine, Optional.of(running), Optional.of(Rating.DISLIKE), "too slow");
+        world.library.rate(craig, okComputer, Optional.of(running), Optional.of(Rating.LOVE), "");
+        world.library.rate(craig, okComputer, Optional.of(driving), Optional.of(Rating.LOVE), "");
         ageEverything();
 
         assertThat(world.candidates.candidates(craig, Optional.of(running), 10)).extracting(Candidate::album)

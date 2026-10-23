@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 class LibraryServiceTest {
 
-    private static final Optional<Category> GENERAL = Optional.empty();
+    private static final Optional<Category> MAINSTREAM = Optional.empty();
 
     private final World world = new World();
 
@@ -31,7 +31,7 @@ class LibraryServiceTest {
         Person craig = world.tidalUser("Craig");
         world.tidal.carry("77", album("Joni Mitchell", "Blue"));
 
-        Added added = world.library.add(craig, "tidal:77", GENERAL, Rating.LOVE, "Perfect", List.of("Folk"));
+        Added added = world.library.add(craig, "tidal:77", MAINSTREAM, Rating.LOVE, "Perfect", List.of("Folk"));
 
         assertThat(added.alreadyInLibrary()).isFalse();
         assertThat(added.favouriteProblem()).isEmpty();
@@ -44,9 +44,9 @@ class LibraryServiceTest {
     void addingAnAlbumAlreadyThereKeepsItsNotesAndTakesTheNewRating() {
         Person craig = world.tidalUser("Craig");
         world.tidal.carry("77", album("Joni Mitchell", "Blue"));
-        world.library.add(craig, "tidal:77", GENERAL, Rating.LOVE, "Sad", List.of());
+        world.library.add(craig, "tidal:77", MAINSTREAM, Rating.LOVE, "Sad", List.of());
 
-        Added again = world.library.add(craig, "Joni Mitchell — Blue", GENERAL, Rating.OK, "", List.of());
+        Added again = world.library.add(craig, "Joni Mitchell — Blue", MAINSTREAM, Rating.OK, "", List.of());
 
         assertThat(again.alreadyInLibrary()).isTrue();
         assertThat(again.entry().notes()).isEqualTo("Sad");
@@ -58,7 +58,7 @@ class LibraryServiceTest {
     void saysWhyAnAlbumDidNotReachTheFavourites() {
         Person craig = world.tidalUser("Craig");
 
-        Added added = world.library.add(craig, "Local Band — Demo Tape", GENERAL, Rating.LOVE, "", List.of());
+        Added added = world.library.add(craig, "Local Band — Demo Tape", MAINSTREAM, Rating.LOVE, "", List.of());
 
         assertThat(added.entry().album()).isEqualTo(album("Local Band", "Demo Tape"));
         assertThat(added.favouriteProblem()).isEqualTo("not saved to tidal favourites: it is not on the service");
@@ -69,7 +69,7 @@ class LibraryServiceTest {
         Person craig = world.tidalUser("Craig");
         world.tidal.carry("77", album("Joni Mitchell", "Blue"));
 
-        world.library.add(craig, "tidal:77", GENERAL, Rating.OK, "", List.of());
+        world.library.add(craig, "tidal:77", MAINSTREAM, Rating.OK, "", List.of());
 
         assertThat(world.tidal.favourites.get(craig.id())).isNull();
     }
@@ -77,7 +77,7 @@ class LibraryServiceTest {
     @Test
     void updatesOnlyWhatIsGiven() {
         Person craig = world.withoutService("Craig");
-        LibraryAlbum entry = world.library.add(craig, "Joni Mitchell — Blue", GENERAL, Rating.LOVE, "Sad",
+        LibraryAlbum entry = world.library.add(craig, "Joni Mitchell — Blue", MAINSTREAM, Rating.LOVE, "Sad",
                 List.of("folk")).entry();
 
         LibraryAlbum changed = world.library.update(craig.id(), entry.id(), Optional.empty(),
@@ -91,7 +91,7 @@ class LibraryServiceTest {
     void cannotTouchSomeoneElsesAlbum() {
         Person craig = world.withoutService("Craig");
         Person sam = world.withoutService("Sam");
-        LibraryAlbum entry = world.library.add(craig, "Joni Mitchell — Blue", GENERAL, Rating.LOVE, "", List.of())
+        LibraryAlbum entry = world.library.add(craig, "Joni Mitchell — Blue", MAINSTREAM, Rating.LOVE, "", List.of())
                 .entry();
 
         assertThatExceptionOfType(NotFoundException.class)
@@ -102,9 +102,9 @@ class LibraryServiceTest {
     void anActivitysLibraryHasOnlyWhatIsLovedOrOkForItLovedFirst() {
         Person craig = world.withoutService("Craig");
         Category running = world.categories.upsert("Running", "");
-        world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());
+        world.library.add(craig, "Blur — 13", MAINSTREAM, Rating.OK, "", List.of());
         world.library.add(craig, "Pulp — Different Class", Optional.of(running), Rating.LOVE, "", List.of());
-        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", MAINSTREAM, Rating.LOVE, "", List.of());
         world.library.rate(craig, "Air — Moon Safari", Optional.of(running), Optional.of(Rating.DISLIKE), "");
 
         assertThat(world.library.libraryFor(craig.id(), Optional.of(running.id()), LibraryFilter.ALL))
@@ -116,7 +116,7 @@ class LibraryServiceTest {
     @Test
     void aNewActivityStartsWithNothingInItsLibrary() {
         Person craig = world.withoutService("Craig");
-        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", MAINSTREAM, Rating.LOVE, "", List.of());
         Category focus = world.categories.upsert("Focus", "");
 
         assertThat(world.library.libraryFor(craig.id(), Optional.of(focus.id()), LibraryFilter.ALL)).isEmpty();
@@ -126,19 +126,19 @@ class LibraryServiceTest {
     }
 
     @Test
-    void listsWhatIsNotForThePersonForAnActivityButAvoidsGeneralDislikesThereToo() {
+    void listsAndAvoidsOnlyWhatIsNotForThePersonForThatActivity() {
         Person craig = world.withoutService("Craig");
         Category running = world.categories.upsert("Running", "");
-        world.library.add(craig, "Blur — 13", GENERAL, Rating.DISLIKE, "", List.of());
-        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Blur — 13", MAINSTREAM, Rating.DISLIKE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", MAINSTREAM, Rating.LOVE, "", List.of());
         world.library.rate(craig, "Air — Moon Safari", Optional.of(running), Optional.of(Rating.DISLIKE), "");
-        world.library.add(craig, "Pulp — His 'n' Hers", GENERAL, Rating.DISLIKE, "", List.of());
+        world.library.add(craig, "Pulp — His 'n' Hers", MAINSTREAM, Rating.DISLIKE, "", List.of());
         world.library.rate(craig, "Pulp — His 'n' Hers", Optional.of(running), Optional.of(Rating.LOVE), "");
 
         assertThat(world.library.dislikedFor(craig.id(), Optional.of(running.id())))
                 .extracting(entry -> entry.album().artist()).containsExactly("Air");
         assertThat(world.library.avoidedFor(craig.id(), Optional.of(running.id())))
-                .extracting(entry -> entry.album().artist()).containsExactlyInAnyOrder("Air", "Blur");
+                .extracting(entry -> entry.album().artist()).containsExactly("Air");
         assertThat(world.library.dislikedFor(craig.id(), Optional.empty()))
                 .extracting(entry -> entry.album().artist()).containsExactly("Blur", "Pulp");
     }
@@ -148,15 +148,15 @@ class LibraryServiceTest {
         Person craig = world.withoutService("Craig");
         Category running = world.categories.upsert("Running", "");
         Category dinner = world.categories.upsert("Dinner", "");
-        world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());
+        world.library.add(craig, "Blur — 13", MAINSTREAM, Rating.OK, "", List.of());
         world.library.add(craig, "Pulp — Different Class", Optional.of(dinner), Rating.LOVE, "", List.of());
-        world.library.add(craig, "Air — Moon Safari", GENERAL, Rating.LOVE, "", List.of());
-        world.library.add(craig, "Suede — Suede", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Air — Moon Safari", MAINSTREAM, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Suede — Suede", MAINSTREAM, Rating.LOVE, "", List.of());
         world.library.rate(craig, "Suede — Suede", Optional.of(running), Optional.of(Rating.OK), "");
-        world.library.add(craig, "Oasis — Be Here Now", GENERAL, Rating.DISLIKE, "", List.of());
+        world.library.add(craig, "Oasis — Be Here Now", MAINSTREAM, Rating.DISLIKE, "", List.of());
 
         assertThat(world.library.toSortFor(craig.id(), Optional.of(running.id())))
-                .extracting(entry -> entry.album().artist()).containsExactly("Air", "Blur", "Pulp");
+                .extracting(entry -> entry.album().artist()).containsExactly("Air", "Pulp", "Blur");
         assertThat(world.library.toSortFor(craig.id(), Optional.empty()))
                 .extracting(entry -> entry.album().artist()).containsExactly("Pulp");
     }
@@ -164,9 +164,9 @@ class LibraryServiceTest {
     @Test
     void takingAwayAnAlbumsLastRatingTakesItOutOfTheLibrary() {
         Person craig = world.withoutService("Craig");
-        world.library.add(craig, "Blur — 13", GENERAL, Rating.OK, "", List.of());
+        world.library.add(craig, "Blur — 13", MAINSTREAM, Rating.OK, "", List.of());
 
-        Optional<LibraryAlbum> left = world.library.rate(craig, "Blur — 13", GENERAL, Optional.empty(), "");
+        Optional<LibraryAlbum> left = world.library.rate(craig, "Blur — 13", MAINSTREAM, Optional.empty(), "");
 
         assertThat(left).isEmpty();
         assertThat(world.library.all(craig.id(), LibraryFilter.ALL)).isEmpty();
@@ -175,7 +175,7 @@ class LibraryServiceTest {
     @Test
     void importsFavouritesItDoesNotHaveYet() {
         Person craig = world.tidalUser("Craig");
-        world.library.add(craig, "Joni Mitchell — Blue", GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, "Joni Mitchell — Blue", MAINSTREAM, Rating.LOVE, "", List.of());
         AlbumRef blue = world.tidal.carry("77", album("Joni Mitchell", "Blue"));
         AlbumRef hejira = world.tidal.carry("78", album("Joni Mitchell", "Hejira"));
         world.tidal.storedFavourites.put(craig.id(), List.of(blue, hejira));
@@ -189,9 +189,9 @@ class LibraryServiceTest {
     @Test
     void fillsInTheServiceIdsOfAlbumsAddedBeforeTheServiceWasConnected() {
         Person craig = world.tidalUser("Craig");
-        LibraryAlbum migration = world.library.add(craig, album("Bonobo", "Migration"), GENERAL, Rating.LOVE, "", List.of())
+        LibraryAlbum migration = world.library.add(craig, album("Bonobo", "Migration"), MAINSTREAM, Rating.LOVE, "", List.of())
                 .entry();
-        world.library.add(craig, album("Local Band", "Demo Tape"), GENERAL, Rating.LOVE, "", List.of());
+        world.library.add(craig, album("Local Band", "Demo Tape"), MAINSTREAM, Rating.LOVE, "", List.of());
         world.tidal.carry("t-mig", album("Bonobo", "Migration (Deluxe Edition)"));
 
         int filled = world.library.fillServiceIds(craig, 10);
@@ -205,7 +205,7 @@ class LibraryServiceTest {
     void looksUpAtMostTheGivenNumberOfAlbumsAtATime() {
         Person craig = world.tidalUser("Craig");
         for (int i = 0; i < 5; i++) {
-            world.library.add(craig, album("Artist " + i, "Album " + i), GENERAL, Rating.LOVE, "", List.of());
+            world.library.add(craig, album("Artist " + i, "Album " + i), MAINSTREAM, Rating.LOVE, "", List.of());
         }
         world.tidal.findCalls = 0;
 

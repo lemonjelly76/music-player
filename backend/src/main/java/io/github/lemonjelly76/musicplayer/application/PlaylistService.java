@@ -103,7 +103,7 @@ public class PlaylistService {
      */
     public Saved resync(Person person, Optional<Category> category) {
         Playlist latest = latest(person, category.map(Category::id), 1).stream().findFirst()
-                .orElseThrow(() -> new NotFoundException("No " + category.map(Category::name).orElse("General")
+                .orElseThrow(() -> new NotFoundException("No " + category.map(Category::name).orElse(Category.MAINSTREAM)
                         + " playlist for " + person.name() + " yet"));
         MusicProvider service = providers.forPerson(person).orElseThrow(() -> new MusicProviderUnavailableException(
                 person.name() + " has no streaming service set up"));
@@ -111,7 +111,7 @@ public class PlaylistService {
     }
 
     /**
-     * The activity's playlists, newest first; no activity means General's.
+     * The activity's playlists, newest first; no activity means Mainstream's.
      */
     public List<Playlist> latest(Person person, Optional<CategoryId> activity, int limit) {
         return repository.latest(person.id(), activity, limit);

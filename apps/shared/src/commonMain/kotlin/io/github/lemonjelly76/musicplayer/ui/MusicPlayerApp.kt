@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.lemonjelly76.musicplayer.data.ActivityKind
-import io.github.lemonjelly76.musicplayer.data.GENERAL
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM
 import io.github.lemonjelly76.musicplayer.data.Person
 
 private enum class Screen(val label: String, val icon: ImageVector, val chosenIcon: ImageVector) {
@@ -70,7 +70,7 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     var openListId by rememberSaveable { mutableStateOf<String?>(null) }
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var chartOpen by rememberSaveable { mutableStateOf(false) }
-    val openChart = ui.charts.takeIf { chartOpen && screen == Screen.HOME && ui.category == GENERAL }
+    val openChart = ui.charts.takeIf { chartOpen && screen == Screen.HOME && ui.category == MAINSTREAM }
     val openList = ui.lists.firstOrNull { it.id == openListId }.takeIf { screen == Screen.HOME }
     val openPlaylist = ui.playlists.firstOrNull { it.id == openPlaylistId }.takeIf { screen == Screen.HOME }
     val sorting = ui.sorting
@@ -293,13 +293,13 @@ private fun SideTabs(screen: Screen, choose: (Screen) -> Unit) {
     }
 }
 
-/** General, then each of the person's categories, such as Running. */
+/** Mainstream, then each of the person's categories, such as Running. */
 private fun activities(ui: UiState): List<Activity> =
-    listOf(Activity(GENERAL, "General", activityIcon(ActivityKind.GENERAL))) +
+    listOf(Activity(MAINSTREAM, "Mainstream", activityIcon(ActivityKind.MAINSTREAM))) +
         ui.categories.map { Activity(it.id, it.name, activityIcon(ActivityKind.of(it.name))) }
 
 private fun activityIcon(kind: ActivityKind): ImageVector = when (kind) {
-    ActivityKind.GENERAL -> AppIcons.LibraryMusic
+    ActivityKind.MAINSTREAM -> AppIcons.LibraryMusic
     ActivityKind.RUNNING -> AppIcons.DirectionsRun
     ActivityKind.WORKOUT -> AppIcons.FitnessCenter
     ActivityKind.CHILL -> AppIcons.SelfImprovement

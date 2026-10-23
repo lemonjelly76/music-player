@@ -98,8 +98,7 @@ class PlaylistControllerTest {
                         [{"name":"AI Picks — Running","description":"Bright and fast", "slot":2,
                           "link":"https://open.spotify.com/playlist/pl-2",
                           "tracks":[{"ref":"spotify:tr-1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
-                            "cover":"https://i/300","link":"https://open.spotify.com/track/tr-1","rating":3,
-                            "general":false}]},
+                            "cover":"https://i/300","link":"https://open.spotify.com/track/tr-1","rating":3}]},
                          {"link":null, "slot":null}]""");
     }
 

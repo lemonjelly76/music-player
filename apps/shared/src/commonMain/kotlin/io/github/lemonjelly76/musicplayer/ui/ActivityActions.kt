@@ -53,7 +53,7 @@ data class HeldActivity(val activity: Activity, val step: Step) {
 
 /**
  * What holding an activity's chip offers, as streaming apps show a sheet of actions for a held item: rename it,
- * remove it, or reorder the activities, each affecting the whole household. [activities] are all but General, in
+ * remove it, or reorder the activities, each affecting the whole household. [activities] are all but Mainstream, in
  * order.
  */
 @Composable
@@ -113,7 +113,7 @@ private fun ReorderSheet(activities: List<Activity>, held: String, move: (String
     ModalBottomSheet(onDismissRequest = close, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         Text("Reorder activities", Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold)
-        Text("General always comes first. The order is the same for everyone.",
+        Text("Mainstream always comes first. The order is the same for everyone.",
             Modifier.padding(horizontal = 24.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyColumn {

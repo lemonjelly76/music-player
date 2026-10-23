@@ -31,7 +31,8 @@ class PlaylistPrompt {
         String text = """
                 Make %1$s a %4$d-song playlist%2$s.
 
-                1. Read get_taste_profile (person %1$s%3$s) for their taste, rules and the category's rules, \
+                1. Read get_taste_profile (person %1$s%3$s) for their taste for this activity alone and its rules \
+                (each activity's taste is its own, so carry nothing over from the others), \
                 get_library (person %1$s%3$s) for the albums they love there, get_songs (person %1$s%3$s) for \
                 the songs they love or turned down there, and get_playlists (person %1$s%3$s) so the new one is \
                 not a repeat of the last, noting how they rated its songs.

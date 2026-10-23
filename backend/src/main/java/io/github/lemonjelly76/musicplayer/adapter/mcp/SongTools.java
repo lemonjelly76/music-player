@@ -38,8 +38,8 @@ class SongTools {
 
     @McpTool(name = "rate_song",
             description = "Records how much a person likes a song for an activity: love, ok or dislike (left out of "
-                    + "that activity's playlists). Without an activity it is the General rating, which counts for "
-                    + "every activity without its own. 'none' removes the rating. Use it whenever they say what "
+                    + "that activity's playlists). Without an activity it is the Mainstream rating, which, like any "
+                    + "activity's, counts for Mainstream only. 'none' removes the rating. Use it whenever they say what "
                     + "they think of a song, in a playlist or anywhere else.",
             annotations = @McpAnnotations(title = "Rate song", idempotentHint = true, openWorldHint = true))
     CallToolResult rateSong(
@@ -47,7 +47,7 @@ class SongTools {
             @McpToolParam(description = "The artist, e.g. Air") String artist,
             @McpToolParam(description = "The song's title, e.g. Sexy Boy") String title,
             @McpToolParam(description = "love, ok, dislike, or none to remove") String rating,
-            @McpToolParam(description = "Activity name, e.g. Running; leave out for General", required = false)
+            @McpToolParam(description = "Activity name, e.g. Running; leave out for Mainstream", required = false)
             String category) {
         return attempt(() -> {
             Optional<LibrarySong> rated = songs.rate(people.find(person), ToolInputs.text(artist),
@@ -58,14 +58,14 @@ class SongTools {
     }
 
     @McpTool(name = "get_songs",
-            description = "The songs a person has rated that count for an activity (its own ratings, else General's): "
+            description = "The songs a person has rated for an activity (Mainstream when none is given), only those: "
                     + "loved first, then ok, then those turned down. Read it before making a playlist: loved songs "
                     + "show what they want there, and turned-down ones are left out anyway.",
             annotations = @McpAnnotations(title = "Rated songs", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     CallToolResult getSongs(
             @McpToolParam(description = "Name or id from list_people") String person,
-            @McpToolParam(description = "Activity name; leave out for General", required = false) String category) {
+            @McpToolParam(description = "Activity name; leave out for Mainstream", required = false) String category) {
         return attempt(() -> {
             Person who = people.find(person);
             Optional<CategoryId> activity = categories.findOptional(category).map(Category::id);
