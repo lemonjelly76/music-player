@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import io.github.lemonjelly76.musicplayer.data.Album
 import io.github.lemonjelly76.musicplayer.data.ChartAlbum
 import io.github.lemonjelly76.musicplayer.data.Charts
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM_NAME
 import io.github.lemonjelly76.musicplayer.data.Rating
 import io.github.lemonjelly76.musicplayer.data.serviceOfLink
 
@@ -60,7 +61,7 @@ fun ChartScreen(charts: Charts, viewModel: MainViewModel, open: (String) -> Unit
             }
         }
         items(charts.songs, key = { "song-${it.position}" }) { entry ->
-            SongRow(entry.song, "Mainstream", rate = { viewModel.rateSong(entry.song, it) }, open = open,
+            SongRow(entry.song, MAINSTREAM_NAME, rate = { viewModel.rateSong(entry.song, it) }, open = open,
                 number = entry.position)
         }
         if (charts.albums.isNotEmpty()) {

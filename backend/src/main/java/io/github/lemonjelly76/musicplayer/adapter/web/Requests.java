@@ -24,7 +24,7 @@ final class Requests {
      * activity; no category, or "none", is Mainstream, and no rating removes the activity's own rating.
      */
     record SongRatingRequest(String ref, String artist, String title, String album, String cover, String categoryId,
-                             Integer rating) {
+                             Integer rating, String comment) {
 
         Track track() {
             String[] parts = Objects.requireNonNullElse(ref, "").split(":", 2);

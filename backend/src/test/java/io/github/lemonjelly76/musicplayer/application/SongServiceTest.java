@@ -88,4 +88,16 @@ class SongServiceTest {
         assertThatExceptionOfType(MusicProviderUnavailableException.class)
                 .isThrownBy(() -> world.songs.search(world.withoutService("Robin"), "sexy", 10));
     }
+
+    @Test
+    void keepsWhyASongIsNotForThem() {
+        Person craig = world.tidalUser("Craig");
+
+        world.songs.rate(craig, track("t1", "Air", "Talisman"), Optional.of(running), Optional.of(Rating.DISLIKE),
+                "Too slow");
+
+        assertThat(world.songs.songsFor(craig.id(), Optional.of(running.id()))).singleElement()
+                .satisfies(song -> assertThat(song.own(Optional.of(running.id())).orElseThrow().comment())
+                        .isEqualTo("Too slow"));
+    }
 }

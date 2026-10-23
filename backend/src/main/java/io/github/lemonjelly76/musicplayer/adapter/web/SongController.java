@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -84,7 +85,7 @@ class SongController {
         Person person = people.get(PersonId.of(id));
         Optional<Category> activity = ActivityParameter.resolve(categories, request.categoryId());
         Optional<LibrarySong> rated = songs.rate(person, track, activity,
-                Optional.ofNullable(request.rating()).map(Rating::of));
+                Optional.ofNullable(request.rating()).map(Rating::of), Objects.requireNonNullElse(request.comment(), ""));
         return new SongRatingResponse(request.ref(), rated
                 .flatMap(song -> song.own(activity.map(Category::id)))
                 .map(found -> found.rating().value())

@@ -46,8 +46,11 @@ fun qualityBadges(formats: List<String>): List<String> = formats.mapNotNull {
 
 data class Category(val id: String, val name: String, val rules: String)
 
-/** Stands for Mainstream, the person's activity-free picks and ratings, which the server files under no category. */
+/** Stands for Mainstream, an activity like the others, which the server files under no category. */
 const val MAINSTREAM = "none"
+
+/** What Mainstream is called wherever it is shown. */
+const val MAINSTREAM_NAME = "Mainstream"
 
 /** A streaming service and whether the server is registered with it, so people can connect it. */
 data class Service(val name: String, val configured: Boolean) {

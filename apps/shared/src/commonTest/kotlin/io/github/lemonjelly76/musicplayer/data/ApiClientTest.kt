@@ -216,6 +216,19 @@ class ApiClientTest {
     }
 
     @Test
+    fun sendsWhyAnAlbumOrSongIsNotForThem() = runTest {
+        val api = client { json("{}") }
+
+        api.rate("1", "tidal:9", "c1", Rating.DISLIKE, comment = "Too slow")
+        api.rateSong("1", Track("t1", "Air", "Talisman", "Moon Safari", null, null, ref = "tidal:t1"), "c1",
+            Rating.DISLIKE, comment = "Too slow")
+
+        val (album, song) = requests.map { it.body.toByteArray().decodeToString() }
+        assertEquals("""{"albumRef":"tidal:9","categoryId":"c1","rating":1,"comment":"Too slow"}""", album)
+        assertTrue(song.endsWith(""""rating":1,"comment":"Too slow"}"""), song)
+    }
+
+    @Test
     fun turnsPlayCountingOnForEveryActivity() = runTest {
         val tracking = client { json("""{"enabled":true}""") }.setPlayCounting("1", true)
 

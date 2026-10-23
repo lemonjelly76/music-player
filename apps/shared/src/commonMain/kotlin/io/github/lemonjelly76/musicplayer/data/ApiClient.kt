@@ -121,7 +121,7 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
         Json.songs(get("api/people/$personId/songs/search", "q" to query, "category" to category))
 
     /** Rates a song for the activity, adding it to the person's songs when new; null takes the rating away. */
-    suspend fun rateSong(personId: String, track: Track, category: String, rating: Rating?) {
+    suspend fun rateSong(personId: String, track: Track, category: String, rating: Rating?, comment: String? = null) {
         send(HttpMethod.Post, "api/people/$personId/song-ratings", buildJsonObject {
             put("ref", track.ref)
             put("artist", track.artist)
@@ -130,15 +130,20 @@ class ApiClient(private val settings: () -> ServerSettings, client: HttpClient) 
             put("cover", track.cover?.let(::JsonPrimitive) ?: JsonNull)
             put("categoryId", category)
             put("rating", rating?.let { JsonPrimitive(it.value) } ?: JsonNull)
+            comment?.let { put("comment", it) }
         })
     }
 
-    /** Rates any album for the activity, adding it to the library when new; a null [rating] takes the rating away. */
-    suspend fun rate(personId: String, albumRef: String, category: String, rating: Rating?) {
+    /**
+     * Rates any album for the activity, adding it to the library when new; a null [rating] takes the rating away.
+     * [comment] is what they said about it, such as why it is not for them.
+     */
+    suspend fun rate(personId: String, albumRef: String, category: String, rating: Rating?, comment: String? = null) {
         send(HttpMethod.Post, "api/people/$personId/ratings", buildJsonObject {
             put("albumRef", albumRef)
             put("categoryId", category)
             put("rating", rating?.let { JsonPrimitive(it.value) } ?: JsonNull)
+            comment?.let { put("comment", it) }
         })
     }
 

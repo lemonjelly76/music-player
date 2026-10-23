@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.lemonjelly76.musicplayer.data.ActivityKind
 import io.github.lemonjelly76.musicplayer.data.MAINSTREAM
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM_NAME
 import io.github.lemonjelly76.musicplayer.data.Person
 
 private enum class Screen(val label: String, val icon: ImageVector, val chosenIcon: ImageVector) {
@@ -231,6 +232,9 @@ fun MusicPlayerApp(viewModel: MainViewModel, open: (String) -> Unit) {
     }
 
     ui.moreLikeThis?.let { MoreLikeThisSheet(it, viewModel, open) }
+    ui.askWhy?.let { asked ->
+        WhyNotSheet(asked, ui.categories.firstOrNull { it.id == asked.category }?.name ?: MAINSTREAM_NAME, viewModel)
+    }
     held?.let { current ->
         ActivityActions(current, activities(ui).drop(1), change = { held = it },
             rename = { viewModel.renameCategory(current.activity.id, it) },
@@ -295,7 +299,7 @@ private fun SideTabs(screen: Screen, choose: (Screen) -> Unit) {
 
 /** Mainstream, then each of the person's categories, such as Running. */
 private fun activities(ui: UiState): List<Activity> =
-    listOf(Activity(MAINSTREAM, "Mainstream", activityIcon(ActivityKind.MAINSTREAM))) +
+    listOf(Activity(MAINSTREAM, MAINSTREAM_NAME, activityIcon(ActivityKind.MAINSTREAM))) +
         ui.categories.map { Activity(it.id, it.name, activityIcon(ActivityKind.of(it.name))) }
 
 private fun activityIcon(kind: ActivityKind): ImageVector = when (kind) {

@@ -44,6 +44,14 @@ public class SongService {
      * with none leaves the library.
      */
     public Optional<LibrarySong> rate(Person person, Track track, Optional<Category> activity, Optional<Rating> rating) {
+        return rate(person, track, activity, rating, "");
+    }
+
+    /**
+     * As above, keeping what they said about it, such as why it is not for them.
+     */
+    public Optional<LibrarySong> rate(Person person, Track track, Optional<Category> activity, Optional<Rating> rating,
+            String comment) {
         Optional<CategoryId> category = activity.map(Category::id);
         Optional<LibrarySong> existing = find(person.id(), track);
         if (rating.isEmpty()) {
@@ -51,7 +59,7 @@ public class SongService {
             left.ifPresent(this::keepOrRemove);
             return left.filter(song -> !song.ratings().isEmpty());
         }
-        ActivityRating given = new ActivityRating(category, rating.get(), "", clock.instant());
+        ActivityRating given = new ActivityRating(category, rating.get(), comment, clock.instant());
         LibrarySong song = existing.map(found -> found.withTrack(track).rated(given))
                 .orElseGet(() -> LibrarySong.create(person.id(), track, given, LocalDate.now(clock)));
         repository.save(song);

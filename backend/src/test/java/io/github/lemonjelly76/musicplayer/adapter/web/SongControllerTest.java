@@ -96,18 +96,18 @@ class SongControllerTest {
 
     @Test
     void ratesASongForAnActivity() {
-        given(songs.rate(any(Person.class), any(Track.class), any(), any())).willAnswer(call -> Optional.of(
+        given(songs.rate(any(Person.class), any(Track.class), any(), any(), any())).willAnswer(call -> Optional.of(
                 lovedInGeneral(call.getArgument(1)).rated(new ActivityRating(Optional.of(RUNNING.id()), Rating.DISLIKE, "", NOW))));
 
         assertThat(mvc.post().uri("/api/people/{id}/song-ratings", CRAIG.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"ref":"spotify:t1","artist":"Air","title":"Sexy Boy","album":"Moon Safari",
-                         "cover":"https://i/300","categoryId":"%s","rating":1}""".formatted(RUNNING.id())))
+                         "cover":"https://i/300","categoryId":"%s","rating":1,"comment":"Too slow"}""".formatted(RUNNING.id())))
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
                         {"ref":"spotify:t1","rating":1}""");
-        verify(songs).rate(CRAIG, SEXY_BOY, Optional.of(RUNNING), Optional.of(Rating.DISLIKE));
+        verify(songs).rate(CRAIG, SEXY_BOY, Optional.of(RUNNING), Optional.of(Rating.DISLIKE), "Too slow");
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.github.lemonjelly76.musicplayer.adapter.mcp.Views.CategoryView;
 import io.github.lemonjelly76.musicplayer.application.CategoryService;
 import io.github.lemonjelly76.musicplayer.application.PersonService;
 import io.github.lemonjelly76.musicplayer.application.LibraryService;
+import io.github.lemonjelly76.musicplayer.application.SongService;
 import io.github.lemonjelly76.musicplayer.application.TasteService;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.category.CategoryId;
@@ -23,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.attempt;
 import static io.github.lemonjelly76.musicplayer.adapter.mcp.ToolResults.json;
@@ -38,19 +40,22 @@ class TasteTools {
     private final TasteService taste;
     private final CategoryService categories;
     private final LibraryService library;
+    private final SongService songs;
 
-    TasteTools(PersonService people, TasteService taste, CategoryService categories,
-            LibraryService library) {
+    TasteTools(PersonService people, TasteService taste, CategoryService categories, LibraryService library,
+            SongService songs) {
         this.people = people;
         this.taste = taste;
         this.categories = categories;
         this.library = library;
+        this.songs = songs;
     }
 
     @McpTool(name = "get_taste_profile",
             description = "A person's taste for one activity (Mainstream when none is given): the summary you wrote "
                     + "for it last time, its 'never recommend' rules, their most recent ratings for it (love, ok or "
-                    + "dislike) with what they said, and the activity's rules. Each activity's taste is its own: "
+                    + "dislike) with what they said, how many albums and songs they have rated for it since the "
+                    + "summary was written, and the activity's rules. Each activity's taste is its own: "
                     + "never carry what they like for one over to another. Read this before choosing for them.",
             annotations = @McpAnnotations(title = "Taste profile", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
@@ -66,7 +71,8 @@ class TasteTools {
             return json(new ProfileView(who.name(), activity.map(Category::name).orElse(Category.MAINSTREAM),
                     activity.map(Category::rules).orElse(null), profile.summary(),
                     profile.carriedOver() ? CARRIED_OVER : null, profile.neverRecommend(),
-                    profile.updatedAt().orElse(null), recentRatings(who, id)));
+                    profile.updatedAt().orElse(null), ratingsSince(who, id, profile.updatedAt()),
+                    recentRatings(who, id)));
         });
     }
 
@@ -112,6 +118,17 @@ class TasteTools {
         return attempt(() -> json(CategoryView.from(categories.upsert(ToolInputs.text(name), ToolInputs.text(rules)))));
     }
 
+    /**
+     * The activity's album and song ratings given after the summary was written, or all of them before there was one.
+     */
+    private long ratingsSince(Person person, Optional<CategoryId> activity, Optional<Instant> since) {
+        return Stream.concat(
+                        library.entries(person.id()).stream().flatMap(entry -> entry.own(activity).stream()),
+                        songs.songsFor(person.id(), activity).stream().flatMap(song -> song.own(activity).stream()))
+                .filter(rating -> since.map(rating.ratedAt()::isAfter).orElse(true))
+                .count();
+    }
+
     private List<RatedView> recentRatings(Person person, Optional<CategoryId> activity) {
         record Rated(LibraryAlbum entry, ActivityRating rating) {
         }
@@ -125,7 +142,8 @@ class TasteTools {
     }
 
     record ProfileView(String person, String activity, String rules, String summary, String note,
-                       List<String> neverRecommend, Instant updatedAt, List<RatedView> recentRatings) {
+                       List<String> neverRecommend, Instant updatedAt, long ratingsSinceSummary,
+                       List<RatedView> recentRatings) {
     }
 
     record RatedView(AlbumView album, String rating, String comment, Instant at) {

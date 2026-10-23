@@ -10,6 +10,7 @@ import io.github.lemonjelly76.musicplayer.data.Category
 import io.github.lemonjelly76.musicplayer.data.Charts
 import io.github.lemonjelly76.musicplayer.data.Found
 import io.github.lemonjelly76.musicplayer.data.MAINSTREAM
+import io.github.lemonjelly76.musicplayer.data.MAINSTREAM_NAME
 import io.github.lemonjelly76.musicplayer.data.LibraryAlbum
 import io.github.lemonjelly76.musicplayer.data.Listening
 import io.github.lemonjelly76.musicplayer.data.Person
@@ -42,6 +43,11 @@ fun List<Category>.moved(id: String, by: Int): List<Category> {
 }
 
 data class MoreLikeThis(val seed: Album, val loading: Boolean, val candidates: List<Candidate>)
+
+/** An album or song just turned down for the activity [category], so the person can say why in a tap. */
+data class AskWhy(val category: String, val album: Album? = null, val track: Track? = null) {
+    val title: String get() = album?.title ?: track?.title.orEmpty()
+}
 
 /** Albums or songs, as Search and Library each show one or the other. */
 enum class MusicKind(val label: String) { ALBUMS("Albums"), SONGS("Songs") }
@@ -89,6 +95,7 @@ data class UiState(
     /** Where each of the person's activities has its newest playlist copied. */
     val copies: List<PlaylistCopy> = emptyList(),
     val moreLikeThis: MoreLikeThis? = null,
+    val askWhy: AskWhy? = null,
     val loading: Boolean = false,
     val message: String? = null,
     /** A sign-in page the screen should open in the browser, then clear. */
@@ -96,7 +103,7 @@ data class UiState(
 ) {
     val person: Person? get() = people.firstOrNull { it.id == personId }
     val chosenCategory: Category? get() = categories.firstOrNull { it.id == category }
-    val activityName: String get() = chosenCategory?.name ?: "Mainstream"
+    val activityName: String get() = chosenCategory?.name ?: MAINSTREAM_NAME
     val latest: PickList? get() = lists.firstOrNull()
     /** The chosen activity's copy, when its playlists are copied to another service. */
     val copy: PlaylistCopy? get() = copies.firstOrNull { (it.categoryId ?: MAINSTREAM) == category }
@@ -230,7 +237,10 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
      * Rates any album for the chosen activity; null takes the rating away. Picks show it at once, and the library is
      * reloaded because a rating can add or remove an album there.
      */
-    fun rate(album: Album, rating: Rating?) = load { saveRating(album, rating) }
+    fun rate(album: Album, rating: Rating?) = load {
+        saveRating(album, rating)
+        if (rating == Rating.DISLIKE) state.update { it.copy(askWhy = AskWhy(it.category, album = album)) }
+    }
 
     /** Loves a suggestion for the chosen activity, which puts it in the library there. */
     fun love(album: Album) = load {
@@ -306,7 +316,21 @@ class MainViewModel(private val store: SettingsStore, private val http: HttpClie
             )
         }
         reloadLibrary(personId)
+        if (rating == Rating.DISLIKE) state.update { it.copy(askWhy = AskWhy(it.category, track = track)) }
     }
+
+    /** Keeps why the album or song just turned down is not for them, for Claude to read with the rating. */
+    fun explainDislike(reason: String) {
+        val asked = state.value.askWhy ?: return
+        val personId = state.value.personId ?: return
+        state.update { it.copy(askWhy = null) }
+        load {
+            asked.album?.let { api.rate(personId, it.ref, asked.category, Rating.DISLIKE, reason) }
+            asked.track?.let { api.rateSong(personId, it, asked.category, Rating.DISLIKE, reason) }
+        }
+    }
+
+    fun skipWhy() = state.update { it.copy(askWhy = null) }
 
     /** Goes through the albums to sort for the chosen activity, one at a time. */
     fun startSorting() = state.update { it.copy(sorting = SortSession(it.category, it.toSort)) }

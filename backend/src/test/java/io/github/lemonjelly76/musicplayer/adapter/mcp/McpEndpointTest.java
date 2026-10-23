@@ -119,14 +119,18 @@ class McpEndpointTest {
         claude.callTool("update_taste_profile", """
                 {"person":"Sam","summary":"Big pop hooks"}""");
 
+        claude.callTool("rate_album", """
+                {"person":"Sam","albumRef":"Boards of Canada — Music Has the Right to Children","rating":"ok",
+                 "category":"Dinner"}""");
         String dinner = McpClient.text(claude.callTool("get_taste_profile", """
                 {"person":"Sam","category":"Dinner"}"""));
         String mainstream = McpClient.text(claude.callTool("get_taste_profile", """
                 {"person":"Sam","category":"Mainstream"}"""));
 
-        assertThat(dinner).contains("\"activity\":\"Dinner\"", "Relaxed, with vocals", "Soft vocals", "No metal",
+        assertThat(dinner).contains("\"activity\":\"Dinner\"", "\"ratingsSinceSummary\":1", "Relaxed, with vocals",
+                "Soft vocals", "No metal",
                 "Music Has the Right to Children").doesNotContain("Big pop hooks");
-        assertThat(mainstream).contains("\"activity\":\"Mainstream\"", "Big pop hooks")
+        assertThat(mainstream).contains("\"activity\":\"Mainstream\"", "\"ratingsSinceSummary\":0", "Big pop hooks")
                 .doesNotContain("Soft vocals", "No metal", "Music Has the Right to Children");
     }
 

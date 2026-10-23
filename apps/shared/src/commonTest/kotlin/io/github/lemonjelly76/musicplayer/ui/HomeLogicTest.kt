@@ -148,4 +148,10 @@ class HomeLogicTest {
         assertEquals("It goes from here and from Tidal, where it's AI Picks — Running 2. Its copy in Spotify goes too.",
             deletePlaylistQuestion(newest, listOf(newest), "tidal", "spotify").text)
     }
+
+    @Test
+    fun offersQuickReasonsForNotForMeNamingTheActivity() {
+        assertEquals(listOf("Too slow", "Too intense", "Wrong for Running", "Not keen on the vocals", "Not my style"),
+            dislikeReasons("Running"))
+    }
 }
