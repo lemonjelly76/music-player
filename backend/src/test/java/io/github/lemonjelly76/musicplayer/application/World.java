@@ -45,7 +45,7 @@ final class World {
             songs, providers, copies, clock);
     final PlayService plays = new PlayService(playRepository, peopleRepository, playlistRepository,
             recommendationRepository, copyRepository, List.of(), clock);
-    final CandidateService candidates = new CandidateService(library, plays, recommendations, List.of(lastFm),
+    final CandidateService candidates = new CandidateService(library, plays, songs, recommendations, List.of(lastFm),
             providers, clock);
 
     Person tidalUser(String name) {

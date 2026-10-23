@@ -431,6 +431,8 @@ final class FakePorts {
         final List<String> playlistCalls = new ArrayList<>();
         final List<String> deletedPlaylists = new ArrayList<>();
         final List<String> renamedPlaylists = new ArrayList<>();
+        /** Other names the service finds an album by, as when a source titles it differently. */
+        final Map<AlbumKey, String> aliases = new HashMap<>();
         int findCalls;
         int trackFinds;
         /** Searches after this many fail, as when the service goes down part way through. */
@@ -488,7 +490,8 @@ final class FakePorts {
                 throw new MusicProviderUnavailableException(name.prefix() + " stopped answering");
             }
             AlbumKey key = AlbumKey.of(artist, title);
-            return catalogue.values().stream().filter(album -> album.key().equals(key)).findFirst();
+            return Optional.ofNullable(aliases.get(key)).map(catalogue::get)
+                    .or(() -> catalogue.values().stream().filter(album -> album.key().equals(key)).findFirst());
         }
 
         @Override

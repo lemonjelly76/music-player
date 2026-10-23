@@ -217,7 +217,7 @@ class MusicControllerTest {
     @Test
     void showsMoreLikeThisWithoutAskingTheModel() {
         given(candidates.moreLikeThis(CRAIG, AlbumRef.of("Massive Attack", "Mezzanine"), Optional.empty(), 10)).willReturn(List.of(
-                new Candidate(DUMMY, 10, new TreeSet<>(List.of("lastfm")), List.of("Massive Attack — Mezzanine"), 0)));
+                new Candidate(DUMMY, 10, new TreeSet<>(List.of("lastfm")), List.of("Massive Attack — Mezzanine"), 0, List.of())));
 
         assertThat(mvc.get().uri("/api/people/{id}/more-like-this?artist=Massive Attack&title=Mezzanine", CRAIG.id()))
                 .hasStatusOk()

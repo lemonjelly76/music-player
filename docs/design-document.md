@@ -93,9 +93,9 @@ Each person keeps up to three playlists per activity in their account, as slots 
 
 | Step | Done by | Where |
 | --- | --- | --- |
-| 1. Gather candidates | Server | `CandidateService`: up to 8 seeds (best rated, plus most played when counting is on), 10 suggestions per seed per source |
+| 1. Gather candidates | Server | `CandidateService`: up to 8 seeds, all the activity's own: albums loved there (most played first), plus up to 2 albums on repeat there that are not rated there and the albums of songs loved there; 10 suggestions per seed per source. The 4 albums most recently turned down there are looked up too, to count against what is like them |
 | 2. Filter | Server | Drops what is in the library, recommended in the last 28 days, already known (any category) or turned down for this category; keeps only what the person's service carries, at most 3 lookups per album wanted |
-| 3. Pre-rank | Server | `CandidatePool`: 2 per agreeing source + 1 per loved seed that leads to it + half the log2 of seed plays |
+| 3. Pre-rank | Server | `CandidatePool`: 2 per agreeing source + 1 per seed that leads to it + half the log2 of seed plays, less 2 for an artist turned down for the activity and 1.5 for an album also suggested for one turned down there (shown to Claude as `cautions`). Mixes, outtakes, remix and live albums and best-ofs are left out, one album found under two titles is merged by its service id, at most 2 albums per artist are kept, and each further album from the same seed counts 1 less, so one loved album cannot fill the pool |
 | 4. Choose | Model | About 7 from `get_candidates` plus up to 3 wildcards |
 | 5. Explain and learn | Model | A reason per pick; `update_taste_profile` |
 | 6. Validate and deliver | Server | `save_recommendations` resolves every pick to a real album on the person's service and drops the rest with a reason; the app shows them as albums to try |

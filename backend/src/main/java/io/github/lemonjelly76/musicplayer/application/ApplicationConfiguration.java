@@ -104,10 +104,10 @@ class ApplicationConfiguration {
     }
 
     @Bean
-    CandidateService candidateService(LibraryService library, PlayService plays,
+    CandidateService candidateService(LibraryService library, PlayService plays, SongService songs,
             RecommendationService recommendations, List<SimilaritySource> sources, MusicProviders providers,
             Clock clock) {
-        return new CandidateService(library, plays, recommendations, sources, providers, clock);
+        return new CandidateService(library, plays, songs, recommendations, sources, providers, clock);
     }
 
     @Bean

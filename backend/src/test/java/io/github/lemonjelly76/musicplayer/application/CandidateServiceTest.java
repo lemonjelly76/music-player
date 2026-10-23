@@ -1,13 +1,18 @@
 package io.github.lemonjelly76.musicplayer.application;
 
 import io.github.lemonjelly76.musicplayer.application.RecommendationService.PickRequest;
+import io.github.lemonjelly76.musicplayer.domain.album.AlbumKey;
 import io.github.lemonjelly76.musicplayer.domain.album.AlbumRef;
+import io.github.lemonjelly76.musicplayer.domain.album.Provider;
 import io.github.lemonjelly76.musicplayer.domain.album.Rating;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Candidate;
 import io.github.lemonjelly76.musicplayer.domain.candidate.Seed;
 import io.github.lemonjelly76.musicplayer.domain.category.Category;
 import io.github.lemonjelly76.musicplayer.domain.person.Person;
+import io.github.lemonjelly76.musicplayer.domain.playlist.Track;
+import io.github.lemonjelly76.musicplayer.domain.plays.Play;
 import io.github.lemonjelly76.musicplayer.domain.port.MusicProviderUnavailableException;
+import io.github.lemonjelly76.musicplayer.domain.port.PlayRepository.CategorisedPlay;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.PickSource;
 import io.github.lemonjelly76.musicplayer.domain.recommendation.RecommendationList;
 import org.junit.jupiter.api.Test;
@@ -170,5 +175,52 @@ class CandidateServiceTest {
     private void ageEverything() {
         world.recommendationRepository.saved.replaceAll((id, list) -> new RecommendationList(list.id(), list.person(),
                 list.category(), list.name(), NOW.minus(Duration.ofDays(60)), list.playlist(), list.picks()));
+    }
+
+    @Test
+    void alsoSeedsFromTheAlbumsOfSongsLovedThereAndWhatIsOnRepeatThere() {
+        Person craig = world.tidalUser("Craig");
+        world.library.add(craig, okComputer, Optional.of(running), Rating.LOVE, "", List.of());
+        world.library.add(craig, maxinquaye, Optional.of(running), Rating.DISLIKE, "", List.of());
+        world.songs.rate(craig, new Track(Provider.TIDAL, "s1", "Air", "Sexy Boy", "Moon Safari", Optional.empty()),
+                Optional.of(running), Optional.of(Rating.LOVE));
+        world.songs.rate(craig, new Track(Provider.TIDAL, "s2", "Bonobo", "Kerala", "Migration", Optional.empty()),
+                Optional.empty(), Optional.of(Rating.LOVE));
+        world.playRepository.add(craig.id(), List.of(played(dummy, running), played(dummy, running),
+                played(maxinquaye, running), played(mezzanine, driving)));
+
+        assertThat(world.candidates.seeds(craig, Optional.of(running))).extracting(Seed::label).containsExactly(
+                "Radiohead — OK Computer", "Portishead — Dummy (on repeat)", "Air — Moon Safari (a loved song's album)");
+    }
+
+    @Test
+    void offersAnAlbumOnceWhenTwoOfItsTitlesFindItOnTheService() {
+        Person craig = world.tidalUser("Craig");
+        world.library.add(craig, okComputer, Optional.empty(), Rating.LOVE, "", List.of());
+        AlbumRef submarine = album("Alex Turner", "Submarine (Original Songs)");
+        world.lastFm.suggest(okComputer, submarine, album("Alex Turner", "Submarine - Songs from the Film"));
+        world.tidal.carry("t-sub", submarine);
+        world.tidal.aliases.put(AlbumKey.of("Alex Turner", "Submarine - Songs from the Film"), "t-sub");
+
+        assertThat(world.candidates.candidates(craig, Optional.empty(), 5)).singleElement()
+                .satisfies(candidate -> assertThat(candidate.album().ids().tidal()).contains("t-sub"));
+    }
+
+    @Test
+    void ranksDownWhatIsLikeAlbumsTurnedDownThere() {
+        Person craig = craigWithOkComputer();
+        AlbumRef riot = album("Paramore", "Riot!");
+        world.library.add(craig, riot, Optional.empty(), Rating.DISLIKE, "", List.of());
+        world.lastFm.suggest(riot, mezzanine);
+
+        List<Candidate> pool = world.candidates.candidates(craig, Optional.empty(), 10);
+
+        assertThat(pool).extracting(Candidate::album).containsExactly(dummy, maxinquaye, mezzanine);
+        assertThat(pool.getLast().cautions()).containsExactly("like Paramore — Riot!, turned down here");
+    }
+
+    private static CategorisedPlay played(AlbumRef album, Category activity) {
+        return new CategorisedPlay(new Play(album, NOW.minusSeconds(3600), "spotify", Optional.empty()),
+                Optional.of(activity.id()));
     }
 }

@@ -78,11 +78,12 @@ final class Views {
     }
 
     record CandidateView(AlbumView album, double score, SortedSet<String> sources, List<String> seeds,
-                         Integer seedPlays) {
+                         Integer seedPlays, List<String> cautions) {
 
         static CandidateView from(Candidate candidate) {
             return new CandidateView(AlbumView.from(candidate.album()), candidate.score(), candidate.sources(),
-                    candidate.seeds(), candidate.seedPlays() == 0 ? null : candidate.seedPlays());
+                    candidate.seeds(), candidate.seedPlays() == 0 ? null : candidate.seedPlays(),
+                    candidate.cautions().isEmpty() ? null : candidate.cautions());
         }
     }
 
